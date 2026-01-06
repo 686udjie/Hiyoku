@@ -1,0 +1,33 @@
+name: Bug report
+description: Report an issue encountered with the app
+labels: [bug]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: Summarize the issue encountered.
+      placeholder: |
+        Example: "App crashes when opening series details"
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce-steps
+    attributes:
+      label: Steps to reproduce
+      description: Describe how one can reproduce the issue.
+      placeholder: |
+        Example:
+          1. Open the app
+          2. Navigate to library
+          3. Tap on any series
+          4. App crashes
+
+  - type: input
+    id: device-info
+    attributes:
+      label: Device and version
+      description: What device, OS version, and app version are you using?
+      placeholder: |
+        Example: "iPhone 16 Pro, iOS 26.1, Aidoku v0.7.2 (3)"
