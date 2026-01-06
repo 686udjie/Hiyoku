@@ -2254,28 +2254,7 @@
 			productReference = FB1B4835277CE1920056D02C /* Aidoku.app */;
 			productType = "com.apple.product-type.application";
 		};
-		FB1B483A277CE1920056D02C /* Aidoku (macOS) */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = FB1B484D277CE1920056D02C /* Build configuration list for PBXNativeTarget "Aidoku (macOS)" */;
-			buildPhases = (
-				FB1B4837277CE1920056D02C /* Sources */,
-				FB1B4838277CE1920056D02C /* Frameworks */,
-				FB1B4839277CE1920056D02C /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			name = "Aidoku (macOS)";
-			packageProductDependencies = (
-				FB6340C8279246D50072A2A2 /* ZIPFoundation */,
-				FB14B1342DF4D4E70067E4D4 /* Nuke */,
-				FBFDF5F92DF799340064F603 /* AidokuRunner */,
-			);
-			productName = "Aidoku (macOS)";
-			productReference = FB1B483B277CE1920056D02C /* Aidoku.app */;
-			productType = "com.apple.product-type.application";
-		};
+
 
 /* End PBXNativeTarget section */
 
@@ -2365,7 +2344,6 @@
 			projectRoot = "";
 			targets = (
 				FB1B4834277CE1920056D02C /* Aidoku (iOS) */,
-				FB1B483A277CE1920056D02C /* Aidoku (macOS) */,
 			);
 		};
 /* End PBXProject section */
@@ -3246,75 +3224,7 @@
 			};
 			name = Release;
 		};
-		FB1B484E277CE1920056D02C /* Debug */ = {
-			isa = XCBuildConfiguration;
-			baseConfigurationReference = 91D7BEF92DD7E48400898539 /* Aidoku-MACOS.xcconfig */;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CLANG_ENABLE_MODULES = YES;
-				CODE_SIGN_ENTITLEMENTS = macOS/macOS.entitlements;
-				CODE_SIGN_IDENTITY = "-";
-				CODE_SIGN_STYLE = Automatic;
-				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
-				DEAD_CODE_STRIPPING = YES;
-				ENABLE_APP_SANDBOX = YES;
-				ENABLE_HARDENED_RUNTIME = YES;
-				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
-				ENABLE_PREVIEWS = YES;
-				ENABLE_USER_SELECTED_FILES = readonly;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = macOS/Info.plist;
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-				);
-				MACOSX_DEPLOYMENT_TARGET = 12.0;
-				MARKETING_VERSION = 0.1;
-				PRODUCT_NAME = Aidoku;
-				SDKROOT = macosx;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
-				SWIFT_VERSION = 5.0;
-			};
-			name = Debug;
-		};
-		FB1B484F277CE1920056D02C /* Release */ = {
-			isa = XCBuildConfiguration;
-			baseConfigurationReference = 91D7BEF92DD7E48400898539 /* Aidoku-MACOS.xcconfig */;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CLANG_ENABLE_MODULES = YES;
-				CODE_SIGN_ENTITLEMENTS = macOS/macOS.entitlements;
-				CODE_SIGN_IDENTITY = "-";
-				CODE_SIGN_STYLE = Automatic;
-				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 1;
-				DEAD_CODE_STRIPPING = YES;
-				ENABLE_APP_SANDBOX = YES;
-				ENABLE_HARDENED_RUNTIME = YES;
-				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
-				ENABLE_PREVIEWS = YES;
-				ENABLE_USER_SELECTED_FILES = readonly;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = macOS/Info.plist;
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-				);
-				MACOSX_DEPLOYMENT_TARGET = 12.0;
-				MARKETING_VERSION = 0.1;
-				PRODUCT_NAME = Aidoku;
-				SDKROOT = macosx;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
-			};
-			name = Release;
-		};
+
 
 
 /* End XCBuildConfiguration section */
@@ -3338,15 +3248,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		FB1B484D277CE1920056D02C /* Build configuration list for PBXNativeTarget "Aidoku (macOS)" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				FB1B484E277CE1920056D02C /* Debug */,
-				FB1B484F277CE1920056D02C /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
+
 
 /* End XCConfigurationList section */
 

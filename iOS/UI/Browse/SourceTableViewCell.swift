@@ -173,7 +173,6 @@ class SourceTableViewCell: UITableViewCell {
                     iconView.tintColor = .systemBlue
                 default:
                     iconView.tintColor = nil
-                    break
             }
         }
     }
