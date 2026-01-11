@@ -15,13 +15,6 @@ struct MangaGridItem: View {
     let coverImage: String
     var bookmarked: Bool = false
 
-    static let gradient = Gradient(
-        colors: (0...24).map { offset -> Color in
-            let ratio = CGFloat(offset) / 24
-            return Color.black.opacity(0.7 * pow(ratio, CGFloat(3)))
-        }
-    )
-
     var body: some View {
         let view = Rectangle()
             .fill(Color.clear)
@@ -35,7 +28,7 @@ struct MangaGridItem: View {
             }
             .overlay(
                 LinearGradient(
-                    gradient: Self.gradient,
+                    gradient: UIConstants.imageOverlayGradient,
                     startPoint: .top,
                     endPoint: .bottom
                 )

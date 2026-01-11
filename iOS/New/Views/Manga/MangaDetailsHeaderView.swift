@@ -9,7 +9,7 @@ import SwiftUI
 import AidokuRunner
 import MarkdownUI
 import NukeUI
-import SafariServices
+import UIKit
 
 struct MangaDetailsHeaderView: View {
     let source: AidokuRunner.Source?
@@ -45,7 +45,6 @@ struct MangaDetailsHeaderView: View {
     @State private var readButtonDisabled = true
     @State private var animationTrigger = false
     @State private var longHeldBookmark = false
-    @State private var longHeldSafari = false
     @State private var isTracking = false
     @State private var hasAvailableTrackers = false
 
@@ -326,34 +325,6 @@ struct MangaDetailsHeaderView: View {
                     Image(systemName: "clock.arrow.2.circlepath")
                 }
                 .buttonStyle(MangaActionButtonStyle(selected: isTracking))
-            }
-
-            if let url = manga.url {
-                Button {
-                    guard url.scheme == "http" || url.scheme == "https" else { return }
-                    path.present(SFSafariViewController(url: url))
-                } label: {
-                    Image(systemName: "safari")
-                }
-                .buttonStyle(MangaActionButtonStyle())
-                .transition(.opacity)
-                .simultaneousGesture(
-                    LongPressGesture()
-                        .onEnded { finished in
-                            if finished {
-                                UIPasteboard.general.string = url.absoluteString
-                                longHeldSafari = true
-                            }
-                        }
-                )
-                .alert(
-                    NSLocalizedString("LINK_COPIED"),
-                    isPresented: $longHeldSafari
-                ) {
-                    Button(NSLocalizedString("OK"), role: .cancel) {}
-                } message: {
-                    Text(NSLocalizedString("LINK_COPIED_TEXT"))
-                }
             }
         }
     }

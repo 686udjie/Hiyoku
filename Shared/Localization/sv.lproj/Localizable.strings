@@ -256,7 +256,6 @@
 "ABOUT" = "Om";
 "BROWSE_NO_SOURCES" = "Inga källor";
 "SOURCE_LIST_URL" = "Källista-URL";
-"ICLOUD_SYNC" = "iCloud-synkronisering";
 "RTL" = "Höger till vänster";
 "NO_CHAPTERS" = "Inga kapitel";
 "VIEW_LIBRARY" = "Visa bibliotek";
@@ -564,8 +563,6 @@
 "NO_RECENT_SEARCHES" = "Inga nyliga sökningar";
 "NO_RECENT_SEARCHES_TEXT" = "Dina senaste sökningar kommer att visas här.";
 "SOURCES" = "Källor";
-"ICLOUD_SYNC_TEXT_EXPERIMENTAL" = "iCloud-synkronisering är en experimentell funktion som kan orsaka dataförluster om den aktiveras eller avaktiveras.";
-"ICLOUD_SYNC_TEXT_SIDELOADED" = "iCloud-synkronisering är endast tillgänglig om du har installerat via TestFlight.";
 "DOWNLOADED_CHAPTER_BADGES" = "Nedladdade kapitelmärken";
 "PIN_TITLES" = "Fäst titlar";
 "PIN_DISABLED" = "Avaktiverad";

@@ -18,21 +18,25 @@ struct AddSourceView: View {
     @State private var importing = false
     @State private var searching = false
     @State private var searchText = ""
+    @State private var filteredSources: [SourceInfo2] = []
     @State private var showLocalSetup = false
     @State private var showKomgaSetup = false
     @State private var showKavitaSetup = false
     @State private var showImportFailAlert = false
 
     @State private var searchFocused: Bool? = false
+    @State private var searchTask: Task<Void, Never>?
+    @State private var isTyping = false
 
     @Environment(\.dismiss) private var dismiss
 
     init(externalSources: [ExternalSourceInfo]) {
         allExternalSources = externalSources
 
-        let result = filterExternalSources()
+        let result = Self.filterExternalSources(allExternalSources: externalSources)
         _externalSources = State(initialValue: result.0)
         _allSourcesInstalled = State(initialValue: result.allSourcesInstalled)
+        _filteredSources = State(initialValue: result.0)
     }
 
     var body: some View {
@@ -78,27 +82,17 @@ struct AddSourceView: View {
                             )
                         }
                     } else {
-                        let filteredSources = if searchText.isEmpty {
-                            externalSources
-                        } else {
-                            externalSources.filter {
-                                ([$0.name.lowercased()] + ($0.altNames.map { $0.lowercased() }))
-                                    .contains {
-                                        $0.contains(searchText.lowercased())
-                                    }
-                            }
-                        }
                         if filteredSources.isEmpty {
                             Text(NSLocalizedString("NO_RESULTS"))
                                 .frame(maxWidth: .infinity)
                         } else {
                             ForEach(filteredSources, id: \.sourceId) { source in
                                 ExternalSourceTableCell(source: source, onInstall: {
-                                    let index = externalSources.firstIndex(of: source)
+                                    let index = filteredSources.firstIndex(of: source)
                                     if let index {
                                         withAnimation {
-                                            externalSources.remove(at: index)
-                                            if externalSources.isEmpty {
+                                            filteredSources.remove(at: index)
+                                            if filteredSources.isEmpty {
                                                 allSourcesInstalled = checkAllSourcesInstalled()
                                             }
                                         }
@@ -137,7 +131,29 @@ struct AddSourceView: View {
                     }
                 }
             )
-            .animation(.default, value: searchText)
+            .onChange(of: searchText) { newValue in
+        // The user just typed, so mark as typing
+        isTyping = true
+
+        // Cancel any previous pending search
+        searchTask?.cancel()
+
+        // Start a new task that waits for 1 second
+        searchTask = Task {
+            try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
+
+            // If the task was cancelled (user typed again), do nothing
+            guard !Task.isCancelled else { return }
+
+            // Run the search on the main actor
+            await MainActor.run {
+                performSearch(query: newValue)
+                isTyping = false
+                searchTask = nil
+            }
+        }
+            }
+            .animation(.default, value: filteredSources)
             .animation(.default, value: searching)
             .sheet(isPresented: $importing) {
                 DocumentPickerView(
@@ -181,14 +197,56 @@ struct AddSourceView: View {
             .navigationTitle(NSLocalizedString("ADD_SOURCE"))
             .navigationBarTitleDisplayMode(.inline)
             .onReceive(NotificationCenter.default.publisher(for: .filterExternalSources)) { _ in
-                let result = filterExternalSources()
+                // Only update if user is not actively typing or searching
+                guard !searching && !isTyping else { return }
+
+                let result = Self.filterExternalSources(allExternalSources: allExternalSources)
                 withAnimation {
                     externalSources = result.0
                     allSourcesInstalled = result.allSourcesInstalled
+                    // Keep search results in sync if there's an active search
+                    if !searchText.isEmpty {
+                        // Re-run search with new external sources
+                        performSearch(query: searchText)
+                    } else {
+                        filteredSources = result.0
+                    }
                 }
             }
         }
         .interactiveDismissDisabled(searching)
+        .onDisappear {
+            searchTask?.cancel()
+        }
+    }
+
+    // MARK: - Search Methods
+    private func performSearch(query: String) {
+        // Calculate new results without updating UI yet
+        let newFilteredSources: [SourceInfo2]
+
+        if query.isEmpty {
+            newFilteredSources = externalSources
+        } else {
+            // Cache the lowercase query for performance
+            let lowercaseQuery = query.lowercased()
+
+            // Filter sources based on query with optimized search
+            newFilteredSources = externalSources.filter { source in
+                // Check main name first (most common case)
+                if source.name.lowercased().contains(lowercaseQuery) {
+                    return true
+                }
+
+                // Check alternative names if main name doesn't match
+                return source.altNames.contains { altName in
+                    altName.lowercased().contains(lowercaseQuery)
+                }
+            }
+        }
+
+        // Only update UI once with final results
+        filteredSources = newFilteredSources
     }
 
     var builtInSources: some View {
@@ -296,7 +354,7 @@ struct AddSourceView: View {
         }
     }
 
-    func filterExternalSources() -> ([SourceInfo2], allSourcesInstalled: Bool) {
+    static func filterExternalSources(allExternalSources: [ExternalSourceInfo]) -> ([SourceInfo2], allSourcesInstalled: Bool) {
         guard let appVersionString = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String
         else { return ([], true) }
         let appVersion = SemanticVersion(appVersionString)

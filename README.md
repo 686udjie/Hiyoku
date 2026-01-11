@@ -29,3 +29,7 @@ For detailed documentation, visit:
 
 - [Skitty's ko-fi](https://ko-fi.com/skittyblock)
 - Cranci doesn’t have any donation links at the time of writing, so you can sponsor him on [Github](https://github.com/cranci1)
+
+# Disclaimer
+
+The developer(s) of this application does not have any affiliation with the content providers available, and this application hosts zero content.

@@ -19,7 +19,7 @@ class NavigationCoordinator: ObservableObject {
         }
     }
 
-    init(rootViewController: UIViewController?) {
+    init(rootViewController: UIViewController? = nil) {
         self.rootViewController = rootViewController
     }
 

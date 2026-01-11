@@ -346,7 +346,7 @@ class ReaderViewController: BaseObservingViewController {
         chapter: AidokuRunner.Chapter? = nil
     ) async {
         guard
-            !UserDefaults.standard.bool(forKey: "General.incognitoMode"),
+            !UserDefaults.standard.bool(forKey: UserDefaultsKey.General.incognitoMode),
             (totalPages ?? toolbarView.totalPages ?? 0) > 0 // ensure chapter pages are loaded
         else {
             return
@@ -767,7 +767,7 @@ extension ReaderViewController: ReaderHoldingDelegate {
     }
 
     func setCompleted() {
-        if !UserDefaults.standard.bool(forKey: "General.incognitoMode") {
+        if !UserDefaults.standard.bool(forKey: UserDefaultsKey.General.incognitoMode) {
             Task {
                 await HistoryManager.shared.addHistory(
                     sourceId: manga.sourceKey,

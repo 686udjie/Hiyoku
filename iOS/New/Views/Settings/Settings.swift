@@ -27,7 +27,7 @@ enum Settings {
                 ))
             ),
             .init(
-                title: NSLocalizedString("LIBRARY"),
+                title: NSLocalizedString("READER_LIBRARY_SETTINGS"),
                 value: .page(.init(
                     items: librarySettings,
                     inlineTitle: true,
@@ -51,33 +51,20 @@ enum Settings {
                 ))
             ),
             .init(
+                title: NSLocalizedString("PLAYER_LIBRARY"),
+                value: .page(.init(
+                    items: [],
+                    inlineTitle: true,
+                    icon: .system(name: "books.vertical.fill", color: "red")
+                ))
+            ),
+            .init(
                 key: "Tracking",
                 title: NSLocalizedString("TRACKING"),
                 value: .page(.init(
                     items: [],
                     inlineTitle: true,
                     icon: .system(name: "clock.arrow.2.circlepath", color: "orange", inset: 4)
-                ))
-            ),
-            .init(
-                title: NSLocalizedString("ICLOUD_SYNC"),
-                value: .page(.init(
-                    items: [
-                        .init(value: .group(.init(items: [
-                            .init(
-                                key: "General.icloudSync",
-                                title: String(format: NSLocalizedString("%@_EXPERIMENTAL"), NSLocalizedString("ICLOUD_SYNC")),
-                                requires: "isiCloudAvailable",
-                                value: .toggle(.init())
-                            )
-                        ])))
-                    ],
-                    icon: .system(name: "icloud.fill", color: "blue"),
-                    info: NSLocalizedString(
-                        UserDefaults.standard.bool(forKey: "isSideloaded")
-                            ? "ICLOUD_SYNC_TEXT_SIDELOADED"
-                            : "ICLOUD_SYNC_TEXT_EXPERIMENTAL"
-                    )
                 ))
             ),
             .init(
@@ -114,16 +101,16 @@ enum Settings {
                 value: .page(.init(
                     items: [],
                     inlineTitle: true,
-                    icon: .system(name: "globe", color: "green")
+                    icon: .system(name: "book.fill", color: "green")
                 ))
             ),
             .init(
-                key: "Backups",
-                title: NSLocalizedString("BACKUPS"),
+                key: "PlayerSources",
+                title: NSLocalizedString("PLAYER_SOURCES"),
                 value: .page(.init(
                     items: [],
                     inlineTitle: true,
-                    icon: .system(name: "externaldrive.fill", color: "red")
+                    icon: .system(name: "tv.fill", color: "purple")
                 ))
             ),
             .init(
@@ -534,32 +521,6 @@ extension Settings {
     ]
 
     private static let advancedSettings: [Setting] = [
-        .init(
-            title: NSLocalizedString("LOGGING"),
-            value: .group(.init(items: [
-                .init(
-                    key: "Logs.logServer",
-                    title: NSLocalizedString("LOG_SERVER"),
-                    value: .text(.init(
-                        placeholder: "http://127.0.0.1",
-                        autocapitalizationType: 0,
-                        keyboardType: 3,
-                        returnKeyType: 9,
-                        autocorrectionDisabled: true,
-                    ))
-                ),
-                .init(
-                    key: "Logs.export",
-                    title: NSLocalizedString("EXPORT_LOGS"),
-                    value: .button(.init())
-                ),
-                .init(
-                    key: "Logs.display",
-                    title: NSLocalizedString("DISPLAY_LOGS"),
-                    value: .button(.init())
-                )
-            ]))
-        ),
         .init(
             title: NSLocalizedString("ADVANCED"),
             value: .group(.init(items: [

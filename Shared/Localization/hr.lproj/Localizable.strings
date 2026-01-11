@@ -147,7 +147,6 @@
 "GITHUB_REPO" = "GitHub repozitorij";
 "SUPPPORT_DEVELOPMENT" = "Podrška razvoju";
 "GENERAL" = "Općenito";
-"ICLOUD_SYNC" = "iCloud sinkronizacija";
 "MANGA_PER_ROW" = "Broj mangi po redu";
 "PORTRAIT" = "Uspravno";
 "LANDSCAPE" = "Položeno";
@@ -538,8 +537,6 @@
 "DISPLAY_DEFAULT" = "Zadano";
 "DISPLAY_CHAPTER" = "Poglavlje";
 "DISPLAY_VOLUME" = "Svezak";
-"ICLOUD_SYNC_TEXT_EXPERIMENTAL" = "iCloud sinkronizacija je eksperimentalna funkcija. Njeno aktiviranje ili deaktiviranje može uzrokovati gubitak podataka.";
-"ICLOUD_SYNC_TEXT_SIDELOADED" = "iCloud sinkronizacija je dostupna samo kada je instalirana putem TestFlighta.";
 "NO_RESULTS_FOR_%@" = "Nema rezultata za „%@”";
 "NO_RESULTS_TEXT" = "Provjeri pravopis ili pokušaj s novom pretragom.";
 "ZONE_EDGE" = "Rub";

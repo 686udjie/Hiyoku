@@ -70,7 +70,6 @@ class TabBarController: UITabBarController {
         delegate = self
 
         let libraryViewController = NavigationController(rootViewController: LibraryViewController())
-        print("PlayerViewController type: \(PlayerViewController.self)")
         let playerViewController = NavigationController(rootViewController: PlayerViewController())
         let browseViewController = NavigationController(rootViewController: BrowseViewController())
         let searchViewController = NavigationController(rootViewController: SearchViewController())
@@ -126,14 +125,14 @@ class TabBarController: UITabBarController {
                 },
                 UITab(
                     title: NSLocalizedString("PLAYER"),
-                    image: UIImage(systemName: "play.tv.fill"),
+                    image: UIImage(systemName: "books.vertical.fill"),
                     identifier: "0.5"
                 ) { _ in
                     playerViewController
                 },
                 UITab(
                     title: NSLocalizedString("BROWSE"),
-                    image: UIImage(systemName: "globe"),
+                    image: UIImage(systemName: "globe.fill"),
                     identifier: "1"
                 ) { _ in
                     browseViewController
@@ -159,12 +158,12 @@ class TabBarController: UITabBarController {
             )
             playerViewController.tabBarItem = UITabBarItem(
                 title: NSLocalizedString("PLAYER", comment: ""),
-                image: UIImage(systemName: "tv.fill"),
+                image: UIImage(systemName: "books.vertical.fill"),
                 tag: 1
             )
             browseViewController.tabBarItem = UITabBarItem(
                 title: NSLocalizedString("BROWSE", comment: ""),
-                image: UIImage(systemName: "globe"),
+                image: UIImage(systemName: "globe.fill"),
                 tag: 2
             )
             searchViewController.tabBarItem = UITabBarItem(
@@ -199,7 +198,7 @@ class TabBarController: UITabBarController {
         if originalFrame == .zero {
             let bannerHeight = (UIApplication.shared.connectedScenes.first?.delegate as? SceneDelegate)?.totalBannerHeight ?? 0
             originalFrame = view.frame
-            shrunkFrame = .init(
+            shrunkFrame = CGRect(
                 x: originalFrame.origin.x,
                 y: originalFrame.origin.y + bannerHeight,
                 width: originalFrame.width,
@@ -207,7 +206,7 @@ class TabBarController: UITabBarController {
             )
         }
         func commit() {
-            if UserDefaults.standard.bool(forKey: "General.incognitoMode") {
+            if UserDefaults.standard.bool(forKey: UserDefaultsKey.General.incognitoMode) {
                 view.frame = shrunkFrame
             } else {
                 view.frame = originalFrame

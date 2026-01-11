@@ -150,22 +150,6 @@ extension SettingsView {
                     UIApplication.shared.firstKeyWindow?.overrideUserInterfaceStyle = .unspecified
                 }
 
-            case "Logs.logServer":
-                Task {
-                    let url = UserDefaults.standard.string(forKey: "Logs.logServer").flatMap(URL.init)
-                    await LogManager.logger.store.setStreamUrl(url)
-                }
-            case "Logs.export":
-                Task {
-                    let url = await LogManager.export()
-                    let vc = UIActivityViewController(activityItems: [url], applicationActivities: nil)
-                    guard let sourceView = path.rootViewController?.view else { return }
-                    vc.popoverPresentationController?.sourceView = sourceView
-                    path.present(vc)
-                }
-            case "Logs.display":
-                path.push(LogViewController())
-
             case "Advanced.clearTrackedManga":
                 confirmAction(
                     title: NSLocalizedString("CLEAR_TRACKED_MANGA"),
@@ -294,8 +278,8 @@ extension SettingsView {
             InsightsView()
         } else if key == "SourceLists" {
             SourceListsView()
-        } else if key == "Backups" {
-            BackupsView().environmentObject(path)
+        } else if key == "PlayerSources" {
+            ModulesView()
         } else if key == "Downloads" {
             DownloadsView().environmentObject(path)
         } else if key == "History" {

@@ -45,14 +45,27 @@ struct ExpandableTextView: View {
                 .environment(
                     \.openURL,
                     OpenURLAction { url in
+                        print("[Safari Debug] ExpandableTextView URL tapped: \(url)")
+
                         guard let appDelegate = UIApplication.shared.delegate as? AppDelegate else {
+                            print("[Safari Debug] Failed to get AppDelegate")
                             return .systemAction
                         }
 
                         Task {
+                            print("[Safari Debug] Handling deep link for: \(url)")
                             let deepLinkHandled = await appDelegate.handleDeepLink(url: url)
-                            if !deepLinkHandled && (url.scheme == "http" || url.scheme == "https") {
-                                path.present(SFSafariViewController(url: url))
+
+                            if deepLinkHandled {
+                                print("[Safari Debug] Deep link handled by app")
+                            } else if url.scheme == "http" || url.scheme == "https" {
+                                print("[Safari Debug] Opening URL in Safari: \(url)")
+                                let safariViewController = SFSafariViewController(url: url)
+                                safariViewController.modalPresentationStyle = .pageSheet
+                                path.present(safariViewController)
+                                print("[Safari Debug] SafariViewController present call completed for markdown URL")
+                            } else {
+                                print("[Safari Debug] URL scheme not supported: \(url.scheme ?? "nil")")
                             }
                         }
 

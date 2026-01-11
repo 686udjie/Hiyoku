@@ -284,17 +284,43 @@ class SourceViewController: OldMangaCollectionViewController {
     }
 
     @objc func openSourceWebView() {
+        print("[Safari Debug] openSourceWebView called")
+
         let url: URL?
         if let urlString = source.manifest.info.url {
             url = URL(string: urlString)
+            print("[Safari Debug] Using primary URL: \(urlString)")
         } else if let urlString = source.manifest.info.urls?.first  {
             url = URL(string: urlString)
+            print("[Safari Debug] Using fallback URL: \(urlString)")
         } else {
             url = nil
+            print("[Safari Debug] No URL found in source manifest")
         }
-        if let url, url.scheme == "http" || url.scheme == "https" {
+
+        guard let url = url else {
+            print("[Safari Debug] Failed to create URL from string")
+            return
+        }
+
+        guard url.scheme == "http" || url.scheme == "https" else {
+            print("[Safari Debug] Invalid URL scheme: \(url.scheme ?? "nil")")
+            return
+        }
+
+        print("[Safari Debug] URL validation passed: \(url)")
+
+        // Ensure we're on the main thread before presenting
+        Task { @MainActor in
+            print("[Safari Debug] Creating SafariViewController")
             let safariViewController = SFSafariViewController(url: url)
-            present(safariViewController, animated: true)
+            safariViewController.modalPresentationStyle = .pageSheet
+
+            print("[Safari Debug] Attempting to present SafariViewController")
+            present(safariViewController, animated: true) {
+                // Log successful presentation for debugging
+                print("[Safari Debug] Safari view controller presented successfully for URL: \(url)")
+            }
         }
     }
 

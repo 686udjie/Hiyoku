@@ -7,6 +7,7 @@
 
 import AidokuRunner
 import SwiftUI
+import NukeUI
 
 struct SearchContentView: View {
     @StateObject private var viewModel: ViewModel
@@ -142,49 +143,145 @@ struct SearchContentView: View {
         }
     }
 
-    var searchResults: some View {
-        ForEach(viewModel.results) { searchResult in
-            let source = searchResult.source
-            let result = searchResult.result
-            let id = {
-                var hasher = Hasher()
-                for entry in result.entries {
-                    hasher.combine(entry)
+    private func mangaSourceSection(
+        for searchResult: SearchContentView.ViewModel.SearchResult,
+        result: AidokuRunner.MangaPageResult,
+        id: Int
+    ) -> some View {
+        Section {
+            HomeScrollerView(
+                source: searchResult.source!,
+                component: .init(
+                    title: nil,
+                    value: .scroller(entries: result.entries.map { $0.intoLink() })
+                )
+            )
+            .id("\(searchResult.source!.key).\(id)")
+            .environmentObject(path)
+            .listRowBackground(Color.clear)
+            .listRowInsets(.zero)
+            .listRowSeparator(.hidden)
+        } header: {
+            HStack {
+                SourceIconView(
+                    sourceId: searchResult.source!.key,
+                    imageUrl: searchResult.source!.imageUrl,
+                    iconSize: 29
+                )
+                .scaleEffect(0.75)
+                Text(searchResult.source!.name)
+
+                Spacer()
+
+                Button(NSLocalizedString("VIEW_MORE")) {
+                    openResult(searchResult)
                 }
-                return hasher.finalize()
-            }()
-            if !result.entries.isEmpty {
-                Section {
-                    HomeScrollerView(
-                        source: source,
-                        component: .init(
-                            title: nil,
-                            value: .scroller(entries: result.entries.map { $0.intoLink() })
-                        )
-                    )
-                    .id("\(source.key).\(id)") // fixes issue with incorrect entries showing
-                    .environmentObject(path)
-                    .listRowBackground(Color.clear)
-                    .listRowInsets(.zero)
-                    .listRowSeparator(.hidden)
-                } header: {
-                    HStack {
-                        SourceIconView(
-                            sourceId: source.key,
-                            imageUrl: source.imageUrl,
-                            iconSize: 29
-                        )
-                        .scaleEffect(0.75)
-                        Text(source.name)
+            }
+            .font(.body)
+            .textCase(nil)
+        }
+    }
 
-                        Spacer()
+    private func playerModuleSection(for searchResult: SearchContentView.ViewModel.SearchResult, result: AidokuRunner.MangaPageResult) -> some View {
+        _ = {
+            var hasher = Hasher()
+            for entry in result.entries {
+                hasher.combine(entry)
+            }
+            return hasher.finalize()
+        }()
 
-                        Button(NSLocalizedString("VIEW_MORE")) {
+        return Section {
+            // Reimplement banner card display for player (similar to HomeScrollerView)
+            ScrollView(.horizontal, showsIndicators: false) {
+                LazyHStack(alignment: .top, spacing: 16) {
+                    ForEach(0..<min(result.entries.count, 5), id: \.self) { index in
+                        let entry = result.entries[index]
+                        Button {
                             openResult(searchResult)
+                        } label: {
+                            VStack(alignment: .leading) {
+                                // Cover image (similar to individual player sources)
+                                LazyImage(url: URL(string: entry.cover ?? "")) { state in
+                                    if let uiImage = state.imageContainer?.image {
+                                        Image(uiImage: uiImage)
+                                            .resizable()
+                                            .aspectRatio(contentMode: .fill)
+                                            .frame(width: 120, height: 180)
+                                            .clipShape(RoundedRectangle(cornerRadius: 5))
+                                    } else {
+                                        RoundedRectangle(cornerRadius: 5)
+                                            .fill(Color.gray.opacity(0.3))
+                                            .frame(width: 120, height: 180)
+                                            .overlay(
+                                                Image(systemName: "photo")
+                                                    .foregroundStyle(.gray)
+                                            )
+                                    }
+                                }
+
+                                // Title
+                                Text(entry.title)
+                                    .lineLimit(2)
+                                    .multilineTextAlignment(.leading)
+                                    .frame(width: 120, alignment: .leading)
+                                    .padding(.top, 8)
+                            }
                         }
+                        .buttonStyle(PlainButtonStyle())
                     }
-                    .font(.body)
-                    .textCase(nil)
+                }
+                .padding(.horizontal)
+                .padding(.vertical, 8)
+            }
+            .frame(height: 220) // Fixed height for horizontal scrolling
+        } header: {
+            HStack {
+                if !searchResult.module!.metadata.iconUrl.isEmpty {
+                    AsyncImage(url: URL(string: searchResult.module!.metadata.iconUrl)) { image in
+                        image
+                            .resizable()
+                            .frame(width: 29, height: 29)
+                            .clipShape(Circle())
+                    } placeholder: {
+                        Circle()
+                            .fill(Color.gray.opacity(0.3))
+                            .frame(width: 29, height: 29)
+                    }
+                }
+                Text(searchResult.module!.metadata.sourceName)
+
+                Spacer()
+
+                Button(NSLocalizedString("VIEW_MORE")) {
+                    openResult(searchResult)
+                }
+            }
+            .font(.body)
+            .textCase(nil)
+        }
+        .listRowBackground(Color.clear)
+        .listRowInsets(.zero)
+        .listRowSeparator(.hidden)
+    }
+
+    var searchResults: some View {
+        Group {
+            ForEach(Array(viewModel.results), id: \.id) { searchResult in
+                let result = searchResult.result
+
+                if !result.entries.isEmpty {
+                    if searchResult.source != nil {
+                        mangaSourceSection(for: searchResult, result: result, id: {
+                            var hasher = Hasher()
+                            for entry in result.entries {
+                                hasher.combine(entry)
+                            }
+                            return hasher.finalize()
+                        }())
+                    } else if searchResult.module != nil {
+                        playerModuleSection(for: searchResult, result: result)
+                    }
                 }
             }
         }

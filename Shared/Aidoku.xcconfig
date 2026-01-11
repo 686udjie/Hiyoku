@@ -11,10 +11,6 @@ APP_ID_SUFFIX               = hiyoku
 
 PRODUCT_BUNDLE_IDENTIFIER   = $(APP_ID_PREFIX).$(APP_ID_SUFFIX)
 
-// ----- iCloud / CloudKit -----
-ICLOUD_CONTAINER_ID         = iCloud.$(PRODUCT_BUNDLE_IDENTIFIER)
-UBIQUITY_KVSTORE_ID         = $(TeamIdentifierPrefix)$(PRODUCT_BUNDLE_IDENTIFIER)
-
 // Store build
 // Dev / sideload build (leave flag 'CANONICAL_BUILD' undefined)
 OTHER_SWIFT_FLAGS = $(inherited) -DCANONICAL_BUILD

@@ -88,6 +88,18 @@
         <attribute name="viewed" attributeType="Boolean" defaultValueString="NO" usesScalarValueType="YES"/>
         <relationship name="chapter" optional="YES" maxCount="1" deletionRule="Nullify" destinationEntity="Chapter" inverseName="mangaUpdate" inverseEntity="Chapter"/>
     </entity>
+    <entity name="PlayerHistory" representedClassName="PlayerHistoryObject" syncable="YES" codeGenerationType="class">
+        <attribute name="dateWatched" attributeType="Date" defaultDateTimeInterval="665122680" usesScalarValueType="NO"/>
+        <attribute name="episodeId" attributeType="String" defaultValueString=""/>
+        <attribute name="episodeNumber" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="episodeTitle" optional="YES" attributeType="String"/>
+        <attribute name="moduleId" attributeType="String" defaultValueString=""/>
+        <attribute name="playerTitle" attributeType="String" defaultValueString=""/>
+        <attribute name="progress" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="sourceUrl" attributeType="String" defaultValueString=""/>
+        <attribute name="total" optional="YES" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
+        <attribute name="watchedDuration" attributeType="Integer 32" defaultValueString="0" usesScalarValueType="YES"/>
+    </entity>
     <entity name="ReadingSession" representedClassName="ReadingSessionObject" syncable="YES" codeGenerationType="class">
         <attribute name="endDate" attributeType="Date" defaultDateTimeInterval="-978285600" usesScalarValueType="NO"/>
         <attribute name="pagesRead" attributeType="Integer 16" defaultValueString="0" usesScalarValueType="YES"/>
@@ -118,6 +130,7 @@
         <memberEntity name="MangaUpdate"/>
         <memberEntity name="LocalFileInfo"/>
         <memberEntity name="ReadingSession"/>
+        <memberEntity name="PlayerHistory"/>
     </configuration>
     <configuration name="Local">
         <memberEntity name="Source"/>

@@ -192,7 +192,6 @@
 "AUTH_FOR_HISTORY" = "Hitelesíts az olvasási előzmények megtekintéséhez.";
 "AUTH_TO_ENABLE" = "Hitelesíts a bekapcsoláshoz.";
 "AUTH_TO_DISABLE" = "Hitelesíts a kikapcsoláshoz.";
-"ICLOUD_SYNC" = "iCloud Szinkronizálás";
 "INCOGNITO_MODE_TEXT" = "Ha engedélyezve van szünetelteti az olvasási előzményeket";
 "USE_SYSTEM_APPEARANCE" = "Rendszer Megjelenés Használata";
 "MANGA_PER_ROW" = "Manga soronként";

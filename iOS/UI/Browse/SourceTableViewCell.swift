@@ -149,9 +149,18 @@ class SourceTableViewCell: UITableViewCell {
         titleLabel.text = info.name
         versionLabel.text = "v" + String(info.version)
         badgeView.isHidden = info.contentRating != .primarilyNsfw
-        subtitleLabel.text = info.isMultiLanguage
+
+        let languageText = info.isMultiLanguage
             ? NSLocalizedString("MULTI_LANGUAGE")
             : Locale.current.localizedString(forIdentifier: info.languages[0]) ?? info.languages[0]
+
+        let isPlayerSource = if let module = ModuleManager.shared.modules.first(where: { $0.id.uuidString == info.sourceId }) {
+            module.isPlayerModule
+        } else {
+            false
+        }
+        let sourceTypeTag = isPlayerSource ? "Player" : "Reader"
+        subtitleLabel.text = "\(languageText) • \(sourceTypeTag)"
 
         getButton.isHidden = info.externalInfo == nil
 

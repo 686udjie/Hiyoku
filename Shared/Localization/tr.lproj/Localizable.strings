@@ -150,7 +150,6 @@
 "AUTH_TO_ENABLE" = "Etkinleştirmek için kimliğinizi doğrulayın.";
 "AUTH_TO_DISABLE" = "Devre dışı bırakmak için kimliğinizi doğrulayın.";
 "GENERAL" = "Genel";
-"ICLOUD_SYNC" = "iCloud Senkronizasyonu";
 "INCOGNITO_MODE" = "Gizli Mod";
 "INCOGNITO_MODE_TEXT" = "Etkinleştirildiğinde okuma geçmişini durdurur";
 "APPEARANCE" = "Görünüm";

@@ -43,4 +43,9 @@ extension UIViewController {
 
         self.present(alertController, animated: true, completion: completion)
     }
+
+    /// Shows an error alert with a default OK button
+    func showError(message: String, title: String = "Error") {
+        presentAlert(title: title, message: message)
+    }
 }

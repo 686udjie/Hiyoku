@@ -40,7 +40,7 @@ struct StatsGridView: View {
     }
     private var selectedChartData: MonthData {
         if let selectedChartYear {
-            return chartData.first(where: { $0.year == selectedChartYear })!.data
+            return chartData.first(where: { $0.year == selectedChartYear })?.data ?? MonthData()
         } else {
             // combine all chart data
             var total: MonthData = .init()
@@ -168,7 +168,7 @@ struct StatsGridView: View {
             let isTooLargeForSquare = normalSquare > Self.largestSquareSize
 
             ZStack(alignment: .topLeading) {
-                ForEach(0..<3) { i in
+                ForEach(0..<min(3, items.count), id: \.self) { i in
                     squareView(
                         index: i,
                         size: size(for: i, normal: normalSquare, expanded: expandedSquare),

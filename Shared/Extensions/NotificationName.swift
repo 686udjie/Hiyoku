@@ -12,7 +12,6 @@ extension Notification.Name {
 
     static let updateSourceList = Self("updateSourceList")
     static let updateSourceLists = Self("updateSourceLists")
-    static let updateBackupList = Self("updateBackupList")
 
     // general
     static let incognitoMode = Self("General.incognitoMode")
@@ -34,6 +33,11 @@ extension Notification.Name {
     static let historyAdded = Self("historyAdded")
     static let historyRemoved = Self("historyRemoved")
     static let historySet = Self("historySet")
+
+    // player history
+    static let playerHistoryAdded = Self("playerHistoryAdded")
+    static let playerHistoryUpdated = Self("playerHistoryUpdated")
+    static let playerHistoryRemoved = Self("playerHistoryRemoved")
 
     // trackers
     static let updateTrackers = Self("updateTrackers")
@@ -65,4 +69,19 @@ extension Notification.Name {
     static let portraitRowsSetting = Self("General.portraitRows")
     static let landscapeRowsSetting = Self("General.landscapeRows")
     static let historyLockSetting = Self("History.lockHistory")
+
+    // modules
+    static let modulesSyncDidComplete = Self("modulesSyncDidComplete")
+    static let moduleAdded = Self("moduleAdded")
+    static let moduleRemoved = Self("moduleRemoved")
+    static let moduleStateChanged = Self("moduleStateChanged")
+
+    // player bookmarks
+    static let playerBookmarkAdded = Self("playerBookmarkAdded")
+    static let playerBookmarkRemoved = Self("playerBookmarkRemoved")
+
+    // player library
+    static let updatePlayerLibrary = Self("updatePlayerLibrary")
+    static let addToPlayerLibrary = Self("addToPlayerLibrary")
+    static let removeFromPlayerLibrary = Self("removeFromPlayerLibrary")
 }

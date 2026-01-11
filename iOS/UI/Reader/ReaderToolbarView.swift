@@ -46,7 +46,7 @@ class ReaderToolbarView: UIView {
         incognitoModeLabel.font = .systemFont(ofSize: 10)
         incognitoModeLabel.textColor = .secondaryLabel
         incognitoModeLabel.textAlignment = .left
-        incognitoModeLabel.isHidden = !UserDefaults.standard.bool(forKey: "General.incognitoMode")
+        incognitoModeLabel.isHidden = !UserDefaults.standard.bool(forKey: UserDefaultsKey.General.incognitoMode)
         addSubview(incognitoModeLabel)
 
         currentPageLabel.font = .systemFont(ofSize: 10)
@@ -89,7 +89,7 @@ class ReaderToolbarView: UIView {
     func observe() {
         NotificationCenter.default.publisher(for: .incognitoMode)
             .sink { [weak self] _ in
-                self?.incognitoModeLabel.isHidden = !UserDefaults.standard.bool(forKey: "General.incognitoMode")
+                self?.incognitoModeLabel.isHidden = !UserDefaults.standard.bool(forKey: UserDefaultsKey.General.incognitoMode)
             }
             .store(in: &cancellables)
     }

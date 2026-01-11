@@ -109,7 +109,6 @@
 "DISCORD_SERVER" = "Сервер Discord";
 "SUPPPORT_DEVELOPMENT" = "Поддержка Разработки";
 "GENERAL" = "Основное";
-"ICLOUD_SYNC" = "Синхронизация с iCloud";
 "APPEARANCE" = "Тема";
 "APPEARANCE_LIGHT" = "Светлая";
 "APPEARANCE_DARK" = "Темная";
@@ -519,8 +518,6 @@
 "ZONE_KINDLE" = "Kindle";
 "RANGE_FROM" = "От";
 "RANGE_TO" = "До";
-"ICLOUD_SYNC_TEXT_EXPERIMENTAL" = "Синхронизация по iCloud - это экспериментальная функция. Включение или выключение может повлечь потерю данных.";
-"ICLOUD_SYNC_TEXT_SIDELOADED" = "Синхронизация iCloud доступна только если приложение установлено через TestFlight.";
 "NO_RESULTS_FOR_%@" = "Нет результата для “%@”";
 "NO_RESULTS_TEXT" = "Проверьте правописание или попробуйте новый поиск.";
 "ZONE_EDGE" = "Край";

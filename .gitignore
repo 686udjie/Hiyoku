@@ -19,3 +19,6 @@
 
 # Xcode-Build-Server
 buildServer.json
+
+# Build folder
+build/

@@ -13,6 +13,7 @@ class BrowseViewModel {
     var updatesSources: [SourceInfo2] = []
     var pinnedSources: [SourceInfo2] = []
     var installedSources: [SourceInfo2] = []
+    var playerSources: [SourceInfo2] = []
 
     var unfilteredExternalSources: [ExternalSourceInfo] = []
 
@@ -21,30 +22,74 @@ class BrowseViewModel {
     private var storedUpdatesSources: [SourceInfo2]?
     private var storedPinnedSources: [SourceInfo2]?
     private var storedInstalledSources: [SourceInfo2]?
-    private var storedExternalSources: [SourceInfo2]?
+    private var storedPlayerSources: [SourceInfo2]?
+    private var storedExternalSources: [ExternalSourceInfo]?
 
     private func getInstalledSources() -> [SourceInfo2] {
         SourceManager.shared.sources.map { $0.toInfo() }
     }
 
+    private func getPlayerSources() -> [SourceInfo2] {
+        // Reload modules dynamically to ensure we have the latest list
+        ModuleManager.shared.loadModules()
+        // Show only active player modules (not novel modules) - display as many as possible
+        return ModuleManager.shared.modules.filter { $0.isPlayerModule && $0.isActive }.map { module in
+            SourceInfo2(
+                sourceId: module.id.uuidString,
+                iconUrl: URL(string: module.metadata.iconUrl),
+                name: module.metadata.sourceName,
+                languages: [module.metadata.language],
+                version: Int(module.metadata.version.components(separatedBy: ".").first ?? "1") ?? 1,
+                contentRating: .safe
+            )
+        }
+    }
+
     // load installed sources
     func loadInstalledSources() {
         let installedSources = getInstalledSources()
+        let playerSources = getPlayerSources()
+        // Combine installed sources with active player sources from player sources
+        let combinedInstalledSources = installedSources + playerSources
+
         if storedInstalledSources != nil {
-            storedInstalledSources = installedSources
+            storedInstalledSources = combinedInstalledSources
+            storedPlayerSources = playerSources
             search(query: query)
         } else {
-            self.installedSources = installedSources
+            self.installedSources = combinedInstalledSources
+            self.playerSources = playerSources
+        }
+    }
+
+    // load player sources
+    func loadPlayerSources() {
+        let playerSources = getPlayerSources()
+        // Update installed sources to include player sources
+        let installedSources = getInstalledSources()
+        let combinedInstalledSources = installedSources + playerSources
+
+        if storedPlayerSources != nil {
+            storedPlayerSources = playerSources
+            storedInstalledSources = combinedInstalledSources
+            search(query: query)
+        } else {
+            self.playerSources = playerSources
+            self.installedSources = combinedInstalledSources
         }
     }
 
     func loadPinnedSources() {
-        let installedSources = getInstalledSources()
+        // Get all installed sources including player sources
+        let installedSourcesFromManager = getInstalledSources()
+        let playerSources = getPlayerSources()
+        let allInstalledSources = installedSourcesFromManager + playerSources
         let defaultPinnedSources = UserDefaults.standard.stringArray(forKey: "Browse.pinnedList") ?? []
 
         var pinnedSources: [SourceInfo2] = []
         for sourceId in defaultPinnedSources {
-            guard let source = installedSources.first(where: { $0.sourceId == sourceId }) else {
+            // Check both regular sources and player sources for pinned items
+            guard let source = allInstalledSources.first(where: { $0.sourceId == sourceId }) else {
                 // remove sourceId from userdefault stored pinned list in cases such as uninstall.
                 UserDefaults.standard.set(defaultPinnedSources.filter({ $0 != sourceId }), forKey: "Browse.pinnedList")
                 continue
@@ -136,15 +181,18 @@ class BrowseViewModel {
                 storedUpdatesSources = updatesSources
                 storedPinnedSources = pinnedSources
                 storedInstalledSources = installedSources
+                storedPlayerSources = playerSources
             }
             guard
                 let storedUpdatesSources = storedUpdatesSources,
                 let storedPinnedSources = storedPinnedSources,
-                let storedInstalledSources = storedInstalledSources
+                let storedInstalledSources = storedInstalledSources,
+                let storedPlayerSources = storedPlayerSources
             else { return }
             updatesSources = storedUpdatesSources.filter { $0.name.lowercased().contains(query) }
             pinnedSources = storedPinnedSources.filter { $0.name.lowercased().contains(query) }
             installedSources = storedInstalledSources.filter { $0.name.lowercased().contains(query) }
+            playerSources = storedPlayerSources.filter { $0.name.lowercased().contains(query) }
         } else {
             // reset search, restore source arrays
             if let storedUpdatesSources = storedUpdatesSources {
@@ -158,6 +206,10 @@ class BrowseViewModel {
             if let storedInstalledSources = storedInstalledSources {
                 installedSources = storedInstalledSources
                 self.storedInstalledSources = nil
+            }
+            if let storedPlayerSources = storedPlayerSources {
+                playerSources = storedPlayerSources
+                self.storedPlayerSources = nil
             }
         }
     }

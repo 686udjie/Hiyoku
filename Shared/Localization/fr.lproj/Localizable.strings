@@ -179,7 +179,6 @@
 "APPEARANCE_DARK" = "Sombre";
 "RESTORE_BACKUP" = "Restaurer avec cette sauvegarde ?";
 "MARK_ALL" = "Tout marquer";
-"ICLOUD_SYNC" = "Synchronisation iCloud";
 "INCOGNITO_MODE" = "Mode Incognito";
 "APPEARANCE" = "Apparence";
 "APPEARANCE_LIGHT" = "Clair";
@@ -501,8 +500,6 @@
 "LOGIN_BASIC_TEXT" = "Tous les identifiants saisis seront transmis directement à la source. Ne vous connectez pas à une source en laquelle vous n’avez pas confiance.";
 "LOGIN_WEBVIEW_WARNING" = "Se connecter via la vue web ?";
 "LOGIN_WEBVIEW_WARNING_TEXT" = "Tous les cookies enregistrés dans la vue web affichée seront transmis à la source. Ne vous connectez pas à une source en laquelle vous n’avez pas confiance.";
-"ICLOUD_SYNC_TEXT_EXPERIMENTAL" = "La synchronisation iCloud est une fonctionnalité expérimentale. Son activation ou sa désactivation peut entraîner une perte de données.";
-"ICLOUD_SYNC_TEXT_SIDELOADED" = "La synchronisation iCloud est uniquement disponible lorsque l’application est installée via TestFlight.";
 "NO_RESULTS_FOR_%@" = "Aucun résultat pour “%@”";
 "NO_RESULTS_TEXT" = "Vérifiez l’orthographe ou essayez une nouvelle recherche.";
 "LEARN_MORE" = "En savoir plus…";

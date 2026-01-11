@@ -9,10 +9,14 @@ import AidokuRunner
 import SafariServices
 import SwiftUI
 
-class BrowseViewController: BaseTableViewController {
+class BrowseViewController: BaseTableViewController, DebouncedSearchable {
     let viewModel = BrowseViewModel()
 
     private lazy var dataSource = makeDataSource()
+
+    // Search delay mechanism
+    var searchDebounceTimer: Timer?
+    var currentSearchTask: Task<Void, Never>?
 
     private lazy var refreshControl = UIRefreshControl()
     private lazy var emptyStackView = EmptyPageStackView()
@@ -76,7 +80,7 @@ class BrowseViewController: BaseTableViewController {
         tableView.refreshControl = refreshControl
 
         // empty text
-        emptyStackView.imageSystemName = "globe"
+        emptyStackView.imageSystemName = "globe.fill"
         emptyStackView.title = NSLocalizedString("BROWSE_NO_SOURCES", comment: "")
         emptyStackView.text = NSLocalizedString("BROWSE_NO_SOURCES_TEXT_NEW", comment: "")
         emptyStackView.buttonText = NSLocalizedString("ADDING_SOURCES_GUIDE_BUTTON", comment: "")
@@ -125,6 +129,37 @@ class BrowseViewController: BaseTableViewController {
             Task {
                 await self.viewModel.loadExternalSources()
                 self.viewModel.loadUpdates()
+                self.updateDataSource()
+            }
+        }
+        // player modules added/removed/enabled/disabled
+        addObserver(forName: .moduleAdded) { [weak self] _ in
+            guard let self = self else { return }
+            Task { @MainActor in
+                self.viewModel.loadInstalledSources()
+                if let query = self.navigationItem.searchController?.searchBar.text, !query.isEmpty {
+                    self.viewModel.search(query: query)
+                }
+                self.updateDataSource()
+            }
+        }
+        addObserver(forName: .moduleRemoved) { [weak self] _ in
+            guard let self = self else { return }
+            Task { @MainActor in
+                self.viewModel.loadInstalledSources()
+                if let query = self.navigationItem.searchController?.searchBar.text, !query.isEmpty {
+                    self.viewModel.search(query: query)
+                }
+                self.updateDataSource()
+            }
+        }
+        addObserver(forName: .moduleStateChanged) { [weak self] _ in
+            guard let self = self else { return }
+            Task { @MainActor in
+                self.viewModel.loadInstalledSources()
+                if let query = self.navigationItem.searchController?.searchBar.text, !query.isEmpty {
+                    self.viewModel.search(query: query)
+                }
                 self.updateDataSource()
             }
         }
@@ -302,15 +337,24 @@ extension BrowseViewController {
         if
             case let sectionId = dataSource.sectionIdentifier(for: indexPath.section),
             sectionId == .installed || sectionId == .pinned,
-            let info = dataSource.itemIdentifier(for: indexPath),
-            let source = SourceManager.shared.source(for: info.sourceId)
+            let info = dataSource.itemIdentifier(for: indexPath)
         {
+            // Check if this is a module (player or novel)
+            if let module = ModuleManager.shared.modules.first(where: {
+                $0.id.uuidString == info.sourceId
+            }) {
+                    // Handle player source
+                    let vc = PlayerSourceViewController(module: module)
+                    navigationController?.pushViewController(vc, animated: true)
+            } else if let source = SourceManager.shared.source(for: info.sourceId) {
+                // Handle regular manga source
             let vc: UIViewController = if let legacySource = source.legacySource {
                 SourceViewController(source: legacySource)
             } else {
                 NewSourceViewController(source: source)
             }
             navigationController?.pushViewController(vc, animated: true)
+            }
         }
         tableView.deselectRow(at: indexPath, animated: true)
     }
@@ -550,8 +594,26 @@ extension BrowseViewController {
 // MARK: - Search Results
 extension BrowseViewController: UISearchResultsUpdating {
     func updateSearchResults(for searchController: UISearchController) {
-        viewModel.search(query: searchController.searchBar.text)
-        updateDataSource()
+        performSearch(query: searchController.searchBar.text)
+    }
+
+    private func performSearch(query: String?) {
+        // Clear search immediately if query is empty
+        if query?.isEmpty ?? true {
+            cancelSearch()
+            viewModel.search(query: nil)
+            updateDataSource()
+            return
+        }
+
+        // Perform debounced search
+        performSearch(query: query ?? "", delay: 0.15) { [weak self] in
+            guard let self = self else { return }
+            await MainActor.run {
+                self.viewModel.search(query: query)
+                self.updateDataSource()
+            }
+        }
     }
 }
 

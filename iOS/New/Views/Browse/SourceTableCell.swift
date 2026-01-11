@@ -11,6 +11,17 @@ import AidokuRunner
 struct SourceTableCell: View {
     let source: AidokuRunner.Source
 
+    private var isPlayerSource: Bool {
+        if let module = ModuleManager.shared.modules.first(where: { $0.id.uuidString == source.key }) {
+            return module.isPlayerModule
+        }
+        return false
+    }
+
+    private var sourceTypeTag: String {
+        isPlayerSource ? "player" : "reader"
+    }
+
     var body: some View {
         HStack(spacing: 12) {
             SourceIconView(sourceId: source.key, imageUrl: source.imageUrl)
@@ -38,12 +49,18 @@ struct SourceTableCell: View {
                             .padding(.leading, 3)
                     }
                 }
-                Text(
-                    (source.languages.count > 1 || source.languages.first == "multi")
-                        ? NSLocalizedString("MULTI_LANGUAGE")
-                        : Locale.current.localizedString(forIdentifier: source.languages[0]) ?? ""
-                )
-                .foregroundStyle(.secondary)
+                HStack(spacing: 4) {
+                    Text(
+                        (source.languages.count > 1 || source.languages.first == "multi")
+                            ? NSLocalizedString("MULTI_LANGUAGE")
+                            : Locale.current.localizedString(forIdentifier: source.languages[0]) ?? ""
+                    )
+                    .foregroundStyle(.secondary)
+                    Text("•")
+                        .foregroundStyle(.secondary)
+                    Text(sourceTypeTag)
+                        .foregroundStyle(.secondary)
+                }
             }
             .font(.system(size: 16))
         }

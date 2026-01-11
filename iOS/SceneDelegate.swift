@@ -74,7 +74,7 @@ class SceneDelegate: UIResponder, UIWindowSceneDelegate {
     }
 
     func sceneDidEnterBackground(_ scene: UIScene) {
-        let incognitoEnabled = UserDefaults.standard.bool(forKey: "General.incognitoMode")
+        let incognitoEnabled = UserDefaults.standard.bool(forKey: UserDefaultsKey.General.incognitoMode)
         if incognitoEnabled {
             (scene as? UIWindowScene)?.windows.first?.addSubview(contentHideView)
         }

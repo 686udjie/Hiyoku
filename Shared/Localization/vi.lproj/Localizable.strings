@@ -149,7 +149,6 @@
 "DISCORD_SERVER" = "Discord";
 "SUPPPORT_DEVELOPMENT" = "Ủng hộ nhà phát triển";
 "GENERAL" = "Chung";
-"ICLOUD_SYNC" = "Đồng bộ hoá với iCloud";
 "INCOGNITO_MODE" = "Chế độ ẩn danh";
 "INCOGNITO_MODE_TEXT" = "Lịch sử đọc sẽ không bị ghi lại khi bật";
 "APPEARANCE" = "Giao diện";
@@ -448,8 +447,6 @@
 "PASSWORD" = "Mật khẩu";
 "LOGIN_FAILED" = "Đăng nhập thất bại";
 "LOGIN_WEBVIEW_WARNING" = "Đăng nhập qua chế độ xem web?";
-"ICLOUD_SYNC_TEXT_EXPERIMENTAL" = "Đồng bộ iCloud là tính năng thử nghiệm. Việc bật hoặc tắt tính năng này có thể gây mất dữ liệu.";
-"ICLOUD_SYNC_TEXT_SIDELOADED" = "Đồng bộ iCloud chỉ khả dụng khi được cài đặt thông qua TestFlight.";
 "NO_RESULTS_FOR_%@" = "Không có kết quả cho \"#@\"";
 "NO_RESULTS_TEXT" = "Kiểm tra chính tả hoặc thử tìm kiếm mới.";
 "LEARN_MORE" = "Tìm hiểu thêm…";

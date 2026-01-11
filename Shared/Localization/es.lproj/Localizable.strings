@@ -93,7 +93,6 @@
 "DISCORD_SERVER" = "Servidor de Discord";
 "SUPPPORT_DEVELOPMENT" = "Apoya el desarrollo";
 "GENERAL" = "General";
-"ICLOUD_SYNC" = "Sincronización con iCloud";
 "APPEARANCE" = "Apariencia";
 "APPEARANCE_LIGHT" = "Claro";
 "APPEARANCE_DARK" = "Oscuro";
@@ -556,7 +555,6 @@
 "ADD_TO_OTHER_SERIES_INFO" = "El archivo se agregará a la serie seleccionada.";
 "SERVER_URL_INFO" = "La URL base de un servidor al que conectarse.";
 "UNAVAILABLE_SOURCE_LISTS_TEXT" = "Se produjo un error al obtener las listas de fuentes anteriores.";
-"ICLOUD_SYNC_TEXT_SIDELOADED" = "La sincronización de iCloud solo está disponible cuando se instala a través de TestFlight.";
 "METADATA_DETECTED_TEXT" = "Los metadatos JSON legados se migrarán a archivos ComicInfo.xml.";
 "LOCAL_FILE_IMPORT_TEXT" = "Importa un archivo CBZ o ZIP que contenga imágenes para leer.";
 "SOURCE_NAME_INFO" = "El nombre que se mostrará en la fuente en la pestaña de exploración.";
@@ -566,7 +564,6 @@
 "NO_EXTERNAL_SOURCES_INFO" = "Configura listas de fuentes en la pestaña de configuración para instalar fuentes externas.";
 "SOURCE_IMPORT_FAIL_TEXT" = "Error al importar el código fuente. Asegúrate de que tu archivo AIX sea válido.";
 "LOGIN_FAILED_TEXT" = "No se pudo iniciar sesión en la fuente. Asegúrate de que tus credenciales sean correctas.";
-"ICLOUD_SYNC_TEXT_EXPERIMENTAL" = "La sincronización de iCloud es una función experimental. Activarla o desactivarla podría provocar la pérdida de datos.";
 "UPDATE_AFTER_READING_INFO" = "Después de leer un capítulo, actualizar el rastreador para que coincida con el capítulo y/o volumen leído actualmente.";
 "DEMO_KOMGA_SERVER_INFO" = "Puedes iniciar sesión en el servidor de demostración de Komga utilizando el correo electrónico \"demo@komga.org\" y la contraseña \"komga-demo\".";
 "DEMO_KAVITA_SERVER_INFO" = "Puedes iniciar sesión en el servidor de demostración de Kavita utilizando el nombre de usuario \"demouser\" y la contraseña \"Demouser64\".";

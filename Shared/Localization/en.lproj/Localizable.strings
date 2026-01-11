@@ -64,10 +64,16 @@
 "METADATA_DETECTED_TEXT" = "Legacy JSON metadata will be migrated to ComicInfo.xml files.";
 
 // Library
-"LIBRARY" = "Library";
-"LIBRARY_SEARCH" = "Find in Library";
-"LIBRARY_EMPTY" = "Library Empty";
-"LIBRARY_ADD_CONTENT" = "Add content from the browse tab.";
+"LIBRARY" = "Reader";
+
+// Player
+"PLAYER" = "Player";
+"PLAYER_LIBRARY" = "Player Library";
+"PLAYER_EMPTY" = "Player Empty";
+"PLAYER_ADD_CONTENT" = "Add content from the browse tab";
+"LIBRARY_SEARCH" = "Search in Reader";
+"LIBRARY_EMPTY" = "Reader Empty";
+"LIBRARY_ADD_CONTENT" = "Add content from the browse tab";
 "LIBRARY_ADJUST_FILTERS" = "Adjust your filters to see more content.";
 "ADD_TO_LIBRARY" = "Add to Library";
 "REMOVE_FROM_LIBRARY" = "Remove from Library";
@@ -179,7 +185,7 @@
 "EXTERNAL_SOURCES" = "External Sources";
 "NO_RESULTS" = "No results";
 "NO_EXTERNAL_SOURCES" = "No External Sources";
-"NO_EXTERNAL_SOURCES_INFO" = "Configure source lists in the settings tab to install external sources.";
+"NO_EXTERNAL_SOURCES_INFO" = "Configure reader sources in the settings tab to install external sources.";
 "NO_AVAILABLE_SOURCES" = "No Available Sources";
 "NO_AVAILABLE_SOURCES_INFO" = "Adjust your filters to view more external sources.";
 "ALL_SOURCES_INSTALLED" = "All Sources Installed";
@@ -318,6 +324,7 @@
 "CH_SPACE_X" = "Ch. %g";
 "NO_CHAPTERS" = "No Chapters";
 "NO_CHAPTERS_AVAILABLE" = "No Chapters Available";
+"NO_EPISODES" = "No Episodes";
 "START_READING" = "Start Reading";
 "CONTINUE_READING" = "Continue Reading";
 "READ" = "Read";
@@ -397,9 +404,6 @@
 "DISCORD_SERVER" = "Discord Server";
 "SUPPPORT_DEVELOPMENT" = "Support Development";
 "GENERAL" = "General";
-"ICLOUD_SYNC" = "iCloud Sync";
-"ICLOUD_SYNC_TEXT_EXPERIMENTAL" = "iCloud Sync is an experimental feature. Enabling or disabling it may trigger data loss.";
-"ICLOUD_SYNC_TEXT_SIDELOADED" = "iCloud Sync is only available when installed through TestFlight.";
 "INCOGNITO_MODE" = "Incognito Mode";
 "INCOGNITO_MODE_TEXT" = "Pauses reading history when enabled";
 "APPEARANCE" = "Appearance";
@@ -410,6 +414,7 @@
 "PORTRAIT" = "Portrait";
 "LANDSCAPE" = "Landscape";
 "READER" = "Reader";
+"READER_LIBRARY_SETTINGS" = "Reader Library";
 "OPEN_READER_VIEW" = "Open Reader View";
 "UNREAD_CHAPTER_BADGES" = "Unread Chapter Badges";
 "DOWNLOADED_CHAPTER_BADGES" = "Downloaded Chapter Badges";
@@ -462,17 +467,26 @@
 "THIS_YEAR" = "This Year";
 
 // Source Lists
-"SOURCE_LISTS" = "Source Lists";
-"SOURCE_LIST_ADDED" = "Source List Added";
+"SOURCE_LISTS" = "Reader Sources";
+"SOURCE_LIST_ADDED" = "Reader Source Added";
 "SOURCE_LIST_ADDED_TEXT" = "You can now browse external sources in the Browse tab.";
-"SOURCE_LIST_URL" = "Source List URL";
-"SOURCE_LIST_ADD" = "Add Source List";
-"SOURCE_LIST_ADD_TEXT" = "Enter the source list URL";
-"SOURCE_LIST_ADD_FAIL" = "Failed to Add Source List";
-"SOURCE_LIST_ADD_FAIL_TEXT" = "The provided source list URL is invalid or has already been added.";
-"UNAVAILABLE_SOURCE_LISTS" = "Unavailable Source Lists";
-"UNAVAILABLE_SOURCE_LISTS_TEXT" = "An error occured while fetching the above source lists.";
+"SOURCE_LIST_URL" = "Reader Source URL";
+"SOURCE_LIST_ADD" = "Add Reader Source";
+"SOURCE_LIST_ADD_TEXT" = "Enter the reader source URL";
+"SOURCE_LIST_ADD_FAIL" = "Failed to Add Reader Source";
+"SOURCE_LIST_ADD_FAIL_TEXT" = "The provided reader source URL is invalid or has already been added.";
+"UNAVAILABLE_SOURCE_LISTS" = "Unavailable Reader Sources";
+"UNAVAILABLE_SOURCE_LISTS_TEXT" = "An error occured while fetching the above reader sources.";
 "COPY_URL" = "Copy URL";
+
+// Player Sources
+"PLAYER_SOURCES" = "Player Sources";
+"NO_MODULES" = "No modules added yet";
+"MODULE_ADD" = "Add Player Source";
+"MODULE_ADD_TEXT" = "Enter the URL of the module metadata JSON";
+"MODULE_ADD_FAIL" = "Failed to add module";
+"MODULE_ADD_FAIL_TEXT" = "Please check the URL and try again.";
+"MODULE_URL" = "Module metadata URL";
 
 // Upscaling
 "UPSCALING" = "Upscaling";

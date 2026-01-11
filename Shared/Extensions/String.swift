@@ -76,4 +76,24 @@ extension String {
     func percentEncoded() -> String {
         normalized.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? self
     }
+
+    func normalizedModuleHref() -> String {
+        let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return trimmed }
+        if let range = trimmed.range(of: "http") {
+            return String(trimmed[range.lowerBound...])
+        }
+        return trimmed
+    }
+
+    func absoluteUrl(withBaseUrl baseUrl: String) -> String {
+        let normalizedHref = normalizedModuleHref()
+        guard !normalizedHref.isEmpty else { return normalizedHref }
+        if normalizedHref.starts(with: "http") {
+            return normalizedHref
+        }
+        let base = baseUrl.trimmingCharacters(in: .init(charactersIn: "/"))
+        let relative = normalizedHref.trimmingCharacters(in: .init(charactersIn: "/"))
+        return "\(base)/\(relative)"
+    }
 }

@@ -107,11 +107,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     ) -> Bool {
         UserDefaults.standard.register(
             defaults: [
-                "isSideloaded": Self.isSideloaded, // for icloud sync setting
-
                 "General.incognitoMode": false,
                 "General.accentColor": "#007AFF",
-                "General.icloudSync": false,
                 "General.appearance": 0,
                 "General.useSystemAppearance": true,
                 "General.portraitRows": UIDevice.current.userInterfaceIdiom == .pad ? 5 : 2,
@@ -171,20 +168,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                 "Tracking.updateAfterReading": true,
                 "Tracking.autoSyncFromTracker": false,
 
-                "AutomaticBackups.enabled": true,
-                "AutomaticBackups.interval": "daily",
-                "AutomaticBackups.lastBackup": Date.distantPast.timeIntervalSince1970,
-                "AutomaticBackups.libraryEntries": true,
-                "AutomaticBackups.chapters": true,
-                "AutomaticBackups.tracking": true,
-                "AutomaticBackups.history": true,
-                "AutomaticBackups.categories": true,
-                "AutomaticBackups.readingSessions": true,
-                "AutomaticBackups.updates": false,
-                "AutomaticBackups.settings": true,
-                "AutomaticBackups.sourceLists": true,
-                "AutomaticBackups.sensitiveSettings": false,
-
                 "Library.downloadOnlyOnWifi": false,
                 "Library.deleteDownloadAfterReading": false,
                 "Downloads.compress": true,
@@ -192,20 +175,6 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                 "Downloads.background": true
             ]
         )
-
-        // check for icloud availability
-        // https://developer.apple.com/documentation/foundation/filemanager/url(forubiquitycontaineridentifier:)
-        // Do not call this method from your app’s main thread. Because this method might take a nontrivial amount of
-        // time to set up iCloud and return the requested URL, you should always call it from a secondary thread.
-        Task.detached {
-            let isiCloudAvailable = FileManager.default.url(forUbiquityContainerIdentifier: nil) != nil
-            await MainActor.run {
-                if !isiCloudAvailable {
-                    LogManager.logger.info("iCloud unavailable")
-                }
-                UserDefaults.standard.register(defaults: ["isiCloudAvailable": isiCloudAvailable])
-            }
-        }
 
         DataLoader.sharedUrlCache.diskCapacity = 0
 
@@ -250,11 +219,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
         application.applicationSupportsShakeToEdit = true
 
-        BackupManager.shared.register()
         MangaManager.shared.register()
 
         Task {
-            await BackupManager.shared.scheduleAutoBackup()
             await MangaManager.shared.scheduleLibraryRefresh()
         }
 
@@ -440,20 +407,6 @@ extension AppDelegate {
                     presentAlert(
                         title: NSLocalizedString("IMPORT_FAIL", comment: ""),
                         message: NSLocalizedString("SOURCE_IMPORT_FAIL_TEXT", comment: "")
-                    )
-                }
-            }
-        } else if url.pathExtension == "json" || url.pathExtension == "aib" {
-            Task {
-                if await BackupManager.shared.importBackup(from: url) {
-                    presentAlert(
-                        title: NSLocalizedString("BACKUP_IMPORT_SUCCESS", comment: ""),
-                        message: NSLocalizedString("BACKUP_IMPORT_SUCCESS_TEXT", comment: "")
-                    )
-                } else {
-                    presentAlert(
-                        title: NSLocalizedString("IMPORT_FAIL", comment: ""),
-                        message: NSLocalizedString("BACKUP_IMPORT_FAIL_TEXT", comment: "")
                     )
                 }
             }

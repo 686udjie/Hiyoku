@@ -33,7 +33,7 @@ extension AidokuRunner.Source {
     }
 }
 
-final class LegacySourceRunner: AidokuRunner.Runner {
+final class LegacySourceRunner: @unchecked Sendable, AidokuRunner.Runner {
     let source: Source
 
     let features: SourceFeatures

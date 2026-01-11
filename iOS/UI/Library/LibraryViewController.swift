@@ -322,7 +322,7 @@ class LibraryViewController: OldMangaCollectionViewController {
         addObserver(forName: .updateManga) { [weak self] notification in
             guard let self, let id = notification.object as? MangaIdentifier else { return }
             Task {
-                let libraryReloaded = if !UserDefaults.standard.bool(forKey: "General.incognitoMode") {
+                let libraryReloaded = if !UserDefaults.standard.bool(forKey: UserDefaultsKey.General.incognitoMode) {
                     await self.viewModel.mangaOpened(sourceId: id.sourceKey, mangaId: id.mangaKey)
                 } else {
                     false
@@ -569,7 +569,7 @@ extension LibraryViewController {
     // updates library empty message
     // should be called when category changes and when library loads initially
     func updateEmptyStack() {
-        emptyStackView.imageSystemName = "books.vertical.fill"
+        emptyStackView.imageSystemName = "book.fill"
         emptyStackView.title = viewModel.currentCategory == nil
             ? NSLocalizedString("LIBRARY_EMPTY")
             : NSLocalizedString("CATEGORY_EMPTY")
@@ -1239,7 +1239,7 @@ extension LibraryViewController {
             super.collectionView(collectionView, didSelectItemAt: indexPath)
         }
 
-        if !UserDefaults.standard.bool(forKey: "General.incognitoMode") {
+        if !UserDefaults.standard.bool(forKey: UserDefaultsKey.General.incognitoMode) {
             Task {
                 await CoreDataManager.shared.setOpened(sourceId: info.sourceId, mangaId: info.mangaId)
                 await self.viewModel.mangaOpened(sourceId: info.sourceId, mangaId: info.mangaId)

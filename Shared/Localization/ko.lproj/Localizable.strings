@@ -111,7 +111,6 @@
 "AUTH_TO_ENABLE" = "활성화하려면 인증하세요.";
 "AUTH_TO_DISABLE" = "비활성화하려면 인증하세요.";
 "DISCORD_SERVER" = "디스코드 서버";
-"ICLOUD_SYNC" = "iCloud 동기화";
 "INCOGNITO_MODE" = "시크릿 모드";
 "INCOGNITO_MODE_TEXT" = "활성화되면 읽기 기록을 일시 중지";
 "USE_SYSTEM_APPEARANCE" = "시스템 외관 사용";

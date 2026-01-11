@@ -213,7 +213,7 @@ extension MangaUpdatesView {
     }
 
     private func setOpened(manga: AidokuRunner.Manga) {
-        if !UserDefaults.standard.bool(forKey: "General.incognitoMode") {
+        if !UserDefaults.standard.bool(forKey: UserDefaultsKey.General.incognitoMode) {
             Task {
                 await CoreDataManager.shared.setOpened(sourceId: manga.sourceKey, mangaId: manga.key)
                 NotificationCenter.default.post(name: Notification.Name("updateLibrary"), object: nil)

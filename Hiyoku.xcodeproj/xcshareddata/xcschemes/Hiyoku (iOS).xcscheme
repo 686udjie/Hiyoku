@@ -15,8 +15,8 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "FB1B4834277CE1920056D02C"
-               BuildableName = "Aidoku.app"
-               BlueprintName = "Aidoku (iOS)"
+               BuildableName = "Hiyoku.app"
+               BlueprintName = "Hiyoku (iOS)"
                ReferencedContainer = "container:Hiyoku.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
@@ -45,8 +45,8 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "FB1B4834277CE1920056D02C"
-            BuildableName = "Aidoku.app"
-            BlueprintName = "Aidoku (iOS)"
+            BuildableName = "Hiyoku.app"
+            BlueprintName = "Hiyoku (iOS)"
             ReferencedContainer = "container:Hiyoku.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
@@ -87,8 +87,8 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "FB1B4834277CE1920056D02C"
-            BuildableName = "Aidoku.app"
-            BlueprintName = "Aidoku (iOS)"
+            BuildableName = "Hiyoku.app"
+            BlueprintName = "Hiyoku (iOS)"
             ReferencedContainer = "container:Hiyoku.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>

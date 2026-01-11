@@ -5,6 +5,12 @@ disabled_rules:
   - switch_case_alignment
   - nesting
   - nslocalizedstring_key
+excluded:
+  - builds
+  - "**/SourcePackages/**"
+  - "**/checkouts/**"
+  - "**/DerivedData/**"
+  - "**/build/**"
 opt_in_rules:
   - closure_end_indentation
   - closure_spacing

@@ -7,6 +7,7 @@
 
 import SwiftUI
 import Combine
+import Foundation
 
 extension DownloadsView {
     @MainActor
@@ -144,17 +145,22 @@ extension DownloadsView.ViewModel {
                 .store(in: &cancellables)
         }
 
-        // Low-priority updates that can be debounced
-        let debouncedUpdateNotifications: [NSNotification.Name] = [
-            .downloadFinished,
-            .downloadsCancelled,
-            .downloadsQueued,
-            .downloadsPaused,
-            .downloadsResumed,
-            .addToLibrary,
-            .removeFromLibrary,
-            .updateLibrary,
-            .updateHistory
+        // Low-priority reader download updates that can be debounced
+        let debouncedUpdateNotifications: [Notification.Name] = [
+            Notification.Name.downloadFinished,
+            Notification.Name.downloadsCancelled,
+            Notification.Name.downloadsQueued,
+            Notification.Name.downloadsPaused,
+            Notification.Name.downloadsResumed,
+            Notification.Name.addToLibrary,
+            Notification.Name.removeFromLibrary,
+            Notification.Name.updateLibrary,
+            Notification.Name.updateHistory,
+            Notification.Name.readerShowingBars,
+            Notification.Name.readerHidingBars,
+            Notification.Name.readerReadingMode,
+            Notification.Name.readerTapZones,
+            Notification.Name.readerOrientation
         ]
 
         for notification in debouncedUpdateNotifications {

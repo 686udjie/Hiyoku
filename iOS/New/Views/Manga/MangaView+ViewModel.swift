@@ -239,7 +239,7 @@ extension MangaView {
 
 extension MangaView.ViewModel {
     func markOpened() async {
-        if !UserDefaults.standard.bool(forKey: "General.incognitoMode") {
+        if !UserDefaults.standard.bool(forKey: UserDefaultsKey.General.incognitoMode) {
             await MangaUpdateManager.shared.viewAllUpdates(of: manga)
         }
     }
@@ -454,7 +454,7 @@ extension MangaView.ViewModel {
                     let now = Date.now
                     libraryObject.lastUpdated = now
 
-                    if !UserDefaults.standard.bool(forKey: "General.incognitoMode") {
+                    if !UserDefaults.standard.bool(forKey: UserDefaultsKey.General.incognitoMode) {
                         libraryObject.lastOpened = now.addingTimeInterval(1) // ensure item isn't re-pinned, since it's already open
                     }
 

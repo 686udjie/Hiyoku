@@ -144,7 +144,6 @@
 "DISCORD_SERVER" = "Discord 服务器";
 "SUPPPORT_DEVELOPMENT" = "支持开发";
 "GENERAL" = "通用";
-"ICLOUD_SYNC" = "iCloud 同步";
 "INCOGNITO_MODE" = "隐身模式";
 "INCOGNITO_MODE_TEXT" = "启用时暂停记录阅读历史";
 "APPEARANCE" = "外观";
@@ -553,8 +552,6 @@
 "RANGE_FROM" = "从";
 "RANGE_TO" = "到";
 "INVERT_TAP_ZONES" = "反转点击区域";
-"ICLOUD_SYNC_TEXT_EXPERIMENTAL" = "iCloud 同步是一项实验性功能。启用或禁用它可能会触发数据丢失。";
-"ICLOUD_SYNC_TEXT_SIDELOADED" = "iCloud 同步仅通过 TestFlight 安装时可用。";
 "NO_RESULTS_FOR_%@" = "“%@”没有结果";
 "NO_RESULTS_TEXT" = "检查拼写或尝试新的搜索。";
 "BACKUP_%@" = "备份 %@";

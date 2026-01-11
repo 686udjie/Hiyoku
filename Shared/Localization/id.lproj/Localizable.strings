@@ -102,7 +102,6 @@
 "ABOUT" = "Tentang";
 "SUPPPORT_DEVELOPMENT" = "Dukungan Pengembangan";
 "GENERAL" = "Umum";
-"ICLOUD_SYNC" = "Sinkronisasi iCloud";
 "INCOGNITO_MODE" = "Mode Penyamaran";
 "INCOGNITO_MODE_TEXT" = "Jeda riwayat membaca saat diaktifkan";
 "APPEARANCE" = "Tampilan";
@@ -424,8 +423,6 @@
 "LOGIN_BASIC_TEXT" = "Semua kredensial yang dimasukkan akan langsung dikirimkan ke sumber. Jangan masuk ke sumber yang tidak Anda percayai.";
 "LOGIN_WEBVIEW_WARNING" = "Masuk melalui tampilan web?";
 "LOGIN_WEBVIEW_WARNING_TEXT" = "Semua cookie yang disetel dalam tampilan web yang ditampilkan akan dikirimkan ke sumber. Jangan masuk ke sumber yang tidak Anda percayai.";
-"ICLOUD_SYNC_TEXT_EXPERIMENTAL" = "iCloud Sync adalah fitur eksperimental. Mengaktifkan atau menonaktifkannya dapat menyebabkan kehilangan data.";
-"ICLOUD_SYNC_TEXT_SIDELOADED" = "iCloud Sync hanya tersedia jika diinstal melalui TestFlight.";
 "ONLY_DOWNLOAD_ON_WIFI" = "Hanya unduh melalui Wi-Fi";
 "DELETE_DOWNLOAD_AFTER_READING" = "Hapus Unduhan Setelah Dibaca";
 "NO_RESULTS_FOR_%@" = "Tidak ada hasil untuk “%@”";

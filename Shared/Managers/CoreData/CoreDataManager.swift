@@ -9,48 +9,23 @@ import CoreData
 
 final class CoreDataManager {
 
-    static let containerID = Bundle.main
-        .infoDictionary?["ICLOUD_CONTAINER_ID"] as? String ?? "iCloud.\(Bundle.main.bundleIdentifier!)"
-
     static let shared = CoreDataManager()
 
-    private var observers: [NSObjectProtocol] = []
-    private var lastHistoryToken: NSPersistentHistoryToken?
+    init() {}
 
-    private var shouldUseiCloud: Bool {
-        UserDefaults.standard.bool(forKey: "General.icloudSync") && FileManager.default.ubiquityIdentityToken != nil
-    }
-
-    deinit {
-        for observer in observers {
-            NotificationCenter.default.removeObserver(observer)
+    private var _container: NSPersistentContainer?
+    var container: NSPersistentContainer {
+        if let container = _container {
+            return container
         }
+
+        let newContainer = createContainer()
+        _container = newContainer
+        return newContainer
     }
 
-    init() {
-        observers.append(NotificationCenter.default.addObserver(
-            forName: .NSPersistentStoreRemoteChange, object: container.persistentStoreCoordinator, queue: nil
-        ) { [weak self] _ in
-            self?.storeRemoteChange()
-        })
-
-        observers.append(NotificationCenter.default.addObserver(
-            forName: NSNotification.Name("General.icloudSync"), object: nil, queue: nil
-        ) { [weak self] _ in
-            guard
-                let self,
-                let cloudDescription = self.container.persistentStoreDescriptions.first
-            else { return }
-            if self.shouldUseiCloud {
-                cloudDescription.cloudKitContainerOptions = NSPersistentCloudKitContainerOptions(containerIdentifier: CoreDataManager.containerID)
-            } else {
-                cloudDescription.cloudKitContainerOptions = nil
-            }
-        })
-    }
-
-    lazy var container: NSPersistentCloudKitContainer = {
-        let container = NSPersistentCloudKitContainer(name: "Aidoku")
+    private func createContainer() -> NSPersistentContainer {
+        let container = NSPersistentContainer(name: "Aidoku")
 
         let storeDirectory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
 
@@ -59,20 +34,10 @@ final class CoreDataManager {
         cloudDescription.shouldMigrateStoreAutomatically = true
         cloudDescription.shouldInferMappingModelAutomatically = true
 
-        cloudDescription.setOption(true as NSNumber, forKey: NSPersistentHistoryTrackingKey)
-        cloudDescription.setOption(true as NSNumber, forKey: NSPersistentStoreRemoteChangeNotificationPostOptionKey)
-
         let localDescription = NSPersistentStoreDescription(url: storeDirectory.appendingPathComponent("Local.sqlite"))
         localDescription.configuration = "Local"
         localDescription.shouldMigrateStoreAutomatically = true
         localDescription.shouldInferMappingModelAutomatically = true
-
-        if shouldUseiCloud {
-            cloudDescription.cloudKitContainerOptions = NSPersistentCloudKitContainerOptions(
-                containerIdentifier: CoreDataManager.containerID)
-        } else {
-            cloudDescription.cloudKitContainerOptions = nil
-        }
 
         container.persistentStoreDescriptions = [
             cloudDescription,
@@ -82,20 +47,47 @@ final class CoreDataManager {
         container.viewContext.automaticallyMergesChangesFromParent = true
         container.viewContext.mergePolicy = NSMergePolicy(merge: .mergeByPropertyObjectTrumpMergePolicyType)
 
-        container.loadPersistentStores { _, error in
+        container.loadPersistentStores { storeDescription, error in
             if let error = error as NSError? {
                 LogManager.logger.error("Error loading persistent stores \(error), \(error.userInfo)")
+                // Handle read-only database error by recreating store
+                if error.code == 134110 || (error.domain == NSCocoaErrorDomain && error.code == 134110) {
+                    LogManager.logger.error("Attempting to recreate read-only database store")
+                    // Get store URL
+                    if let storeURL = storeDescription.url {
+                        do {
+                            // Remove existing store
+                            try FileManager.default.removeItem(at: storeURL)
+                            LogManager.logger.info("Removed read-only database store")
+                            // Reset container to force recreation on next access
+                            DispatchQueue.main.async {
+                                self._container = nil
+                            }
+                        } catch {
+                            LogManager.logger.error("Failed to remove corrupted store: \(error)")
+                        }
+                    }
+                } else if error.domain == NSCocoaErrorDomain && (error.code == 134109 || error.code == 134110) {
+                    // Handle migration errors
+                    LogManager.logger.error("Core Data migration failed, attempting to recreate database")
+                    if let storeURL = storeDescription.url {
+                        do {
+                            try FileManager.default.removeItem(at: storeURL)
+                            LogManager.logger.info("Removed corrupted database, will recreate on next launch")
+                            // Reset container to force recreation on next access
+                            DispatchQueue.main.async {
+                                self._container = nil
+                            }
+                        } catch {
+                            LogManager.logger.error("Failed to remove corrupted database: \(error)")
+                        }
+                    }
+                }
             }
         }
 
-//        do {
-//            try container.initializeCloudKitSchema(options: [.printSchema])
-//        } catch {
-//            print("error initializing cloudkit schema:", error)
-//        }
-
         return container
-    }()
+    }
 
     lazy var queue: OperationQueue = {
         let queue = OperationQueue()
@@ -114,12 +106,6 @@ final class CoreDataManager {
             LogManager.logger.error("CoreDataManager.save: \(error.localizedDescription)")
         }
     }
-
-//    func saveIfNeeded() {
-//        if context.hasChanges {
-//            save()
-//        }
-//    }
 
     func remove(_ objectID: NSManagedObjectID) {
         container.performBackgroundTask { context in
@@ -140,10 +126,7 @@ final class CoreDataManager {
         }
     }
 
-    // TODO: clean this up
     func migrateChapterHistory(progress: (@Sendable (Float) -> Void)? = nil) async {
-        LogManager.logger.info("Beginning chapter history migration for 0.6")
-
         await container.performBackgroundTask { context in
             let request = HistoryObject.fetchRequest()
             let historyObjects = (try? context.fetch(request)) ?? []
@@ -166,120 +149,6 @@ final class CoreDataManager {
                 count += 1
             }
             try? context.save()
-
-            LogManager.logger.info("Migrated \(count)/\(historyObjects.count) history objects")
-        }
-    }
-}
-
-extension CoreDataManager {
-
-    func storeRemoteChange() {
-        queue.addOperation {
-            let context = self.container.newBackgroundContext()
-            context.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
-            context.performAndWait {
-                let historyFetchRequest = NSPersistentHistoryTransaction.fetchRequest!
-                let request = NSPersistentHistoryChangeRequest.fetchHistory(after: self.lastHistoryToken)
-                request.fetchRequest = historyFetchRequest
-
-                let result = (try? context.execute(request)) as? NSPersistentHistoryResult
-                guard
-                    let transactions = result?.result as? [NSPersistentHistoryTransaction],
-                    !transactions.isEmpty
-                else { return }
-
-                var newObjectIds = [NSManagedObjectID]()
-                let entityNames = [
-                    CategoryObject.entity().name,
-                    ChapterObject.entity().name,
-                    HistoryObject.entity().name,
-                    LibraryMangaObject.entity().name,
-                    MangaObject.entity().name,
-                    TrackObject.entity().name
-                ]
-
-                for
-                    transaction in transactions
-                    where transaction.changes != nil && transaction.author == "NSCloudKitMirroringDelegate.import"
-                {
-                    for
-                        change in transaction.changes!
-                        where entityNames.contains(change.changedObjectID.entity.name) && change.changeType == .insert
-                    {
-                        newObjectIds.append(change.changedObjectID)
-                    }
-                }
-
-                if !newObjectIds.isEmpty {
-                    self.deduplicate(objectIds: newObjectIds)
-                }
-
-                self.lastHistoryToken = transactions.last!.token
-            }
-        }
-    }
-
-    func deduplicate(objectIds: [NSManagedObjectID]) {
-        let context = container.newBackgroundContext()
-        context.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
-        context.performAndWait {
-            for objectId in objectIds {
-                deduplicate(objectId: objectId, context: context)
-            }
-            do {
-                try context.save()
-            } catch {
-                LogManager.logger.error("deduplicate: \(error.localizedDescription)")
-            }
-        }
-    }
-
-    func deduplicate(objectId: NSManagedObjectID, context: NSManagedObjectContext) {
-        let object = context.object(with: objectId)
-
-        let request: NSFetchRequest<NSFetchRequestResult>?
-
-        if let object = object as? MangaObject {
-            request = MangaObject.fetchRequest()
-            request?.predicate = NSPredicate(format: "sourceId == %@ AND id == %@", object.sourceId, object.id)
-        } else if let object = object as? CategoryObject {
-            request = CategoryObject.fetchRequest()
-            request?.predicate = NSPredicate(format: "title == %@", object.title ?? "")
-        } else if let object = object as? ChapterObject {
-            request = ChapterObject.fetchRequest()
-            request?.predicate = NSPredicate(
-                format: "sourceId == %@ AND mangaId == %@ AND id == %@",
-                object.sourceId, object.mangaId, object.id
-            )
-        } else if let object = object as? HistoryObject {
-            request = HistoryObject.fetchRequest()
-            request?.predicate = NSPredicate(
-                format: "sourceId == %@ AND mangaId == %@ AND chapterId == %@",
-                object.sourceId, object.mangaId, object.chapterId
-            )
-        } else if let object = object as? LibraryMangaObject {
-            request = LibraryMangaObject.fetchRequest()
-            request?.predicate = NSPredicate(
-                format: "manga.sourceId == %@ AND manga.id == %@",
-                object.manga?.sourceId ?? "", object.manga?.id ?? ""
-            )
-        } else if let object = object as? TrackObject {
-            request = TrackObject.fetchRequest()
-            request?.predicate = NSPredicate(format: "id == %@ AND trackerId == %@", object.id ?? "", object.trackerId ?? "")
-        } else {
-            request = nil
-        }
-
-        guard let request = request else { return }
-
-        if (try? context.count(for: request)) ?? 0 > 1 {
-            guard let objects = try? context.fetch(request) else { return }
-            for object in objects.dropFirst(1) {
-                if let object = object as? NSManagedObject {
-                    context.delete(object)
-                }
-            }
         }
     }
 }
