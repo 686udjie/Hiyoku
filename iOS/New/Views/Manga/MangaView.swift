@@ -7,6 +7,7 @@
 
 import AidokuRunner
 import NukeUI
+import SafariServices
 import SwiftUI
 
 struct MangaView: View {
@@ -718,6 +719,13 @@ extension MangaView {
         Task {
             await (UIApplication.shared.delegate as? AppDelegate)?.hideLoadingIndicator()
         }
+    }
+
+    func openWebView() {
+        guard let url = viewModel.manga.url, url.scheme == "http" || url.scheme == "https" else { return }
+        let safariViewController = SFSafariViewController(url: url)
+        safariViewController.modalPresentationStyle = .pageSheet
+        path.present(safariViewController, animated: true)
     }
 }
 

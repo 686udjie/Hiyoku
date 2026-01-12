@@ -9,6 +9,7 @@ import SwiftUI
 import AidokuRunner
 import MarkdownUI
 import NukeUI
+import SafariServices
 import UIKit
 
 struct MangaDetailsHeaderView: View {
@@ -325,6 +326,17 @@ struct MangaDetailsHeaderView: View {
                     Image(systemName: "clock.arrow.2.circlepath")
                 }
                 .buttonStyle(MangaActionButtonStyle(selected: isTracking))
+            }
+
+            if let url = manga.url, url.scheme == "http" || url.scheme == "https" {
+                Button {
+                    let safariViewController = SFSafariViewController(url: url)
+                    safariViewController.modalPresentationStyle = .pageSheet
+                    path.present(safariViewController, animated: true)
+                } label: {
+                    Image(systemName: "safari")
+                }
+                .buttonStyle(MangaActionButtonStyle(selected: false))
             }
         }
     }
