@@ -1,5 +1,5 @@
 //
-//  VideoPlayer.swift
+//  Player.swift
 //  Hiyoku
 //
 //  Created by 686udjie on 01/08/26.
@@ -8,12 +8,12 @@
 import SwiftUI
 import UIKit
 
-struct VideoPlayer: UIViewControllerRepresentable {
+struct Player: UIViewControllerRepresentable {
     let module: ScrapingModule
     let episode: PlayerEpisode
 
     final class Coordinator {
-        var videoPlayerController: VideoPlayerViewController?
+        var videoPlayerController: PlayerViewController?
         var hasLoaded = false
     }
 
@@ -22,7 +22,7 @@ struct VideoPlayer: UIViewControllerRepresentable {
     }
 
     func makeUIViewController(context: Context) -> UIViewController {
-        let videoPlayerController = VideoPlayerViewController(
+        let videoPlayerController = PlayerViewController(
             module: module,
             videoUrl: "",
             videoTitle: "Episode \(episode.number): \(episode.title)"
@@ -39,14 +39,14 @@ struct VideoPlayer: UIViewControllerRepresentable {
     }
 
     static func dismantleUIViewController(_ uiViewController: UIViewController, coordinator: Coordinator) {
-        if let videoPlayerController = uiViewController as? VideoPlayerViewController {
+        if let videoPlayerController = uiViewController as? PlayerViewController {
             videoPlayerController.stopPlayer()
         }
         coordinator.videoPlayerController = nil
         coordinator.hasLoaded = false
     }
 
-    private func loadStream(context: Context, videoPlayerController: VideoPlayerViewController) async {
+    private func loadStream(context: Context, videoPlayerController: PlayerViewController) async {
         guard !episode.url.isEmpty else {
             await MainActor.run {
                 showError(message: "Episode ID is not available", in: videoPlayerController)

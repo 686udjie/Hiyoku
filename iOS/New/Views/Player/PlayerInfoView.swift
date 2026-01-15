@@ -70,7 +70,7 @@ struct PlayerInfoView: View {
             }
             .fullScreenCover(item: $openEpisode, content: { episode in
                 if let module = viewModel.module {
-                    VideoPlayer(
+                    Player(
                         module: module,
                         episode: episode
                     )

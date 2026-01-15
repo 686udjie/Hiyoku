@@ -70,7 +70,7 @@ class TabBarController: UITabBarController {
         delegate = self
 
         let libraryViewController = NavigationController(rootViewController: LibraryViewController())
-        let playerViewController = NavigationController(rootViewController: PlayerViewController())
+        let playerViewController = NavigationController(rootViewController: PlayerLibraryViewController())
         let browseViewController = NavigationController(rootViewController: BrowseViewController())
         let searchViewController = NavigationController(rootViewController: SearchViewController())
 

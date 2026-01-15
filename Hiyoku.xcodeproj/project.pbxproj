@@ -13,7 +13,7 @@
 		04B48CFF2CD6B3B000F719D0 /* ShikimoriQueries.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04B48CFD2CD6B3AD00F719D0 /* ShikimoriQueries.swift */; };
 		05F88C7D97F5FD0171D5DF8C /* PlayerInfoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED694BE654C3612CB55F5493 /* PlayerInfoView.swift */; };
 		0AFC7155382B3582220BAB82 /* Modules.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B13523BACB0BADB9F2117B8 /* Modules.swift */; };
-		0B1C2D3E4F5A6B7C8D9E0F1A /* VideoPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A2B3C4D5E6F7A8B9C0D1E2F /* VideoPlayer.swift */; };
+		0B1C2D3E4F5A6B7C8D9E0F1A /* Player.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A2B3C4D5E6F7A8B9C0D1E2F /* Player.swift */; };
 		0C807DDD27D47C2D0042EE7B /* CircularProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C807DDC27D47C2D0042EE7B /* CircularProgressView.swift */; };
 		12F69E4E5041E5F6FD24A8D2 /* PlayerInfoView+ViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 403A8669CFBBAA386B00E5CE /* PlayerInfoView+ViewModel.swift */; };
 		37F3E66D2850F62100A944E0 /* Collection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37F3E66C2850F62100A944E0 /* Collection.swift */; };
@@ -40,7 +40,7 @@
 		AA435F0C7BC150F3B54E18BD /* SearchItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A70B02E55BCF101EB1D33CB /* SearchItem.swift */; };
 		B52742E09F7819E84BBDF637 /* PlayerSourceViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D97AF6A4C3DCE5C50512308B /* PlayerSourceViewController.swift */; };
 		E028B789564DEBE3A1E7C743 /* JSController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E008248E03BB792B7E40A0D /* JSController.swift */; };
-		ED682714BC6E65201F199C85 /* VideoPlayerViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B13AA6664E12A701D3A7B45A /* VideoPlayerViewController.swift */; };
+		ED682714BC6E65201F199C85 /* PlayerViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B13AA6664E12A701D3A7B45A /* PlayerViewController.swift */; };
 		F3DE874A70972EF6D3AD1C93 /* PlayerEpisode.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6C1E6B7C4382161904AE451 /* PlayerEpisode.swift */; };
 		FB02E1EB288CC1DA00B9E2DE /* LibraryViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB02E1EA288CC1DA00B9E2DE /* LibraryViewController.swift */; };
 		FB02E1F2288D7BE900B9E2DE /* MangaGridCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB02E1F1288D7BE900B9E2DE /* MangaGridCell.swift */; };
@@ -80,7 +80,7 @@
 		FB0E1CD4288AEA8A00B67BA9 /* AniListQueries.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB0E1CD3288AEA8A00B67BA9 /* AniListQueries.swift */; };
 		FB0E1CD8288AEAF700B67BA9 /* OAuthClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB0E1CD7288AEAF700B67BA9 /* OAuthClient.swift */; };
 		FB0E1CDB288AEB0400B67BA9 /* OAuthResponse.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB0E1CDA288AEB0400B67BA9 /* OAuthResponse.swift */; };
-		FB123456789ABD /* PlayerViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB123456789ABC /* PlayerViewController.swift */; };
+		FB123456789ABD /* PlayerLibraryViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB123456789ABC /* PlayerLibraryViewController.swift */; };
 		FB14B1242DF4CF2B0067E4D4 /* ImagePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB14B1222DF4CF290067E4D4 /* ImagePicker.swift */; };
 		FB14B1272DF4CFE90067E4D4 /* UIKitShim.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB14B1252DF4CFDC0067E4D4 /* UIKitShim.swift */; };
 		FB16E6292DF4D85800E09ED8 /* DebouncedSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB16E6272DF4D85600E09ED6 /* DebouncedSearch.swift */; };
@@ -425,7 +425,7 @@
 		04B48CFD2CD6B3AD00F719D0 /* ShikimoriQueries.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShikimoriQueries.swift; sourceTree = "<group>"; };
 		0C807DDC27D47C2D0042EE7B /* CircularProgressView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CircularProgressView.swift; sourceTree = "<group>"; };
 		1364BB75AB1D280AAFB4BA77 /* PlayerLibraryManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlayerLibraryManager.swift; sourceTree = "<group>"; };
-		1A2B3C4D5E6F7A8B9C0D1E2F /* VideoPlayer.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = VideoPlayer.swift; path = Player/VideoPlayer.swift; sourceTree = "<group>"; };
+		1A2B3C4D5E6F7A8B9C0D1E2F /* Player.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = Player.swift; path = Player/Player.swift; sourceTree = "<group>"; };
 		37F3E66C2850F62100A944E0 /* Collection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Collection.swift; sourceTree = "<group>"; };
 		403A8669CFBBAA386B00E5CE /* PlayerInfoView+ViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "PlayerInfoView+ViewModel.swift"; path = "Player/PlayerInfoView+ViewModel.swift"; sourceTree = "<group>"; };
 		44B9F1E22C5A7D8900A8B123 /* PlayerDetailsHeaderView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PlayerDetailsHeaderView.swift; path = Player/PlayerDetailsHeaderView.swift; sourceTree = "<group>"; };
@@ -453,7 +453,7 @@
 		91D7BEFB2DD7E4BB00898539 /* Aidoku.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Aidoku.xcconfig; sourceTree = "<group>"; };
 		A99889D40481DB61DB0F1D64 /* ModulesView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ModulesView.swift; sourceTree = "<group>"; };
 		B10F06140EF061981F6AF120 /* JavaScriptCore+Extensions.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "JavaScriptCore+Extensions.swift"; path = "Modules/JavaScriptCore+Extensions.swift"; sourceTree = "<group>"; };
-		B13AA6664E12A701D3A7B45A /* VideoPlayerViewController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = VideoPlayerViewController.swift; sourceTree = "<group>"; };
+		B13AA6664E12A701D3A7B45A /* PlayerViewController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlayerViewController.swift; sourceTree = "<group>"; };
 		D6C1E6B7C4382161904AE451 /* PlayerEpisode.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlayerEpisode.swift; sourceTree = "<group>"; };
 		D97AF6A4C3DCE5C50512308B /* PlayerSourceViewController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlayerSourceViewController.swift; sourceTree = "<group>"; };
 		ED694BE654C3612CB55F5493 /* PlayerInfoView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PlayerInfoView.swift; path = Player/PlayerInfoView.swift; sourceTree = "<group>"; };
@@ -495,7 +495,7 @@
 		FB0E1CD3288AEA8A00B67BA9 /* AniListQueries.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AniListQueries.swift; sourceTree = "<group>"; };
 		FB0E1CD7288AEAF700B67BA9 /* OAuthClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OAuthClient.swift; sourceTree = "<group>"; };
 		FB0E1CDA288AEB0400B67BA9 /* OAuthResponse.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OAuthResponse.swift; sourceTree = "<group>"; };
-		FB123456789ABC /* PlayerViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerViewController.swift; sourceTree = "<group>"; };
+		FB123456789ABC /* PlayerLibraryViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerLibraryViewController.swift; sourceTree = "<group>"; };
 		FB14B1222DF4CF290067E4D4 /* ImagePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImagePicker.swift; sourceTree = "<group>"; };
 		FB14B1252DF4CFDC0067E4D4 /* UIKitShim.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UIKitShim.swift; sourceTree = "<group>"; };
 		FB16E6272DF4D85600E09ED6 /* DebouncedSearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebouncedSearch.swift; sourceTree = "<group>"; };
@@ -911,7 +911,7 @@
 				44B9F1E22C5A7D8900A8B123 /* PlayerDetailsHeaderView.swift */,
 				ED694BE654C3612CB55F5493 /* PlayerInfoView.swift */,
 				403A8669CFBBAA386B00E5CE /* PlayerInfoView+ViewModel.swift */,
-				1A2B3C4D5E6F7A8B9C0D1E2F /* VideoPlayer.swift */,
+				1A2B3C4D5E6F7A8B9C0D1E2F /* Player.swift */,
 				70082EB19E009C729B298F9D /* PlayerInfoViewController.swift */,
 			);
 			name = Player;
@@ -1032,7 +1032,7 @@
 				FB05F8662964917A00D1EA2D /* SourceViewController.swift */,
 				FB05F86A2964BFBC00D1EA2D /* SourceViewModel.swift */,
 				D97AF6A4C3DCE5C50512308B /* PlayerSourceViewController.swift */,
-				B13AA6664E12A701D3A7B45A /* VideoPlayerViewController.swift */,
+				B13AA6664E12A701D3A7B45A /* PlayerViewController.swift */,
 			);
 			path = Source;
 			sourceTree = "<group>";
@@ -2582,7 +2582,7 @@
 				61AB42E4FC28AC63183BAEE6 /* ModulesView.swift in Sources */,
 				B52742E09F7819E84BBDF637 /* PlayerSourceViewController.swift in Sources */,
 				80CADB0A42513CE8A7131B99 /* PlayerLibraryItem.swift in Sources */,
-				ED682714BC6E65201F199C85 /* VideoPlayerViewController.swift in Sources */,
+				ED682714BC6E65201F199C85 /* PlayerViewController.swift in Sources */,
 				44B9F1E42C5A7D8900A8B125 /* EpisodeSortOption.swift in Sources */,
 				A85AB8A959F7E6B5E7F658D8 /* PlayerLibraryManager.swift in Sources */,
 				AA435F0C7BC150F3B54E18BD /* SearchItem.swift in Sources */,
@@ -2590,7 +2590,7 @@
 				12F69E4E5041E5F6FD24A8D2 /* PlayerInfoView+ViewModel.swift in Sources */,
 				44B9F1E32C5A7D8900A8B123 /* PlayerDetailsHeaderView.swift in Sources */,
 				44B9F1E42C5A7D8900A8B124 /* PlayerCoverPageView.swift in Sources */,
-				0B1C2D3E4F5A6B7C8D9E0F1A /* VideoPlayer.swift in Sources */,
+				0B1C2D3E4F5A6B7C8D9E0F1A /* Player.swift in Sources */,
 				FFF9F1AD73E74A751AEB6812 /* PlayerInfoViewController.swift in Sources */,
 				F3DE874A70972EF6D3AD1C93 /* PlayerEpisode.swift in Sources */,
 				M3U8EXTRACTOR /* M3U8Extractor.swift in Sources */,

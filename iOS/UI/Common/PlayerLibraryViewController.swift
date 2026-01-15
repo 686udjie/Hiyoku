@@ -1,5 +1,5 @@
 //
-//  PlayerViewController.swift
+//  PlayerLibraryViewController.swift
 //  Hiyoku
 //
 //  Created by 686udjie on 01/05/26.
@@ -11,7 +11,7 @@ import NukeUI
 import AidokuRunner
 import Combine
 
-struct PlayerSearchResult: Identifiable {
+struct PlayerLibrarySearchResult: Identifiable {
     let id = UUID()
     let title: String
     let imageUrl: String
@@ -20,8 +20,8 @@ struct PlayerSearchResult: Identifiable {
 }
 
 @MainActor
-class PlayerSearchViewModel: ObservableObject {
-    @Published var results: [PlayerSearchResult] = []
+class PlayerLibrarySearchViewModel: ObservableObject {
+    @Published var results: [PlayerLibrarySearchResult] = []
     @Published var isLoading = false
 
     private var searchTask: Task<Void, Never>?
@@ -36,10 +36,10 @@ class PlayerSearchViewModel: ObservableObject {
     private func loadPlayerContent() async {
         // Show module browsing options
         let playerModules = ModuleManager.shared.modules.filter { $0.isActive }
-        var allResults: [PlayerSearchResult] = []
+        var allResults: [PlayerLibrarySearchResult] = []
 
         for module in playerModules {
-            let result = PlayerSearchResult(
+            let result = PlayerLibrarySearchResult(
                 title: "Browse \(module.metadata.sourceName)",
                 imageUrl: module.metadata.iconUrl,
                 href: "",
@@ -69,13 +69,13 @@ class PlayerSearchViewModel: ObservableObject {
 
     private func performPlayerSearch(query: String) async {
         let playerModules = ModuleManager.shared.modules.filter { $0.isActive }
-        var searchResults: [PlayerSearchResult] = []
+        var searchResults: [PlayerLibrarySearchResult] = []
 
         // Search through each player module concurrently
-        await withTaskGroup(of: [PlayerSearchResult].self) { group in
+        await withTaskGroup(of: [PlayerLibrarySearchResult].self) { group in
             for module in playerModules {
                 group.addTask {
-                    var moduleResults: [PlayerSearchResult] = []
+                    var moduleResults: [PlayerLibrarySearchResult] = []
                     // Use JavaScript search for player modules (same as global search)
                     let searchItems = await withCheckedContinuation { continuation in
                         JSController.shared.fetchJsSearchResults(keyword: query, module: module) { items in
@@ -83,7 +83,7 @@ class PlayerSearchViewModel: ObservableObject {
                         }
                     }
                     for item in searchItems {
-                        let result = PlayerSearchResult(
+                        let result = PlayerLibrarySearchResult(
                             title: item.title,
                             imageUrl: item.imageUrl,
                             href: item.href,
@@ -106,7 +106,7 @@ class PlayerSearchViewModel: ObservableObject {
     }
 }
 
-class PlayerViewController: BaseViewController {
+class PlayerLibraryViewController: BaseViewController {
 
     private let path = NavigationCoordinator(rootViewController: nil)
     private var searchController: UISearchController!
@@ -177,7 +177,7 @@ class PlayerViewController: BaseViewController {
     }
 }
 
-extension PlayerViewController: UISearchResultsUpdating {
+extension PlayerLibraryViewController: UISearchResultsUpdating {
     func updateSearchResults(for searchController: UISearchController) {
         let searchText = searchController.searchBar.text ?? ""
         playerView.searchText = searchText
@@ -193,7 +193,7 @@ extension PlayerViewController: UISearchResultsUpdating {
 // MARK: - Player View
 struct PlayerView: View {
     @StateObject private var libraryManager = PlayerLibraryManager.shared
-    @StateObject var searchViewModel = PlayerSearchViewModel()
+    @StateObject var searchViewModel = PlayerLibrarySearchViewModel()
     @State var searchText = "" // Made public for UIKit search controller
     @EnvironmentObject private var path: NavigationCoordinator
 
@@ -211,7 +211,7 @@ struct PlayerView: View {
         }
     }
 
-    var searchResults: [PlayerSearchResult] {
+    var searchResults: [PlayerLibrarySearchResult] {
         searchViewModel.results
     }
 
@@ -332,7 +332,7 @@ struct PlayerView: View {
         )
     }
 
-    private func searchResultBanner(for result: PlayerSearchResult) -> some View {
+    private func searchResultBanner(for result: PlayerLibrarySearchResult) -> some View {
         MangaGridItem(
             source: nil,
             title: result.title,

@@ -1,5 +1,5 @@
 //
-//  VideoPlayerViewController.swift
+//  PlayerViewController.swift
 //  Hiyoku
 //
 //  Created by 686udjie on 01/07/26.
@@ -8,7 +8,7 @@
 import UIKit
 import AVKit
 
-class VideoPlayerViewController: UIViewController {
+class PlayerViewController: UIViewController {
 
     let module: ScrapingModule
     var videoUrl: String

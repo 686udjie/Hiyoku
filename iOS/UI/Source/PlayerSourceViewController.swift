@@ -112,7 +112,7 @@ class PlayerSourceViewController: UIViewController {
             let qualityLabel = "Quality \(index + 1)"
             let action = UIAlertAction(title: qualityLabel, style: .default) { [weak self] _ in
                 guard let self = self else { return }
-                let videoPlayer = VideoPlayerViewController(
+                let videoPlayer = PlayerViewController(
                     module: self.module,
                     videoUrl: streamUrl,
                     videoTitle: title
