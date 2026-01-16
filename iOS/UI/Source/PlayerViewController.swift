@@ -221,6 +221,15 @@ class PlayerViewController: UIViewController, UIGestureRecognizerDelegate {
             prepareAndPlay()
         }
     }
+    // Player always appears in dark mode
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        overrideUserInterfaceStyle = .dark
+        setNeedsStatusBarAppearanceUpdate()
+    }
+    override var preferredStatusBarStyle: UIStatusBarStyle {
+        .lightContent
+    }
 }
 
 // MARK: - UI Setup
@@ -954,6 +963,7 @@ class SkipConfigViewController: UIViewController, UIPickerViewDataSource, UIPick
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        overrideUserInterfaceStyle = .dark
         preferredContentSize = CGSize(width: 270, height: 160)
         pickerView.dataSource = self
         pickerView.delegate = self

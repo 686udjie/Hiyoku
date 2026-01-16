@@ -76,6 +76,7 @@ struct PlayerInfoView: View {
                     )
                     .ignoresSafeArea()
                     .navigationTransitionZoom(sourceID: episode, in: transitionNamespace)
+                    .preferredColorScheme(.dark)
                 }
             })
             .toolbar {

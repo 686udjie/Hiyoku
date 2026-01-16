@@ -61,6 +61,8 @@ struct Player: UIViewControllerRepresentable {
             // Update title
             videoPlayerController.updateTitle("Episode \(episode.number): \(episode.title)")
         }
+        // Player always appears in dark mode
+        videoPlayerController.overrideUserInterfaceStyle = .dark
     }
 
     static func dismantleUIViewController(_ uiViewController: UIViewController, coordinator: Coordinator) {
