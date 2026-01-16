@@ -1,10 +1,10 @@
 {
-  "originHash" : "fbee1fcd32ad03a92ffe9109e2bd94b400fad95c547fb7d3b5ec7a14031d23a7",
+  "originHash" : "483668d0e2b4eb4c244b3d9565e11011e8473bd78f74dcceead4c4cb68e6e520",
   "pins" : [
     {
       "identity" : "aidokurunner",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/Aidoku/AidokuRunner",
+      "location" : "https://github.com/Aidoku/AidokuRunner.git",
       "state" : {
         "branch" : "main",
         "revision" : "ad53c5ea0f78f0725201b0cc78fe1a974e3b6118"
@@ -26,6 +26,15 @@
       "state" : {
         "revision" : "0d91406ecd4d6c1c56275866f00508d9aeacc92a",
         "version" : "1.2.0"
+      }
+    },
+    {
+      "identity" : "mpvkit",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/mpvkit/MPVKit.git",
+      "state" : {
+        "revision" : "613c0ccc3acf70e136aaff880a9b5fe8fdfaf5b8",
+        "version" : "0.41.0"
       }
     },
     {
@@ -94,7 +103,7 @@
     {
       "identity" : "swiftui-introspect",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/siteline/swiftui-introspect",
+      "location" : "https://github.com/siteline/swiftui-introspect.git",
       "state" : {
         "revision" : "d2987affc5482a94d94aa730914aa26b124648a6"
       }

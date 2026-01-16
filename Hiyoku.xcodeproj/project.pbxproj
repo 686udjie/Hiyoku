@@ -16,7 +16,9 @@
 		0B1C2D3E4F5A6B7C8D9E0F1A /* Player.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A2B3C4D5E6F7A8B9C0D1E2F /* Player.swift */; };
 		0C807DDD27D47C2D0042EE7B /* CircularProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C807DDC27D47C2D0042EE7B /* CircularProgressView.swift */; };
 		12F69E4E5041E5F6FD24A8D2 /* PlayerInfoView+ViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 403A8669CFBBAA386B00E5CE /* PlayerInfoView+ViewModel.swift */; };
+		1402694F2F1A3580006DA968 /* MPVKit-GPL in Frameworks */ = {isa = PBXBuildFile; productRef = FB1CE0022EFE950300E37A6E /* MPVKit-GPL */; };
 		37F3E66D2850F62100A944E0 /* Collection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37F3E66C2850F62100A944E0 /* Collection.swift */; };
+		3C16530390D04B6A87F652BD /* UserDefaultsKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8C802C3CBD1465FA1056840 /* UserDefaultsKeys.swift */; };
 		44B9F1E32C5A7D8900A8B123 /* PlayerDetailsHeaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44B9F1E22C5A7D8900A8B123 /* PlayerDetailsHeaderView.swift */; };
 		44B9F1E42C5A7D8900A8B124 /* PlayerCoverPageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44B9F1E32C5A7D8900A8B125 /* PlayerCoverPageView.swift */; };
 		44B9F1E42C5A7D8900A8B125 /* EpisodeSortOption.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44B9F1E32C5A7D8900A8B124 /* EpisodeSortOption.swift */; };
@@ -30,7 +32,6 @@
 		48E20A272B78420E00BFFED8 /* NavigationController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48E20A262B78420E00BFFED8 /* NavigationController.swift */; };
 		61AB42E4FC28AC63183BAEE6 /* ModulesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A99889D40481DB61DB0F1D64 /* ModulesView.swift */; };
 		66C7E95B2ED77BBD0026FD6C /* ImageProcessingSettingsKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66C7E95A2ED77BB50026FD6C /* ImageProcessingSettingsKey.swift */; };
-		3C16530390D04B6A87F652BD /* UserDefaultsKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8C802C3CBD1465FA1056840 /* UserDefaultsKeys.swift */; };
 		723D3AFA2E0DC5A5003ED4CF /* DownloadedMangaInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 723D3AF82E0DC5A5003ED4CF /* DownloadedMangaInfo.swift */; };
 		723D3AFD2E0DC5C4003ED4CF /* DownloadsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 723D3AFB2E0DC5C4003ED4CF /* DownloadsView.swift */; };
 		723D3AFE2E0DC5C4003ED4CF /* DownloadedMangaView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 723D3AFC2E0DC5C4003ED4CF /* DownloadedMangaView.swift */; };
@@ -442,7 +443,6 @@
 		4B13523BACB0BADB9F2117B8 /* Modules.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = Modules.swift; path = Modules/Modules.swift; sourceTree = "<group>"; };
 		60580C9623A1635E516E6D7A /* ModuleManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ModuleManager.swift; path = Modules/ModuleManager.swift; sourceTree = "<group>"; };
 		66C7E95A2ED77BB50026FD6C /* ImageProcessingSettingsKey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImageProcessingSettingsKey.swift; sourceTree = "<group>"; };
-		C8C802C3CBD1465FA1056840 /* UserDefaultsKeys.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserDefaultsKeys.swift; sourceTree = "<group>"; };
 		6E008248E03BB792B7E40A0D /* JSController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = JSController.swift; path = Modules/JSController.swift; sourceTree = "<group>"; };
 		70082EB19E009C729B298F9D /* PlayerInfoViewController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PlayerInfoViewController.swift; path = Player/PlayerInfoViewController.swift; sourceTree = "<group>"; };
 		723D3AF82E0DC5A5003ED4CF /* DownloadedMangaInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadedMangaInfo.swift; sourceTree = "<group>"; };
@@ -454,6 +454,7 @@
 		A99889D40481DB61DB0F1D64 /* ModulesView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ModulesView.swift; sourceTree = "<group>"; };
 		B10F06140EF061981F6AF120 /* JavaScriptCore+Extensions.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "JavaScriptCore+Extensions.swift"; path = "Modules/JavaScriptCore+Extensions.swift"; sourceTree = "<group>"; };
 		B13AA6664E12A701D3A7B45A /* PlayerViewController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlayerViewController.swift; sourceTree = "<group>"; };
+		C8C802C3CBD1465FA1056840 /* UserDefaultsKeys.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserDefaultsKeys.swift; sourceTree = "<group>"; };
 		D6C1E6B7C4382161904AE451 /* PlayerEpisode.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlayerEpisode.swift; sourceTree = "<group>"; };
 		D97AF6A4C3DCE5C50512308B /* PlayerSourceViewController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlayerSourceViewController.swift; sourceTree = "<group>"; };
 		ED694BE654C3612CB55F5493 /* PlayerInfoView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = PlayerInfoView.swift; path = Player/PlayerInfoView.swift; sourceTree = "<group>"; };
@@ -879,6 +880,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1402694F2F1A3580006DA968 /* MPVKit-GPL in Frameworks */,
 				FB17114B296770CC00AD523D /* NukeUI in Frameworks */,
 				FB662EDE2DA816CF00007514 /* MarkdownUI in Frameworks */,
 				FB3737D12D17458400AB1551 /* AidokuRunner in Frameworks */,
@@ -976,7 +978,7 @@
 				48E20A262B78420E00BFFED8 /* NavigationController.swift */,
 				FB9A48412968943400FFC414 /* SwiftUINavigationView.swift */,
 				FB4E57982E3529BD006EF27C /* TabBarController.swift */,
-				FB123456789ABC /* PlayerViewController.swift */,
+				FB123456789ABC /* PlayerLibraryViewController.swift */,
 			);
 			path = Common;
 			sourceTree = "<group>";
@@ -2070,6 +2072,7 @@
 				FBBCB31C2E08D6B000ED5CAB /* Gifu */,
 				FBAED40B2E3A762800B81E74 /* SwiftUIIntrospect */,
 				FB2C83982E43F074003CA85F /* SwiftSoup */,
+				FB1CE0022EFE950300E37A6E /* MPVKit-GPL */,
 			);
 			productName = "Aidoku (iOS)";
 			productReference = FB1B4835277CE1920056D02C /* Hiyoku.app */;
@@ -2149,6 +2152,7 @@
 				FBBCB31B2E08D6AF00ED5CAB /* XCRemoteSwiftPackageReference "Gifu" */,
 				FBAED40A2E3A762800B81E74 /* XCRemoteSwiftPackageReference "swiftui-introspect" */,
 				FB2C83972E43F074003CA85F /* XCRemoteSwiftPackageReference "SwiftSoup" */,
+				FB1CE0012EFE950300E37A6E /* XCRemoteSwiftPackageReference "MPVKit" */,
 			);
 			productRefGroup = FB1B4836277CE1920056D02C /* Products */;
 			projectDirPath = "";
@@ -2269,7 +2273,7 @@
 				FB3F49EB2B7C6B7700D3CC75 /* ChapterFlagMask.swift in Sources */,
 				FB034E982EAAFA850072EEEB /* KavitaTracker.swift in Sources */,
 				FB4E57992E3529C0006EF27C /* TabBarController.swift in Sources */,
-				FB123456789ABD /* PlayerViewController.swift in Sources */,
+				FB123456789ABD /* PlayerLibraryViewController.swift in Sources */,
 				FB67EE6627F4D7BF00C468EA /* WasmGlobalStore.swift in Sources */,
 				FBE7A58F2DE1214F00CA5B60 /* ExternalSourceTableCell.swift in Sources */,
 				FB2BE5E229527A6100FAD8A7 /* ZoomableScrollView.swift in Sources */,
@@ -2901,6 +2905,14 @@
 				minimumVersion = 12.0.0;
 			};
 		};
+		FB1CE0012EFE950300E37A6E /* XCRemoteSwiftPackageReference "MPVKit" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/mpvkit/MPVKit";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.5.0;
+			};
+		};
 		FB2C83972E43F074003CA85F /* XCRemoteSwiftPackageReference "SwiftSoup" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/scinfu/SwiftSoup";
@@ -2964,6 +2976,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = FB171149296770CC00AD523D /* XCRemoteSwiftPackageReference "Nuke" */;
 			productName = NukeUI;
+		};
+		FB1CE0022EFE950300E37A6E /* MPVKit-GPL */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = FB1CE0012EFE950300E37A6E /* XCRemoteSwiftPackageReference "MPVKit" */;
+			productName = "MPVKit-GPL";
 		};
 		FB2C83982E43F074003CA85F /* SwiftSoup */ = {
 			isa = XCSwiftPackageProductDependency;

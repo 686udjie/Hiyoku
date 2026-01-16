@@ -328,7 +328,7 @@ struct PlayerView: View {
             source: nil,
             title: bookmark.title,
             coverImage: bookmark.imageUrl,
-            bookmarked: true
+            bookmarked: false
         )
     }
 
@@ -336,7 +336,8 @@ struct PlayerView: View {
         MangaGridItem(
             source: nil,
             title: result.title,
-            coverImage: result.imageUrl
+            coverImage: result.imageUrl,
+            bookmarked: false
         )
     }
 }

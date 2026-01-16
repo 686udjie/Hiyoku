@@ -43,10 +43,6 @@ class M3U8Extractor {
 
     /// Parses M3U8 content from string
     func parseM3U8(content: String, baseUrl: String) -> M3U8Playlist? {
-        let lines = content.components(separatedBy: .newlines)
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty }
-
         var version: Int?
         var targetDuration: Double?
         var mediaSequence: Int?
@@ -59,36 +55,39 @@ class M3U8Extractor {
         var currentByteRange: String?
         var currentDiscontinuity = false
 
-        for line in lines {
-            if line.hasPrefix("#EXT-X-VERSION:") {
-                let versionStr = String(line.dropFirst("#EXT-X-VERSION:".count))
-                version = Int(versionStr)
-            } else if line.hasPrefix("#EXT-X-TARGETDURATION:") {
-                let durationStr = String(line.dropFirst("#EXT-X-TARGETDURATION:".count))
-                targetDuration = Double(durationStr)
-            } else if line.hasPrefix("#EXT-X-MEDIA-SEQUENCE:") {
-                let sequenceStr = String(line.dropFirst("#EXT-X-MEDIA-SEQUENCE:".count))
-                mediaSequence = Int(sequenceStr)
-            } else if line == "#EXT-X-ENDLIST" {
-                endList = true
-                isLive = false
-            } else if line == "#EXT-X-DISCONTINUITY" {
-                currentDiscontinuity = true
-            } else if line.hasPrefix("#EXTINF:") {
-                // Parse duration and title from #EXTINF:duration,title
-                let infString = String(line.dropFirst("#EXTINF:".count))
-                let components = infString.components(separatedBy: ",")
-                if let durationStr = components.first {
+        // Memory efficient parsing using enumerateLines
+        content.enumerateLines { line, _ in
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            guard !trimmed.isEmpty else { return }
+
+            if trimmed.hasPrefix("#") {
+                if trimmed.hasPrefix("#EXT-X-VERSION:") {
+                    version = Int(trimmed.dropFirst(15))
+                } else if trimmed.hasPrefix("#EXT-X-TARGETDURATION:") {
+                    targetDuration = Double(trimmed.dropFirst(22))
+                } else if trimmed.hasPrefix("#EXT-X-MEDIA-SEQUENCE:") {
+                    mediaSequence = Int(trimmed.dropFirst(22))
+                } else if trimmed == "#EXT-X-ENDLIST" {
+                    endList = true
+                    isLive = false
+                } else if trimmed == "#EXT-X-DISCONTINUITY" {
+                    currentDiscontinuity = true
+                } else if trimmed.hasPrefix("#EXTINF:") {
+                    // Parse duration and title
+                    let infString = trimmed.dropFirst(8)
+                    let commaIndex = infString.firstIndex(of: ",") ?? infString.endIndex
+                    let durationStr = infString[..<commaIndex]
                     currentDuration = Double(durationStr) ?? 0
+
+                    if commaIndex < infString.endIndex {
+                        currentTitle = String(infString[infString.index(after: commaIndex)...])
+                    }
+                } else if trimmed.hasPrefix("#EXT-X-BYTERANGE:") {
+                    currentByteRange = String(trimmed.dropFirst(17))
                 }
-                if components.count > 1 {
-                    currentTitle = components[1]
-                }
-            } else if line.hasPrefix("#EXT-X-BYTERANGE:") {
-                currentByteRange = String(line.dropFirst("#EXT-X-BYTERANGE:".count))
-            } else if !line.hasPrefix("#") {
-                // This is a segment URL
-                let segmentUrl = resolveUrl(line, baseUrl: baseUrl)
+            } else {
+                // Segment URL
+                let segmentUrl = self.resolveUrl(trimmed, baseUrl: baseUrl)
                 let segment = M3U8Segment(
                     duration: currentDuration,
                     url: segmentUrl,
@@ -98,7 +97,7 @@ class M3U8Extractor {
                 )
                 segments.append(segment)
 
-                // Reset current segment info
+                // Reset per-segment info
                 currentDuration = 0
                 currentTitle = nil
                 currentByteRange = nil
@@ -118,28 +117,7 @@ class M3U8Extractor {
 
     /// Downloads and parses M3U8 playlist from URL
     func fetchAndParseM3U8(url: String, headers: [String: String] = [:]) async throws -> M3U8Playlist {
-        guard let urlObj = URL(string: url) else {
-            throw M3U8Error.invalidURL
-        }
-
-        // Create request with provided headers or default headers to avoid blocking
-        var request = URLRequest(url: urlObj)
-        if headers.isEmpty {
-            request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " +
-                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36", forHTTPHeaderField: "User-Agent")
-            request.setValue(urlObj.absoluteString, forHTTPHeaderField: "Referer")
-        } else {
-            for (key, value) in headers {
-                request.setValue(value, forHTTPHeaderField: key)
-            }
-        }
-
-        let (data, _) = try await URLSession.shared.data(for: request)
-        guard let content = String(data: data, encoding: .utf8) else {
-            throw M3U8Error.invalidContent
-        }
-
-        let baseUrl = urlObj.deletingLastPathComponent().absoluteString
+        let (content, baseUrl) = try await fetchContent(from: url, headers: headers)
         return parseM3U8(content: content, baseUrl: baseUrl) ?? M3U8Playlist(
             version: nil,
             targetDuration: nil,
@@ -166,14 +144,13 @@ class M3U8Extractor {
             }
         } catch {
             // If quality detection fails, fall back to original URL
-            print("Quality detection failed, using original URL: \(error)")
         }
 
         // Fallback to original URL
         return try await createPlayerItem(from: m3u8Url, headers: headers)
     }
 
-    /// Creates a playable AVPlayerItem from M3U8 URL
+    /// Creates a playable PlayerItem from M3U8 URL
     func createPlayerItem(from m3u8Url: String, headers: [String: String] = [:]) async throws -> AVPlayerItem {
         // Use provided headers or default headers for fetching the playlist
         let fetchHeaders = headers.isEmpty ? [
@@ -200,143 +177,77 @@ class M3U8Extractor {
         return AVPlayerItem(asset: asset)
     }
 
-    /// Gets stream quality information from main playlist
-    func getStreamQualities(from mainPlaylistUrl: String, headers: [String: String] = [:]) async throws -> [StreamQuality] {
-        guard let url = URL(string: mainPlaylistUrl) else {
-            throw M3U8Error.invalidURL
-        }
-
-        // Create request with provided headers or default headers to avoid blocking
-        var request = URLRequest(url: url)
-        if headers.isEmpty {
-            request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " +
-                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36", forHTTPHeaderField: "User-Agent")
-            request.setValue(url.absoluteString, forHTTPHeaderField: "Referer")
-        } else {
-            for (key, value) in headers {
-                request.setValue(value, forHTTPHeaderField: key)
+    /// Resolves the best stream URL from an M3U8 playlist.
+    /// If the URL points to a master playlist, it returns the URL of the highest quality stream.
+    /// If it's already a media playlist, it returns the original URL.
+    func resolveBestStreamUrl(url: String, headers: [String: String] = [:]) async throws -> String {
+        do {
+            let qualities = try await getStreamQualities(from: url, headers: headers)
+            if let best = getHighestQuality(from: qualities) {
+                return best.url
             }
+        } catch {
         }
+        return url
+    }
 
-        let (data, _) = try await URLSession.shared.data(for: request)
-        guard let content = String(data: data, encoding: .utf8) else {
-            throw M3U8Error.invalidContent
-        }
-
-        let baseUrl = url.deletingLastPathComponent().absoluteString
-        let lines = content.components(separatedBy: .newlines)
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty }
-
+    /// Gets stream quality information from main playlist using efficient parsing
+    func getStreamQualities(from mainPlaylistUrl: String, headers: [String: String] = [:], markHighest: Bool = true) async throws -> [StreamQuality] {
+        let (content, baseUrl) = try await fetchContent(from: mainPlaylistUrl, headers: headers)
         var qualities: [StreamQuality] = []
+        // State parsing variables
         var currentBandwidth: Int = 0
         var currentResolution: String?
         var currentCodecs: String?
-        var currentUrl: String?
 
-        for (index, line) in lines.enumerated() where line.hasPrefix("#EXT-X-STREAM-INF:") {
-            // Parse stream info line
-            // Format: #EXT-X-STREAM-INF:BANDWIDTH=...,RESOLUTION=...,CODECS="..."
-            let infoString = String(line.dropFirst("#EXT-X-STREAM-INF:".count))
+        content.enumerateLines { line, _ in
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.isEmpty { return }
 
-            // Extract bandwidth
-            if let bandwidthRange = infoString.range(of: "BANDWIDTH=") {
-                let afterBandwidth = String(infoString[bandwidthRange.upperBound...])
-                let bandwidthEnd = afterBandwidth.range(of: ",") ??
-                    afterBandwidth.range(of: "\n") ??
-                    (afterBandwidth.endIndex..<afterBandwidth.endIndex)
-                let bandwidthStr = String(afterBandwidth[..<bandwidthEnd.lowerBound])
-                currentBandwidth = Int(bandwidthStr) ?? 0
-            }
+            if trimmed.hasPrefix("#EXT-X-STREAM-INF:") {
+                let infoString = String(trimmed.dropFirst(18))
+                let attrs = self.parseAttributes(infoString)
+                currentBandwidth = Int(attrs["BANDWIDTH"] ?? "") ?? 0
+                currentResolution = attrs["RESOLUTION"]
+                currentCodecs = attrs["CODECS"]
+            } else if !trimmed.hasPrefix("#") {
+                if currentBandwidth > 0 || currentResolution != nil {
+                    let streamUrl = self.resolveUrl(trimmed, baseUrl: baseUrl)
+                    qualities.append(StreamQuality(
+                        url: streamUrl,
+                        bandwidth: currentBandwidth,
+                        resolution: currentResolution,
+                        codecs: currentCodecs,
+                        title: "" // Will be set after sorting/marking
+                    ))
 
-            // Extract resolution
-            if let resolutionRange = infoString.range(of: "RESOLUTION=") {
-                let afterResolution = String(infoString[resolutionRange.upperBound...])
-                let resolutionEnd = afterResolution.range(of: ",") ??
-                    afterResolution.range(of: "\n") ??
-                    (afterResolution.endIndex..<afterResolution.endIndex)
-                let resolutionStr = String(afterResolution[..<resolutionEnd.lowerBound])
-                currentResolution = resolutionStr
-            }
-
-            // Extract codecs
-            if let codecsRange = infoString.range(of: "CODECS=") {
-                let afterCodecs = String(infoString[codecsRange.upperBound...])
-                let codecsEnd = afterCodecs.range(of: ",") ?? afterCodecs.range(of: "\n") ?? (afterCodecs.endIndex..<afterCodecs.endIndex)
-                var codecsStr = String(afterCodecs[..<codecsEnd.lowerBound])
-                // Remove quotes if present
-                codecsStr = codecsStr.trimmingCharacters(in: CharacterSet(charactersIn: "\""))
-                currentCodecs = codecsStr
-            }
-
-            // Get the URL from the next line
-            if index + 1 < lines.count {
-                let nextLine = lines[index + 1]
-                if !nextLine.hasPrefix("#") {
-                    currentUrl = resolveUrl(nextLine, baseUrl: baseUrl)
+                    currentBandwidth = 0
+                    currentResolution = nil
+                    currentCodecs = nil
                 }
             }
-
-            // Create quality entry if we have a URL
-            if let url = currentUrl {
-                let title = generateQualityTitle(resolution: currentResolution, bandwidth: currentBandwidth)
-                qualities.append(StreamQuality(
-                    url: url,
-                    bandwidth: currentBandwidth,
-                    resolution: currentResolution,
-                    codecs: currentCodecs,
-                    title: title
-                ))
-            }
-
-            // Reset for next stream
-            currentBandwidth = 0
-            currentResolution = nil
-            currentCodecs = nil
-            currentUrl = nil
         }
 
-        // If no qualities found (not a main playlist), return single quality
         if qualities.isEmpty {
-            return [StreamQuality(
-                url: mainPlaylistUrl,
-                bandwidth: 0,
-                resolution: nil,
-                codecs: nil,
-                title: "Default"
-            )]
+            return [StreamQuality(url: mainPlaylistUrl, bandwidth: 0, resolution: nil, codecs: nil, title: "Default")]
+        }
 
-            }
-
-        // Sort by bandwidth (highest first)
         qualities.sort { $0.bandwidth > $1.bandwidth }
 
-        return qualities
+        // Generate titles and mark highest
+        let highestBandwidth = qualities.first?.bandwidth ?? 0
+        return qualities.map { q in
+            var title = generateQualityTitle(resolution: q.resolution, bandwidth: q.bandwidth)
+            if markHighest && q.bandwidth == highestBandwidth && highestBandwidth > 0 {
+                title += " ⭐"
+            }
+            return StreamQuality(url: q.url, bandwidth: q.bandwidth, resolution: q.resolution, codecs: q.codecs, title: title)
+        }
     }
 
     /// Gets the highest quality stream from available qualities
     func getHighestQuality(from qualities: [StreamQuality]) -> StreamQuality? {
         qualities.max { $0.bandwidth < $1.bandwidth }
-    }
-
-    /// Gets stream qualities with highest quality marked
-    func getQualitiesWithHighestMarked(from mainPlaylistUrl: String, headers: [String: String] = [:]) async throws -> [StreamQuality] {
-        let qualities = try await getStreamQualities(from: mainPlaylistUrl, headers: headers)
-
-        // Mark the highest quality
-        if let highest = qualities.max(by: { $0.bandwidth < $1.bandwidth }) {
-            return qualities.map { quality in
-                StreamQuality(
-                    url: quality.url,
-                    bandwidth: quality.bandwidth,
-                    resolution: quality.resolution,
-                    codecs: quality.codecs,
-                    title: quality.bandwidth == highest.bandwidth ? "\(quality.title) ⭐" : quality.title
-                )
-            }
-        }
-
-        return qualities
     }
 
     // MARK: - Helper Methods
@@ -355,6 +266,49 @@ class M3U8Extractor {
         } else {
             return base.appendingPathComponent(url).absoluteString
         }
+    }
+
+    private func createRequest(url: URL, headers: [String: String]) -> URLRequest {
+        var request = URLRequest(url: url)
+        if headers.isEmpty {
+            request.setValue("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " +
+                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36", forHTTPHeaderField: "User-Agent")
+            request.setValue(url.absoluteString, forHTTPHeaderField: "Referer")
+        } else {
+            for (key, value) in headers {
+                request.setValue(value, forHTTPHeaderField: key)
+            }
+        }
+        return request
+    }
+
+    private func fetchContent(from url: String, headers: [String: String]) async throws -> (content: String, baseUrl: String) {
+        guard let urlObj = URL(string: url) else {
+            throw M3U8Error.invalidURL
+        }
+
+        let request = createRequest(url: urlObj, headers: headers)
+        let (data, _) = try await URLSession.shared.data(for: request)
+
+        guard let content = String(data: data, encoding: .utf8) else {
+            throw M3U8Error.invalidContent
+        }
+
+        return (content, urlObj.deletingLastPathComponent().absoluteString)
+    }
+
+    private func parseAttributes(_ infoString: String) -> [String: String] {
+        var attributes: [String: String] = [:]
+        let parts = infoString.components(separatedBy: ",")
+        for part in parts {
+            let pair = part.components(separatedBy: "=")
+            if pair.count == 2 {
+                let key = pair[0].trimmingCharacters(in: .whitespaces)
+                let value = pair[1].trimmingCharacters(in: CharacterSet(charactersIn: "\" "))
+                attributes[key] = value
+            }
+        }
+        return attributes
     }
 
     private func extractResolution(from url: String) -> String? {
@@ -457,38 +411,26 @@ class M3U8Extractor {
     }
 
     private func generateQualityTitle(resolution: String?, bandwidth: Int) -> String {
+        let label: String
+        let res: String
+
         if let resolution = resolution {
-            // Parse resolution like "1920x1080" or "1080p"
             if resolution.contains("x") {
-                let parts = resolution.components(separatedBy: "x")
-                if parts.count == 2, let height = Int(parts[1]) {
-                    // Add quality label for common resolutions
-                    let qualityLabel = getQualityLabel(for: height)
-                    return "\(height)p (\(qualityLabel))"
-                }
-                return resolution
-            } else if resolution.hasSuffix("p") {
-                let heightStr = String(resolution.dropLast())
-                if let height = Int(heightStr) {
-                    let qualityLabel = getQualityLabel(for: height)
-                    return "\(height)p (\(qualityLabel))"
-                }
-                return resolution
+                res = resolution.components(separatedBy: "x").last ?? resolution
             } else {
-                return resolution
+                res = resolution
             }
+            let height = Int(res.replacingOccurrences(of: "p", with: "")) ?? 0
+            label = getQualityLabel(for: height)
         } else if bandwidth > 0 {
-            // Estimate quality from bandwidth if resolution not available
-            let estimatedHeight = estimateHeightFromBandwidth(bandwidth)
-            let qualityLabel = getQualityLabel(for: estimatedHeight)
-            if bandwidth >= 1_000_000 {
-                return "\(bandwidth / 1_000_000)Mbps (\(qualityLabel))"
-            } else {
-                return "\(bandwidth / 1000)Kbps (\(qualityLabel))"
-            }
+            let height = estimateHeightFromBandwidth(bandwidth)
+            label = getQualityLabel(for: height)
+            res = bandwidth >= 1_000_000 ? "\(bandwidth / 1_000_000)Mbps" : "\(bandwidth / 1000)Kbps"
         } else {
             return "Auto"
         }
+
+        return res.hasSuffix("p") ? "\(res) (\(label))" : "\(res)p (\(label))"
     }
 
     private func getQualityLabel(for height: Int) -> String {
