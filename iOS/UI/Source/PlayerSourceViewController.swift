@@ -33,11 +33,13 @@ class PlayerSourceViewController: UIViewController {
         title = module.metadata.sourceName
         view.backgroundColor = .systemBackground
 
+        navigationController?.navigationBar.prefersLargeTitles = true
+        navigationItem.largeTitleDisplayMode = .always
+
         resultsViewController = PlayerSearchResultsViewController(module: module, parentVC: self)
         searchController = UISearchController(searchResultsController: resultsViewController)
         searchController.searchResultsUpdater = self
         searchController.obscuresBackgroundDuringPresentation = false
-        searchController.searchBar.placeholder = "Search..."
         searchController.searchBar.delegate = self
 
         navigationItem.searchController = searchController
@@ -90,7 +92,15 @@ class PlayerSourceViewController: UIViewController {
 
         if #available(iOS 18.0, *) {
             infoVC.preferredTransition = .zoom { _ in
-                self.navigationItem.rightBarButtonItem?.customView ?? self.navigationItem.searchController?.searchBar
+                guard let resultsVC = self.searchController.searchResultsController as? PlayerSearchResultsViewController else {
+                     return nil
+                }
+
+                guard let cell = resultsVC.cell(for: playerItem) as? MangaGridCell else {
+                    return nil
+                }
+
+                return cell.contentView
             }
         }
 
@@ -196,73 +206,113 @@ struct PlayerSourceInitialView: View {
 }
 
 class PlayerSearchResultsViewController: UIViewController, DebouncedSearchable {
-
+    private enum Section {
+        case main
+    }
     let module: ScrapingModule
     private var results: [SearchItem] = []
-    private var isLoading = false
-    private var hostingController: UIHostingController<PlayerSearchResultsGrid>?
     private weak var parentPlayerSourceVC: PlayerSourceViewController?
-
     var searchDebounceTimer: Timer?
     var currentSearchTask: Task<Void, Never>?
-
+    // UI Elements
+    lazy var collectionView: UICollectionView = {
+        let layout = UICollectionViewCompositionalLayout { [weak self] _, environment in
+            guard let self = self else { return nil }
+            return self.createLayout(environment: environment)
+        }
+        let collectionView = UICollectionView(frame: .zero, collectionViewLayout: layout)
+        collectionView.backgroundColor = .systemBackground
+        collectionView.delegate = self
+        collectionView.keyboardDismissMode = .onDrag
+        return collectionView
+    }()
+    private lazy var dataSource = makeDataSource()
+    private let activityIndicator: UIActivityIndicatorView = {
+        let indicator = UIActivityIndicatorView(style: .medium)
+        indicator.hidesWhenStopped = true
+        return indicator
+    }()
     init(module: ScrapingModule, parentVC: PlayerSourceViewController) {
         self.module = module
         self.parentPlayerSourceVC = parentVC
         super.init(nibName: nil, bundle: nil)
     }
-
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
-
     override func viewDidLoad() {
         super.viewDidLoad()
+        setupUI()
+        setupDataSource()
+    }
+    private func setupUI() {
         view.backgroundColor = .systemBackground
-        showResultsGrid()
+        view.addSubview(collectionView)
+        collectionView.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(activityIndicator)
+        activityIndicator.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            collectionView.topAnchor.constraint(equalTo: view.topAnchor),
+            collectionView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            collectionView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            collectionView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            activityIndicator.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            activityIndicator.centerYAnchor.constraint(equalTo: view.centerYAnchor)
+        ])
     }
-
-    private func showResultsGrid() {
-        updateResultsGrid()
-
-        guard hostingController == nil else { return }
-
-        hostingController = UIHostingController(rootView: makeGridView())
-        guard let hostingController = hostingController else { return }
-
-        addChild(hostingController)
-        hostingController.view.frame = view.bounds
-        hostingController.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-        view.addSubview(hostingController.view)
-        hostingController.didMove(toParent: self)
+    private func setupDataSource() {
+        collectionView.register(MangaGridCell.self, forCellWithReuseIdentifier: "MangaGridCell")
     }
-
-    private func makeGridView() -> PlayerSearchResultsGrid {
-        PlayerSearchResultsGrid(
-            results: results,
-            isLoading: isLoading,
-            module: module
-        ) { [weak self] selectedItem in
-            guard let self = self, let parentVC = self.parentPlayerSourceVC else { return }
-            parentVC.navigateToPlayerDetails(
-                title: selectedItem.title,
-                imageUrl: selectedItem.imageUrl,
-                href: selectedItem.href
-            )
+    private func makeDataSource() -> UICollectionViewDiffableDataSource<Section, SearchItem> {
+        UICollectionViewDiffableDataSource(collectionView: collectionView) { collectionView, indexPath, item in
+            // swiftlint:disable force_cast
+            let cell = collectionView.dequeueReusableCell(withReuseIdentifier: "MangaGridCell", for: indexPath) as! MangaGridCell
+            // swiftlint:enable force_cast
+            cell.title = item.title
+            cell.sourceId = self.module.id.uuidString
+            Task {
+                await cell.loadImage(url: URL(string: item.imageUrl))
+            }
+            return cell
         }
     }
+    private func createLayout(environment: NSCollectionLayoutEnvironment) -> NSCollectionLayoutSection {
+        let itemsPerRow = UserDefaults.standard.integer(
+            forKey: environment.container.contentSize.width > environment.container.contentSize.height
+            ? "General.landscapeRows"
+            : "General.portraitRows"
+        )
 
+        let count = itemsPerRow > 0 ? itemsPerRow : (environment.container.contentSize.width > environment.container.contentSize.height ? 4 : 2)
+
+        let itemSpacing: CGFloat = 12
+
+        let itemSize = NSCollectionLayoutSize(
+            widthDimension: .fractionalWidth(1 / CGFloat(count)),
+            heightDimension: .fractionalWidth(3 / (2 * CGFloat(count)))
+        )
+        let item = NSCollectionLayoutItem(layoutSize: itemSize)
+
+        let groupSize = NSCollectionLayoutSize(
+            widthDimension: .fractionalWidth(1),
+            heightDimension: .estimated(environment.container.contentSize.width * 3 / (2 * CGFloat(count)))
+        )
+        let group = NSCollectionLayoutGroup.horizontal(layoutSize: groupSize, subitem: item, count: count)
+        group.interItemSpacing = .fixed(itemSpacing)
+
+        let section = NSCollectionLayoutSection(group: group)
+        section.contentInsets = NSDirectionalEdgeInsets(top: 12, leading: 12, bottom: 12, trailing: 12)
+        section.interGroupSpacing = itemSpacing
+
+        return section
+    }
     func performSearch(query: String) {
-        results = []
-
         guard !query.isEmpty else {
-            isLoading = false
-            updateResultsGrid()
+            updateSnapshot(with: [])
             return
         }
 
-        isLoading = true
-        updateResultsGrid()
+        activityIndicator.startAnimating()
 
         performSearch(query: query, delay: 0.7) { [weak self] in
             await self?.executeSearch(query: query)
@@ -277,10 +327,9 @@ class PlayerSearchResultsViewController: UIViewController, DebouncedSearchable {
         guard !Task.isCancelled else { return }
 
         await MainActor.run { [weak self] in
-            guard let self = self else { return }
-            self.results = searchResults
-            self.isLoading = false
-            self.updateResultsGrid()
+            self?.activityIndicator.stopAnimating()
+            self?.results = searchResults
+            self?.updateSnapshot(with: searchResults)
         }
     }
 
@@ -288,150 +337,54 @@ class PlayerSearchResultsViewController: UIViewController, DebouncedSearchable {
         await JSController.shared.fetchJsSearchResults(keyword: query, module: module)
     }
 
-    private func updateResultsGrid() {
-        hostingController?.rootView = makeGridView()
+    private func updateSnapshot(with items: [SearchItem]) {
+        var snapshot = NSDiffableDataSourceSnapshot<Section, SearchItem>()
+        snapshot.appendSections([Section.main])
+        snapshot.appendItems(items)
+        dataSource.apply(snapshot, animatingDifferences: true)
+    }
+
+    func cell(for item: SearchItem) -> UICollectionViewCell? {
+        guard let indexPath = dataSource.indexPath(for: item) else { return nil }
+        return collectionView.cellForItem(at: indexPath)
     }
 }
 
-struct PlayerSearchResultsGrid: View {
-    @AppStorage("mediaColumnsPortrait") private var mediaColumnsPortrait: Int = 2
-    @AppStorage("mediaColumnsLandscape") private var mediaColumnsLandscape: Int = 4
-    @Environment(\.verticalSizeClass) var verticalSizeClass
-
-    let results: [SearchItem]
-    let isLoading: Bool
-    let module: ScrapingModule
-    let onItemSelected: (SearchItem) -> Void
-
-    private var columnsCount: Int {
-        if UIDevice.current.userInterfaceIdiom == .pad {
-            let isLandscape = UIScreen.main.bounds.width > UIScreen.main.bounds.height
-            return isLandscape ? mediaColumnsLandscape : mediaColumnsPortrait
-        } else {
-            return verticalSizeClass == .compact ? mediaColumnsLandscape : mediaColumnsPortrait
-        }
+extension SearchItem: Hashable {
+    public static func == (lhs: SearchItem, rhs: SearchItem) -> Bool {
+        lhs.href == rhs.href
     }
 
-    private var cellWidth: CGFloat {
-        let totalSpacing = CGFloat(columnsCount - 1) * 12 // 12pt spacing between columns
-        let availableWidth = UIScreen.main.bounds.width - 24 // 12pt padding on each side
-        return (availableWidth - totalSpacing) / CGFloat(columnsCount)
-    }
-
-    var body: some View {
-        if results.isEmpty {
-            if isLoading {
-                ScrollView {
-                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: columnsCount), spacing: 12) {
-                        ForEach(0..<20, id: \.self) { _ in
-                            PlayerSearchResultPlaceholder(cellWidth: cellWidth)
-                        }
-                    }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 12)
-                }
-            } else {
-                UnavailableView.search(text: "")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-        } else {
-            ScrollView {
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: columnsCount), spacing: 12) {
-                    ForEach(results, id: \.href) { item in
-                        Button {
-                            onItemSelected(item)
-                        } label: {
-                            LazyImage(url: URL(string: item.imageUrl)) { state in
-                                if let uiImage = state.imageContainer?.image {
-                                    Image(uiImage: uiImage)
-                                        .resizable()
-                                        .aspectRatio(contentMode: .fill)
-                                        .frame(width: cellWidth, height: cellWidth * 1.5)
-                                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                                        .overlay(
-                                            LinearGradient(
-                                                gradient: UIConstants.imageOverlayGradient,
-                                                startPoint: .top,
-                                                endPoint: .bottom
-                                            )
-                                        )
-                                        .overlay(
-                                            Text(item.title)
-                                                .foregroundStyle(.white)
-                                                .font(.system(size: 15, weight: .medium))
-                                                .multilineTextAlignment(.leading)
-                                                .lineLimit(2)
-                                                .padding(8),
-                                            alignment: .bottomLeading
-                                        )
-                                } else {
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .fill(Color.gray.opacity(0.2))
-                                        .frame(width: cellWidth, height: cellWidth * 1.5)
-                                        .overlay(
-                                            Image(systemName: "photo")
-                                                .foregroundStyle(.gray)
-                                        )
-                                        .overlay(
-                                            LinearGradient(
-                                                gradient: UIConstants.imageOverlayGradient,
-                                                startPoint: .top,
-                                                endPoint: .bottom
-                                            )
-                                        )
-                                        .overlay(
-                                            Text(item.title)
-                                                .foregroundStyle(.white)
-                                                .font(.system(size: 15, weight: .medium))
-                                                .multilineTextAlignment(.leading)
-                                                .lineLimit(2)
-                                                .padding(8),
-                                            alignment: .bottomLeading
-                                        )
-                                }
-                            }
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                    }
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 12)
-            }
-        }
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(href)
     }
 }
 
-struct PlayerSearchResultPlaceholder: View {
-    let cellWidth: CGFloat
+extension PlayerSearchResultsViewController: UICollectionViewDelegate {
+    func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
+        guard let item = dataSource.itemIdentifier(for: indexPath) else { return }
+        parentPlayerSourceVC?.navigateToPlayerDetails(
+            title: item.title,
+            imageUrl: item.imageUrl,
+            href: item.href
+        )
+    }
+    func collectionView(
+        _ collectionView: UICollectionView,
+        contextMenuConfigurationForItemAt indexPath: IndexPath,
+        point: CGPoint
+    ) -> UIContextMenuConfiguration? {
+        guard let cell = collectionView.cellForItem(at: indexPath) as? MangaGridCell else { return nil }
 
-    var body: some View {
-        Rectangle()
-            .fill(Color(uiColor: .secondarySystemFill))
-            .frame(width: cellWidth, height: cellWidth * 1.5)
-            .clipShape(RoundedRectangle(cornerRadius: 8))
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .strokeBorder(Color(UIColor.quaternarySystemFill), lineWidth: 1)
-            )
-            .overlay(
-                LinearGradient(
-                    gradient: UIConstants.imageOverlayGradient,
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-            )
-            .overlay(
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Loading Title")
-                        .foregroundStyle(.white)
-                        .font(.system(size: 15, weight: .medium))
-                        .lineLimit(2)
-                        .padding(8)
-                    Spacer()
-                },
-                alignment: .bottomLeading
-            )
-            .redacted(reason: .placeholder)
-            .shimmering()
+        let parameters = UIPreviewParameters()
+        parameters.visiblePath = UIBezierPath(
+            roundedRect: cell.bounds,
+            cornerRadius: cell.contentView.layer.cornerRadius
+        )
+
+        return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { _ in
+             // TODO: Add context menu actions here
+             nil
+        }
     }
 }

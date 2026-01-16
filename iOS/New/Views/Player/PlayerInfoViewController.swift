@@ -9,10 +9,10 @@ import UIKit
 import SwiftUI
 
 class PlayerInfoViewController: UIViewController {
-    private let bookmark: PlayerLibraryItem?
-    private let searchItem: SearchItem?
-    private let module: ScrapingModule?
-    private let path: NavigationCoordinator
+    let bookmark: PlayerLibraryItem?
+    let searchItem: SearchItem?
+    let module: ScrapingModule?
+    let path: NavigationCoordinator
 
     init(
         bookmark: PlayerLibraryItem? = nil,
