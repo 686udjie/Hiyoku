@@ -20,6 +20,11 @@ class PlayerViewController: UIViewController, UIGestureRecognizerDelegate {
     // Navigation Callbacks
     var onNextEpisode: (() -> Void)?
     var onPreviousEpisode: (() -> Void)?
+    var onEpisodeSelected: ((PlayerEpisode) -> Void)?
+
+    // Data
+    var allEpisodes: [PlayerEpisode] = []
+    var currentEpisode: PlayerEpisode?
 
     // MPV Properties
     private var mpv: OpaquePointer?
@@ -131,6 +136,17 @@ class PlayerViewController: UIViewController, UIGestureRecognizerDelegate {
         return b
     }()
 
+    private lazy var listButton: UIButton = {
+        let b = UIButton(type: .system)
+        let config = UIImage.SymbolConfiguration(pointSize: 20, weight: .medium)
+        b.setImage(UIImage(systemName: "list.bullet", withConfiguration: config), for: .normal)
+        b.tintColor = .secondaryLabel
+        b.addTarget(self, action: #selector(listTapped), for: .touchUpInside)
+        return b
+    }()
+
+    private lazy var listBackgroundView = createBlurBackground(cornerRadius: 22)
+
     private lazy var lockButton: UIButton = {
         let b = UIButton(type: .system)
         let config = UIImage.SymbolConfiguration(pointSize: 16, weight: .medium)
@@ -138,6 +154,30 @@ class PlayerViewController: UIViewController, UIGestureRecognizerDelegate {
         b.tintColor = .secondaryLabel
         b.addTarget(self, action: #selector(lockTapped), for: .touchUpInside)
         return b
+    }()
+
+    private let showTitleLabel: UILabel = {
+        let l = UILabel()
+        l.font = .systemFont(ofSize: 16, weight: .semibold)
+        l.textColor = .white
+        l.textAlignment = .left
+        return l
+    }()
+
+    private let episodeNumberLabel: UILabel = {
+        let l = UILabel()
+        l.font = .systemFont(ofSize: 13, weight: .medium)
+        l.textColor = .secondaryLabel
+        l.textAlignment = .left
+        return l
+    }()
+
+    private lazy var titleStackView: UIStackView = {
+        let stack = UIStackView(arrangedSubviews: [showTitleLabel, episodeNumberLabel])
+        stack.axis = .vertical
+        stack.alignment = .leading
+        stack.spacing = 2
+        return stack
     }()
 
     private lazy var gutterUnlockButton: UIButton = {
@@ -252,11 +292,11 @@ extension PlayerViewController {
         let tapGesture = UITapGestureRecognizer(target: self, action: #selector(handleTap))
         videoContainer.addGestureRecognizer(tapGesture)
 
-        // Add all backgrounds and stand-alone views to videoContainer
+         // Add all backgrounds and stand-alone views to videoContainer
         [playPauseBackgroundView, previousBackgroundView, nextBackgroundView,
-         closeBackgroundView, sliderBackgroundView, speedBackgroundView,
+         closeBackgroundView, listBackgroundView, sliderBackgroundView, speedBackgroundView,
          lockBackgroundView, skipBackgroundView, gutterUnlockButton,
-         watchedTimeLabel, totalTimeLabel].forEach {
+         watchedTimeLabel, totalTimeLabel, titleStackView].forEach {
             $0.translatesAutoresizingMaskIntoConstraints = false
             videoContainer.addSubview($0)
         }
@@ -266,6 +306,7 @@ extension PlayerViewController {
         centerInParent(previousButton, parent: previousBackgroundView, size: CGSize(width: 44, height: 44))
         centerInParent(nextButton, parent: nextBackgroundView, size: CGSize(width: 44, height: 44))
         centerInParent(closeButton, parent: closeBackgroundView, size: CGSize(width: 30, height: 30))
+        centerInParent(listButton, parent: listBackgroundView, size: CGSize(width: 30, height: 30))
         centerInParent(speedButton, parent: speedBackgroundView, size: CGSize(width: 44, height: 28))
         centerInParent(lockButton, parent: lockBackgroundView, size: CGSize(width: 36, height: 28))
         centerInParent(skipButton, parent: skipBackgroundView, size: CGSize(width: 44, height: 28))
@@ -294,6 +335,15 @@ extension PlayerViewController {
             closeBackgroundView.leadingAnchor.constraint(equalTo: videoContainer.safeAreaLayoutGuide.leadingAnchor, constant: 16),
             closeBackgroundView.widthAnchor.constraint(equalToConstant: 44),
             closeBackgroundView.heightAnchor.constraint(equalToConstant: 44),
+
+            listBackgroundView.centerYAnchor.constraint(equalTo: closeBackgroundView.centerYAnchor),
+            listBackgroundView.leadingAnchor.constraint(equalTo: closeBackgroundView.trailingAnchor, constant: 12),
+            listBackgroundView.widthAnchor.constraint(equalToConstant: 44),
+            listBackgroundView.heightAnchor.constraint(equalToConstant: 44),
+
+            titleStackView.centerYAnchor.constraint(equalTo: closeBackgroundView.centerYAnchor),
+            titleStackView.leadingAnchor.constraint(equalTo: listBackgroundView.trailingAnchor, constant: 16),
+            titleStackView.trailingAnchor.constraint(lessThanOrEqualTo: gutterUnlockButton.leadingAnchor, constant: -16),
 
             gutterUnlockButton.trailingAnchor.constraint(equalTo: videoContainer.trailingAnchor, constant: -16),
             gutterUnlockButton.centerYAnchor.constraint(equalTo: videoContainer.centerYAnchor),
@@ -427,15 +477,16 @@ extension PlayerViewController {
     private var controlViews: [UIView] {
         [
             playPauseBackgroundView, previousBackgroundView, nextBackgroundView,
-            closeBackgroundView, sliderBackgroundView, watchedTimeLabel,
-            totalTimeLabel, speedBackgroundView, lockBackgroundView, skipBackgroundView
+            closeBackgroundView, listBackgroundView, sliderBackgroundView, watchedTimeLabel,
+            totalTimeLabel, speedBackgroundView, lockBackgroundView, skipBackgroundView,
+            titleStackView
         ]
     }
 
     private var interactionEnabledViews: [UIView] {
         [
             playPauseBackgroundView, previousBackgroundView, nextBackgroundView,
-            closeBackgroundView, sliderBackgroundView, speedBackgroundView,
+            closeBackgroundView, listBackgroundView, sliderBackgroundView, speedBackgroundView,
             lockBackgroundView, skipBackgroundView
         ]
     }
@@ -597,8 +648,46 @@ extension PlayerViewController {
         }
     }
 
+    func configure(episodes: [PlayerEpisode], current: PlayerEpisode?, title: String) {
+        self.allEpisodes = episodes
+        self.currentEpisode = current
+        self.videoTitle = title
+
+        showTitleLabel.text = title
+        if let current = current {
+            episodeNumberLabel.text = "Episode \(current.number)"
+        } else {
+            episodeNumberLabel.text = ""
+        }
+
+        listButton.isEnabled = episodes.count > 1
+        listButton.tintColor = episodes.count > 1 ? .secondaryLabel : .tertiaryLabel
+    }
+
+    @objc private func listTapped() {
+        guard allEpisodes.count > 1 else { return }
+
+        let listVC = EpisodeListViewController()
+        listVC.episodes = allEpisodes
+        listVC.currentEpisode = currentEpisode
+
+        let alert = UIAlertController(title: "Select Episode", message: nil, preferredStyle: .alert)
+        alert.setValue(listVC, forKey: "contentViewController")
+
+        let doneAction = UIAlertAction(title: "Done", style: .default) { [weak self, weak listVC] _ in
+            guard let self = self, let selectedEpisode = listVC?.getSelectedEpisode() else { return }
+            self.onEpisodeSelected?(selectedEpisode)
+        }
+
+        alert.addAction(doneAction)
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
+
+        present(alert, animated: true)
+    }
+
     func updateTitle(_ title: String) {
         self.videoTitle = title
+        self.showTitleLabel.text = title
     }
 }
 
@@ -995,5 +1084,60 @@ class SkipConfigViewController: UIViewController, UIPickerViewDataSource, UIPick
     func pickerView(_ pickerView: UIPickerView, didSelectRow row: Int, inComponent component: Int) {
         let newVal = values[row]
         onSave?(newVal)
+    }
+}
+class EpisodeListViewController: UIViewController, UIPickerViewDataSource, UIPickerViewDelegate {
+    var episodes: [PlayerEpisode] = []
+    var currentEpisode: PlayerEpisode?
+    var onSelect: ((PlayerEpisode) -> Void)?
+
+    private let pickerView = UIPickerView()
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        overrideUserInterfaceStyle = .dark
+        preferredContentSize = CGSize(width: 270, height: 160)
+        pickerView.dataSource = self
+        pickerView.delegate = self
+
+        if let current = currentEpisode, let index = episodes.firstIndex(where: { $0.url == current.url }) {
+            pickerView.selectRow(index, inComponent: 0, animated: false)
+        }
+
+        view.addSubview(pickerView)
+        pickerView.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            pickerView.topAnchor.constraint(equalTo: view.topAnchor),
+            pickerView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            pickerView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            pickerView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+        ])
+    }
+
+    func numberOfComponents(in pickerView: UIPickerView) -> Int {
+        1
+    }
+
+    func pickerView(_ pickerView: UIPickerView, numberOfRowsInComponent component: Int) -> Int {
+        episodes.count
+    }
+
+    func pickerView(_ pickerView: UIPickerView, titleForRow row: Int, forComponent component: Int) -> String? {
+        let episode = episodes[row]
+        let prefix = "Episode \(episode.number)"
+        if episode.title.isEmpty || episode.title == prefix || episode.title == "Episode \(episode.number)" {
+            return prefix
+        }
+        return "\(prefix): \(episode.title)"
+    }
+
+    func pickerView(_ pickerView: UIPickerView, didSelectRow row: Int, inComponent component: Int) {
+        // revamp
+    }
+
+    func getSelectedEpisode() -> PlayerEpisode? {
+        let row = pickerView.selectedRow(inComponent: 0)
+        guard row >= 0 && row < episodes.count else { return nil }
+        return episodes[row]
     }
 }

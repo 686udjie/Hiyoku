@@ -11,6 +11,8 @@ import UIKit
 struct Player: UIViewControllerRepresentable {
     let module: ScrapingModule
     let episode: PlayerEpisode
+    let episodes: [PlayerEpisode]
+    let title: String
     var streamUrl: String?
     var streamHeaders: [String: String] = [:]
     var onNext: (() -> Void)?
@@ -19,11 +21,21 @@ struct Player: UIViewControllerRepresentable {
     final class Coordinator {
         var videoPlayerController: PlayerViewController?
         var hasLoaded = false
+        var parent: Player?
+        var currentEpisodeId: String?
     }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator()
+        let coordinator = Coordinator()
+        coordinator.parent = self
+        return coordinator
     }
+
+    private func onEpisodeSelect(_ episode: PlayerEpisode) {
+        onEpisodeSelected?(episode)
+    }
+
+    var onEpisodeSelected: ((PlayerEpisode) -> Void)?
 
     func makeUIViewController(context: Context) -> UIViewController {
         let initialUrl = streamUrl ?? ""
@@ -34,8 +46,14 @@ struct Player: UIViewControllerRepresentable {
             headers: streamHeaders
         )
 
+        videoPlayerController.configure(episodes: episodes, current: episode, title: title)
         videoPlayerController.onNextEpisode = onNext
         videoPlayerController.onPreviousEpisode = onPrevious
+        videoPlayerController.onEpisodeSelected = { [weak coordinator = context.coordinator] episode in
+             coordinator?.parent?.onEpisodeSelect(episode)
+        }
+
+        context.coordinator.currentEpisodeId = episode.url
 
         // Only load if not provided (fallback)
         if streamUrl == nil || streamUrl?.isEmpty == true {
@@ -48,19 +66,30 @@ struct Player: UIViewControllerRepresentable {
     }
 
     func updateUIViewController(_ uiViewController: UIViewController, context: Context) {
+        context.coordinator.parent = self
         guard let videoPlayerController = uiViewController as? PlayerViewController else { return }
 
         // Update callbacks
         videoPlayerController.onNextEpisode = onNext
         videoPlayerController.onPreviousEpisode = onPrevious
 
-        // Check if URL changed and reload if necessary
+        // Update configuration
+        videoPlayerController.configure(episodes: episodes, current: episode, title: title)
+
+        // manual streamUrl injection
         if let newUrl = streamUrl, !newUrl.isEmpty, newUrl != videoPlayerController.videoUrl {
             videoPlayerController.loadVideo(url: newUrl, headers: streamHeaders)
-
-            // Update title
             videoPlayerController.updateTitle("Episode \(episode.number): \(episode.title)")
+        } else if streamUrl == nil || streamUrl?.isEmpty == true {
+        // Check if episode changed for internal loading
+            if context.coordinator.currentEpisodeId != episode.url {
+                context.coordinator.currentEpisodeId = episode.url
+                Task {
+                    await loadStream(context: context, videoPlayerController: videoPlayerController)
+                }
+            }
         }
+
         // Player always appears in dark mode
         videoPlayerController.overrideUserInterfaceStyle = .dark
     }

@@ -8,12 +8,20 @@
 import SwiftUI
 import NukeUI
 
+class PlayerSession: ObservableObject, Identifiable {
+    let id = UUID()
+    @Published var episode: PlayerEpisode
+    init(episode: PlayerEpisode) { self.episode = episode }
+}
+
 struct PlayerInfoView: View {
     @StateObject private var viewModel: ViewModel
 
     @State private var showingCoverView = false
     @State private var descriptionExpanded = false
-    @State private var openEpisode: PlayerEpisode?
+    @State private var playerSession: PlayerSession?
+    @State private var currentStreamUrl: String?
+    @State private var currentStreamHeaders: [String: String]?
     @State private var errorMessage: String?
 
     @State private var episodesLoaded = false
@@ -39,55 +47,29 @@ struct PlayerInfoView: View {
     }
 
     var body: some View {
-        let list = List {
-            headerView
-
-            if viewModel.isLoadingEpisodes {
-                loadingEpisodesView
-            } else if viewModel.episodes.isEmpty {
-                emptyStateView
-            } else {
-                ForEach(viewModel.sortedEpisodes.indices, id: \.self) { index in
-                    let episode = viewModel.sortedEpisodes[index]
-                    viewForEpisode(episode, index: index)
-                }
-
-                bottomSeparator
-            }
-        }
-        .environment(\.defaultMinListRowHeight, 10)
-        .transition(.opacity)
-        .listStyle(.plain)
-        .refreshable {
-            await viewModel.refresh()
-        }
-        .navigationBarTitleDisplayMode(.inline)
-        .scrollBackgroundHiddenPlease()
-
-        list
+        configuredList
             .fullScreenCover(isPresented: $showingCoverView) {
                 PlayerCoverPageView(posterUrl: viewModel.posterUrl, title: viewModel.title)
             }
-            .fullScreenCover(item: $openEpisode, content: { episode in
+            .fullScreenCover(item: $playerSession) { session in
                 if let module = viewModel.module {
-                    Player(
+                    PlayerSessionWrapper(
+                        session: session,
                         module: module,
-                        episode: episode
+                        episodes: viewModel.sortedEpisodes,
+                        title: viewModel.title,
+                        currentStreamUrl: $currentStreamUrl,
+                        currentStreamHeaders: $currentStreamHeaders,
+                        namespace: transitionNamespace
                     )
-                    .ignoresSafeArea()
-                    .navigationTransitionZoom(sourceID: episode, in: transitionNamespace)
-                    .preferredColorScheme(.dark)
                 }
-            })
+            }
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     bookmarkButton
                 }
             }
-            .alert("Error", isPresented: Binding(
-                get: { errorMessage != nil },
-                set: { if !$0 { errorMessage = nil } }
-            )) {
+            .alert("Error", isPresented: errorBinding) {
                 Button("OK", role: .cancel) {}
             } message: {
                 if let errorMessage = errorMessage {
@@ -99,6 +81,38 @@ struct PlayerInfoView: View {
                 await viewModel.loadEpisodes()
                 episodesLoaded = true
             }
+    }
+
+    private var configuredList: some View {
+        List {
+            headerView
+
+            if viewModel.isLoadingEpisodes {
+                loadingEpisodesView
+            } else if viewModel.episodes.isEmpty {
+                emptyStateView
+            } else {
+                ForEach(viewModel.sortedEpisodes.indices, id: \.self) { index in
+                    viewForEpisode(viewModel.sortedEpisodes[index], index: index)
+                }
+                bottomSeparator
+            }
+        }
+        .environment(\.defaultMinListRowHeight, 10)
+        .transition(.opacity)
+        .listStyle(.plain)
+        .refreshable {
+            await viewModel.refresh()
+        }
+        .navigationBarTitleDisplayMode(.inline)
+        .scrollBackgroundHiddenPlease()
+    }
+
+    private var errorBinding: Binding<Bool> {
+        Binding(
+            get: { errorMessage != nil },
+            set: { if !$0 { errorMessage = nil } }
+        )
     }
 
     private var emptyStateView: some View {
@@ -161,12 +175,9 @@ struct PlayerInfoView: View {
 
     private var bottomSeparator: some View {
         VStack {
-            ListDivider() // final, full width separator
-            Color.clear.frame(height: 28) // padding for bottom of list
+            ListDivider()
+            Color.clear.frame(height: 28)
         }
-        .padding(.top, {
-            if #available(iOS 16.0, *) { 0 } else { 0.5 }
-        }())
         .listRowSeparator(.hidden)
         .listRowInsets(.zero)
     }
@@ -202,7 +213,13 @@ struct PlayerInfoView: View {
         let streamInfos = await JSController.shared.fetchPlayerStreams(episodeId: episode.url, module: module)
 
         if let streamInfo = streamInfos.first, !streamInfo.url.isEmpty {
-            openEpisode = episode
+            currentStreamUrl = streamInfo.url
+            currentStreamHeaders = streamInfo.headers
+            if let session = playerSession {
+                session.episode = episode
+            } else {
+                playerSession = PlayerSession(episode: episode)
+            }
         } else {
             errorMessage = "Unable to find video stream for this episode"
         }
@@ -248,5 +265,45 @@ private struct EpisodeCellView: View, Equatable {
 
     static nonisolated func == (lhs: EpisodeCellView, rhs: EpisodeCellView) -> Bool {
         lhs.episode == rhs.episode
+    }
+}
+
+struct PlayerSessionWrapper: View {
+    @ObservedObject var session: PlayerSession
+    let module: ScrapingModule
+    let episodes: [PlayerEpisode]
+    let title: String
+    @Binding var currentStreamUrl: String?
+    @Binding var currentStreamHeaders: [String: String]?
+    let namespace: Namespace.ID
+
+    var body: some View {
+        Player(
+            module: module,
+            episode: session.episode,
+            episodes: episodes,
+            title: title,
+            streamUrl: currentStreamUrl,
+            streamHeaders: currentStreamHeaders ?? [:],
+            onNext: { navigateToEpisode(offset: 1) },
+            onPrevious: { navigateToEpisode(offset: -1) },
+            onEpisodeSelected: { switchToEpisode($0) }
+        )
+        .ignoresSafeArea()
+        .navigationTransitionZoom(sourceID: session.episode, in: namespace)
+        .preferredColorScheme(.dark)
+    }
+
+    private func navigateToEpisode(offset: Int) {
+        guard let currentIndex = episodes.firstIndex(where: { $0.url == session.episode.url }) else { return }
+        let newIndex = currentIndex + offset
+        guard newIndex >= 0 && newIndex < episodes.count else { return }
+        switchToEpisode(episodes[newIndex])
+    }
+
+    private func switchToEpisode(_ episode: PlayerEpisode) {
+        session.episode = episode
+        currentStreamUrl = nil
+        currentStreamHeaders = nil
     }
 }
