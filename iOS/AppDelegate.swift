@@ -165,6 +165,8 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                 "Reader.pillarboxOrientation": "both",
                 "Reader.orientation": "device",
 
+                "Player.forceLandscape": false,
+
                 "Tracking.updateAfterReading": true,
                 "Tracking.autoSyncFromTracker": false,
 

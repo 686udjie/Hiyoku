@@ -25,6 +25,8 @@ class PlayerViewController: UIViewController, UIGestureRecognizerDelegate {
     // Data
     var allEpisodes: [PlayerEpisode] = []
     var currentEpisode: PlayerEpisode?
+    // Orientation tracking
+    private var orientationId: UUID?
 
     // MPV Properties
     private var mpv: OpaquePointer?
@@ -241,6 +243,11 @@ class PlayerViewController: UIViewController, UIGestureRecognizerDelegate {
         super.viewWillDisappear(animated)
         pause()
         autoHideTimer?.invalidate()
+        // Unregister landscape orientation constraint
+        if let orientationId = orientationId {
+            InterfaceOrientationCoordinator.shared.unregister(orientationsWithID: orientationId)
+            self.orientationId = nil
+        }
     }
 
     override func viewDidLayoutSubviews() {
@@ -266,9 +273,21 @@ class PlayerViewController: UIViewController, UIGestureRecognizerDelegate {
         super.viewWillAppear(animated)
         overrideUserInterfaceStyle = .dark
         setNeedsStatusBarAppearanceUpdate()
+        // constraint if force landscape is enabled
+        if UserDefaults.standard.bool(forKey: "Player.forceLandscape") {
+            orientationId = UUID()
+            InterfaceOrientationCoordinator.shared.register(orientations: .landscape, id: orientationId!)
+            UIView.animate(withDuration: 0.3) {
+                UIDevice.current.setValue(UIInterfaceOrientation.landscapeRight.rawValue, forKey: "orientation")
+                UIViewController.attemptRotationToDeviceOrientation()
+            }
+        }
     }
     override var preferredStatusBarStyle: UIStatusBarStyle {
         .lightContent
+    }
+    override var supportedInterfaceOrientations: UIInterfaceOrientationMask {
+        UserDefaults.standard.bool(forKey: "Player.forceLandscape") ? .landscape : .all
     }
 }
 

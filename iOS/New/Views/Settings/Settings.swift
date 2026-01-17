@@ -517,7 +517,13 @@ extension Settings {
     ]
 
     private static let playerSettings: [Setting] = [
-        // Add player settings here
+        .init(value: .group(.init(items: [
+            .init(
+                key: "Player.forceLandscape",
+                title: NSLocalizedString("FORCE_LANDSCAPE"),
+                value: .toggle(.init())
+            )
+        ])))
     ]
 
     private static let advancedSettings: [Setting] = [

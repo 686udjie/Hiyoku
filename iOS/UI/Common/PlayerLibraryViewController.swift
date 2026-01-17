@@ -305,7 +305,6 @@ struct PlayerView: View {
         }
     }
 
-
     private func bookmarkBanner(for bookmark: PlayerLibraryItem) -> some View {
         MangaGridItem(
             source: nil,
@@ -324,7 +323,6 @@ struct PlayerView: View {
         )
     }
 }
-
 
 private extension UIView {
     func findSubview(withAccessibilityIdentifier identifier: String) -> UIView? {

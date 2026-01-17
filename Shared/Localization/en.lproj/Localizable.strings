@@ -63,14 +63,15 @@
 "METADATA_DETECTED" = "Legacy Metadata Detected";
 "METADATA_DETECTED_TEXT" = "Legacy JSON metadata will be migrated to ComicInfo.xml files.";
 
-// Library
-"LIBRARY" = "Reader";
-
 // Player
 "PLAYER" = "Player";
 "PLAYER_LIBRARY" = "Player Library";
 "PLAYER_EMPTY" = "Player Empty";
 "PLAYER_ADD_CONTENT" = "Add content from the browse tab";
+"FORCE_LANDSCAPE" = "Force Landscape Mode";
+
+// Library
+"LIBRARY" = "Reader";
 "LIBRARY_SEARCH" = "Search in Reader";
 "LIBRARY_EMPTY" = "Reader Empty";
 "LIBRARY_ADD_CONTENT" = "Add content from the browse tab";

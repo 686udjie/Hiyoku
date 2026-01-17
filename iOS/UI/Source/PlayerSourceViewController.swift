@@ -234,7 +234,13 @@ class PlayerSearchResultsViewController: UIViewController, DebouncedSearchable {
         return hostingController
     }()
     private lazy var emptyView: UIHostingController<UnavailableView> = {
-        let hostingController = UIHostingController(rootView: UnavailableView("No results found", systemImage: "magnifyingglass", description: Text("Try adjusting your search terms")))
+        let hostingController = UIHostingController(
+            rootView: UnavailableView(
+                "No results found",
+                systemImage: "magnifyingglass",
+                description: Text("Try adjusting your search terms")
+            )
+        )
         hostingController.view.backgroundColor = .systemBackground
         return hostingController
     }()
@@ -255,27 +261,23 @@ class PlayerSearchResultsViewController: UIViewController, DebouncedSearchable {
         view.backgroundColor = .systemBackground
         view.addSubview(collectionView)
         collectionView.translatesAutoresizingMaskIntoConstraints = false
-        
         // Add placeholder view as a child view controller
         addChild(placeholderView)
         view.addSubview(placeholderView.view)
         placeholderView.view.translatesAutoresizingMaskIntoConstraints = false
         placeholderView.didMove(toParent: self)
         placeholderView.view.isHidden = true
-        
         // Add empty view as a child view controller
         addChild(emptyView)
         view.addSubview(emptyView.view)
         emptyView.view.translatesAutoresizingMaskIntoConstraints = false
         emptyView.didMove(toParent: self)
         emptyView.view.isHidden = true
-        
         NSLayoutConstraint.activate([
             collectionView.topAnchor.constraint(equalTo: view.topAnchor),
             collectionView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             collectionView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             collectionView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-            
             placeholderView.view.topAnchor.constraint(equalTo: view.topAnchor),
             placeholderView.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             placeholderView.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
@@ -365,7 +367,6 @@ class PlayerSearchResultsViewController: UIViewController, DebouncedSearchable {
             self.placeholderView.view.isHidden = true
             self.results = searchResults
             self.updateSnapshot(with: searchResults)
-            
             if searchResults.isEmpty {
                 self.collectionView.isHidden = true
                 self.emptyView.view.isHidden = false
