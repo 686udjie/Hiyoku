@@ -17,6 +17,7 @@
 		0C807DDD27D47C2D0042EE7B /* CircularProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C807DDC27D47C2D0042EE7B /* CircularProgressView.swift */; };
 		12F69E4E5041E5F6FD24A8D2 /* PlayerInfoView+ViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 403A8669CFBBAA386B00E5CE /* PlayerInfoView+ViewModel.swift */; };
 		1402694F2F1A3580006DA968 /* MPVKit-GPL in Frameworks */ = {isa = PBXBuildFile; productRef = FB1CE0022EFE950300E37A6E /* MPVKit-GPL */; };
+		148D0C932F1BB37A003588D7 /* PlaceholderGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 148D0C922F1BB37A003588D7 /* PlaceholderGridView.swift */; };
 		37F3E66D2850F62100A944E0 /* Collection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37F3E66C2850F62100A944E0 /* Collection.swift */; };
 		3C16530390D04B6A87F652BD /* UserDefaultsKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8C802C3CBD1465FA1056840 /* UserDefaultsKeys.swift */; };
 		44B9F1E32C5A7D8900A8B123 /* PlayerDetailsHeaderView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44B9F1E22C5A7D8900A8B123 /* PlayerDetailsHeaderView.swift */; };
@@ -426,6 +427,7 @@
 		04B48CFD2CD6B3AD00F719D0 /* ShikimoriQueries.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShikimoriQueries.swift; sourceTree = "<group>"; };
 		0C807DDC27D47C2D0042EE7B /* CircularProgressView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CircularProgressView.swift; sourceTree = "<group>"; };
 		1364BB75AB1D280AAFB4BA77 /* PlayerLibraryManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlayerLibraryManager.swift; sourceTree = "<group>"; };
+		148D0C922F1BB37A003588D7 /* PlaceholderGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaceholderGridView.swift; sourceTree = "<group>"; };
 		1A2B3C4D5E6F7A8B9C0D1E2F /* Player.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = Player.swift; path = Player/Player.swift; sourceTree = "<group>"; };
 		37F3E66C2850F62100A944E0 /* Collection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Collection.swift; sourceTree = "<group>"; };
 		403A8669CFBBAA386B00E5CE /* PlayerInfoView+ViewModel.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "PlayerInfoView+ViewModel.swift"; path = "Player/PlayerInfoView+ViewModel.swift"; sourceTree = "<group>"; };
@@ -1508,6 +1510,7 @@
 				FB662E962DA813E300007514 /* PlatformNavigationStack.swift */,
 				FB662E972DA813E300007514 /* WrappingHStack.swift */,
 				FB662E932DA813E300007514 /* HCollectionGrid.swift */,
+				148D0C922F1BB37A003588D7 /* PlaceholderGridView.swift */,
 				FB662EE22DA81A5C00007514 /* CollectionView.swift */,
 				FB662EE12DA81A5C00007514 /* CloseButton.swift */,
 				FBFF58942E807280009367B7 /* DoneButton.swift */,
@@ -2503,6 +2506,7 @@
 				FBB44E6A2EC53A460032EFBB /* ListDivider.swift in Sources */,
 				66C7E95B2ED77BBD0026FD6C /* ImageProcessingSettingsKey.swift in Sources */,
 				FB662ED92DA813E300007514 /* MangaDetailsHeaderView.swift in Sources */,
+				148D0C932F1BB37A003588D7 /* PlaceholderGridView.swift in Sources */,
 				FB1854662EF9B11E0063F698 /* UINavigationController+DismissGestures.swift in Sources */,
 				FB261ED52ECB8B8400743F56 /* LogEntry.swift in Sources */,
 				FB662EDB2DA813E300007514 /* MultiSelectFilterView.swift in Sources */,

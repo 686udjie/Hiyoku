@@ -214,6 +214,7 @@ class PlayerSearchResultsViewController: UIViewController, DebouncedSearchable {
     private weak var parentPlayerSourceVC: PlayerSourceViewController?
     var searchDebounceTimer: Timer?
     var currentSearchTask: Task<Void, Never>?
+    private var isLoading = false
     // UI Elements
     lazy var collectionView: UICollectionView = {
         let layout = UICollectionViewCompositionalLayout { [weak self] _, environment in
@@ -227,10 +228,15 @@ class PlayerSearchResultsViewController: UIViewController, DebouncedSearchable {
         return collectionView
     }()
     private lazy var dataSource = makeDataSource()
-    private let activityIndicator: UIActivityIndicatorView = {
-        let indicator = UIActivityIndicatorView(style: .medium)
-        indicator.hidesWhenStopped = true
-        return indicator
+    private lazy var placeholderView: UIHostingController<PlaceholderGridView> = {
+        let hostingController = UIHostingController(rootView: PlaceholderGridView())
+        hostingController.view.backgroundColor = .systemBackground
+        return hostingController
+    }()
+    private lazy var emptyView: UIHostingController<UnavailableView> = {
+        let hostingController = UIHostingController(rootView: UnavailableView("No results found", systemImage: "magnifyingglass", description: Text("Try adjusting your search terms")))
+        hostingController.view.backgroundColor = .systemBackground
+        return hostingController
     }()
     init(module: ScrapingModule, parentVC: PlayerSourceViewController) {
         self.module = module
@@ -249,15 +255,36 @@ class PlayerSearchResultsViewController: UIViewController, DebouncedSearchable {
         view.backgroundColor = .systemBackground
         view.addSubview(collectionView)
         collectionView.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(activityIndicator)
-        activityIndicator.translatesAutoresizingMaskIntoConstraints = false
+        
+        // Add placeholder view as a child view controller
+        addChild(placeholderView)
+        view.addSubview(placeholderView.view)
+        placeholderView.view.translatesAutoresizingMaskIntoConstraints = false
+        placeholderView.didMove(toParent: self)
+        placeholderView.view.isHidden = true
+        
+        // Add empty view as a child view controller
+        addChild(emptyView)
+        view.addSubview(emptyView.view)
+        emptyView.view.translatesAutoresizingMaskIntoConstraints = false
+        emptyView.didMove(toParent: self)
+        emptyView.view.isHidden = true
+        
         NSLayoutConstraint.activate([
             collectionView.topAnchor.constraint(equalTo: view.topAnchor),
             collectionView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             collectionView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             collectionView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-            activityIndicator.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            activityIndicator.centerYAnchor.constraint(equalTo: view.centerYAnchor)
+            
+            placeholderView.view.topAnchor.constraint(equalTo: view.topAnchor),
+            placeholderView.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            placeholderView.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            placeholderView.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+
+            emptyView.view.topAnchor.constraint(equalTo: view.topAnchor),
+            emptyView.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            emptyView.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            emptyView.view.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         ])
     }
     private func setupDataSource() {
@@ -309,10 +336,16 @@ class PlayerSearchResultsViewController: UIViewController, DebouncedSearchable {
     func performSearch(query: String) {
         guard !query.isEmpty else {
             updateSnapshot(with: [])
+            placeholderView.view.isHidden = true
+            emptyView.view.isHidden = true
+            collectionView.isHidden = false
             return
         }
 
-        activityIndicator.startAnimating()
+        isLoading = true
+        placeholderView.view.isHidden = false
+        emptyView.view.isHidden = true
+        collectionView.isHidden = true
 
         performSearch(query: query, delay: 0.7) { [weak self] in
             await self?.executeSearch(query: query)
@@ -327,9 +360,19 @@ class PlayerSearchResultsViewController: UIViewController, DebouncedSearchable {
         guard !Task.isCancelled else { return }
 
         await MainActor.run { [weak self] in
-            self?.activityIndicator.stopAnimating()
-            self?.results = searchResults
-            self?.updateSnapshot(with: searchResults)
+            guard let self = self else { return }
+            self.isLoading = false
+            self.placeholderView.view.isHidden = true
+            self.results = searchResults
+            self.updateSnapshot(with: searchResults)
+            
+            if searchResults.isEmpty {
+                self.collectionView.isHidden = true
+                self.emptyView.view.isHidden = false
+            } else {
+                self.collectionView.isHidden = false
+                self.emptyView.view.isHidden = true
+            }
         }
     }
 
@@ -386,5 +429,18 @@ extension PlayerSearchResultsViewController: UICollectionViewDelegate {
              // TODO: Add context menu actions here
              nil
         }
+    }
+}
+
+// MARK: - Helper Extension
+private extension UIView {
+    func findSubview(withAccessibilityIdentifier identifier: String) -> UIView? {
+        if accessibilityIdentifier == identifier { return self }
+        for subview in subviews {
+            if let match = subview.findSubview(withAccessibilityIdentifier: identifier) {
+                return match
+            }
+        }
+        return nil
     }
 }

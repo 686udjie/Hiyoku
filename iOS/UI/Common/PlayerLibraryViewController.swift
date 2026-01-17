@@ -262,9 +262,9 @@ struct PlayerView: View {
             } else {
                 // Show search results when searching
                 if searchViewModel.isLoading {
-                    PlayerSearchPlaceholderGrid()
+                    PlaceholderGridView()
                 } else if searchResults.isEmpty {
-                    searchEmptyStateView
+                    UnavailableView.search(text: searchText)
                 } else {
                     ScrollView {
                         LazyVGrid(columns: gridColumns, spacing: 16) {
@@ -305,23 +305,6 @@ struct PlayerView: View {
         }
     }
 
-    private var searchEmptyStateView: some View {
-        VStack(spacing: 16) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 48))
-                .foregroundColor(.gray.opacity(0.5))
-
-            Text("No results found")
-                .font(.title2)
-                .foregroundColor(.gray)
-
-            Text("Try adjusting your search terms")
-                .font(.body)
-                .foregroundColor(.gray.opacity(0.7))
-                .multilineTextAlignment(.center)
-        }
-        .padding()
-    }
 
     private func bookmarkBanner(for bookmark: PlayerLibraryItem) -> some View {
         MangaGridItem(
@@ -342,29 +325,6 @@ struct PlayerView: View {
     }
 }
 
-private struct PlayerSearchPlaceholderGrid: View {
-    private let gridColumns = [
-        GridItem(.adaptive(minimum: 140), spacing: 16)
-    ]
-
-    var body: some View {
-        ScrollView {
-            LazyVGrid(columns: gridColumns, spacing: 16) {
-                ForEach(0..<16, id: \.self) { _ in
-                    PlayerSearchPlaceholderCard()
-                }
-            }
-            .padding()
-        }
-        .shimmering()
-    }
-}
-
-private struct PlayerSearchPlaceholderCard: View {
-    var body: some View {
-        MangaGridItem.placeholder
-    }
-}
 
 private extension UIView {
     func findSubview(withAccessibilityIdentifier identifier: String) -> UIView? {
