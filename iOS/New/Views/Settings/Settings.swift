@@ -516,7 +516,7 @@ extension Settings {
         )
     ]
 
-    private static let playerSettings: [Setting] = [
+    static let playerSettings: [Setting] = [
         .init(value: .group(.init(items: [
             .init(
                 key: "Player.forceLandscape",

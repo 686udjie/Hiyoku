@@ -8,6 +8,8 @@
 import UIKit
 import AVFoundation
 import Libmpv
+import SwiftUI
+import AidokuRunner
 
 class PlayerViewController: UIViewController, UIGestureRecognizerDelegate {
 
@@ -157,6 +159,17 @@ class PlayerViewController: UIViewController, UIGestureRecognizerDelegate {
         b.addTarget(self, action: #selector(lockTapped), for: .touchUpInside)
         return b
     }()
+
+    private lazy var settingsButton: UIButton = {
+        let b = UIButton(type: .system)
+        let config = UIImage.SymbolConfiguration(pointSize: 20, weight: .medium)
+        b.setImage(UIImage(systemName: "gearshape.fill", withConfiguration: config), for: .normal)
+        b.tintColor = .secondaryLabel
+        b.addTarget(self, action: #selector(settingsTapped), for: .touchUpInside)
+        return b
+    }()
+
+    private lazy var settingsBackgroundView = createBlurBackground(cornerRadius: 22)
 
     private let showTitleLabel: UILabel = {
         let l = UILabel()
@@ -314,7 +327,7 @@ extension PlayerViewController {
          // Add all backgrounds and stand-alone views to videoContainer
         [playPauseBackgroundView, previousBackgroundView, nextBackgroundView,
          closeBackgroundView, listBackgroundView, sliderBackgroundView, speedBackgroundView,
-         lockBackgroundView, skipBackgroundView, gutterUnlockButton,
+         lockBackgroundView, skipBackgroundView, settingsBackgroundView, gutterUnlockButton,
          watchedTimeLabel, totalTimeLabel, titleStackView].forEach {
             $0.translatesAutoresizingMaskIntoConstraints = false
             videoContainer.addSubview($0)
@@ -329,6 +342,7 @@ extension PlayerViewController {
         centerInParent(speedButton, parent: speedBackgroundView, size: CGSize(width: 44, height: 28))
         centerInParent(lockButton, parent: lockBackgroundView, size: CGSize(width: 36, height: 28))
         centerInParent(skipButton, parent: skipBackgroundView, size: CGSize(width: 44, height: 28))
+        centerInParent(settingsButton, parent: settingsBackgroundView, size: CGSize(width: 30, height: 30))
 
         centerInParent(sliderView, parent: sliderBackgroundView, size: .zero, fill: true)
 
@@ -368,6 +382,11 @@ extension PlayerViewController {
             gutterUnlockButton.centerYAnchor.constraint(equalTo: videoContainer.centerYAnchor),
             gutterUnlockButton.widthAnchor.constraint(equalToConstant: 50),
             gutterUnlockButton.heightAnchor.constraint(equalToConstant: 50),
+
+            settingsBackgroundView.topAnchor.constraint(equalTo: videoContainer.safeAreaLayoutGuide.topAnchor, constant: 16),
+            settingsBackgroundView.trailingAnchor.constraint(equalTo: videoContainer.safeAreaLayoutGuide.trailingAnchor, constant: -16),
+            settingsBackgroundView.widthAnchor.constraint(equalToConstant: 44),
+            settingsBackgroundView.heightAnchor.constraint(equalToConstant: 44),
 
             // Slider Area
             sliderBackgroundView.leadingAnchor.constraint(equalTo: videoContainer.safeAreaLayoutGuide.leadingAnchor, constant: 16),
@@ -498,7 +517,7 @@ extension PlayerViewController {
             playPauseBackgroundView, previousBackgroundView, nextBackgroundView,
             closeBackgroundView, listBackgroundView, sliderBackgroundView, watchedTimeLabel,
             totalTimeLabel, speedBackgroundView, lockBackgroundView, skipBackgroundView,
-            titleStackView
+            titleStackView, settingsBackgroundView
         ]
     }
 
@@ -506,7 +525,7 @@ extension PlayerViewController {
         [
             playPauseBackgroundView, previousBackgroundView, nextBackgroundView,
             closeBackgroundView, listBackgroundView, sliderBackgroundView, speedBackgroundView,
-            lockBackgroundView, skipBackgroundView
+            lockBackgroundView, skipBackgroundView, settingsBackgroundView
         ]
     }
 
@@ -707,6 +726,32 @@ extension PlayerViewController {
     func updateTitle(_ title: String) {
         self.videoTitle = title
         self.showTitleLabel.text = title
+    }
+
+    @objc private func settingsTapped() {
+        self.pause()
+
+        let settingsView = PlayerSettingsView { [weak self] in
+            self?.play()
+        }
+        let hostingController = UIHostingController(rootView: settingsView)
+        hostingController.modalPresentationStyle = UIModalPresentationStyle.pageSheet
+        if let sheet = hostingController.sheetPresentationController {
+            sheet.detents = [
+                UISheetPresentationController.Detent.medium(),
+                UISheetPresentationController.Detent.large()
+            ]
+            sheet.prefersGrabberVisible = true
+        }
+
+        if var topController = UIApplication.shared.firstKeyWindow?.rootViewController {
+            while let presented = topController.presentedViewController {
+                topController = presented
+            }
+            topController.present(hostingController, animated: true)
+        } else {
+             self.present(hostingController, animated: true)
+        }
     }
 }
 
@@ -1158,5 +1203,34 @@ class EpisodeListViewController: UIViewController, UIPickerViewDataSource, UIPic
         let row = pickerView.selectedRow(inComponent: 0)
         guard row >= 0 && row < episodes.count else { return nil }
         return episodes[row]
+    }
+}
+struct PlayerSettingsView: View {
+    var onDismiss: () -> Void
+    var body: some View {
+        PlatformNavigationStack {
+            List {
+                ForEach(Array(Settings.playerSettings.enumerated()), id: \.offset) { _, setting in
+                    SettingView(setting: setting)
+                }
+            }
+            .navigationTitle(NSLocalizedString("PLAYER_SETTINGS"))
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button {
+                         if var topController = UIApplication.shared.firstKeyWindow?.rootViewController {
+                            while let presented = topController.presentedViewController {
+                                topController = presented
+                            }
+                            topController.dismiss(animated: true, completion: onDismiss)
+                        }
+                    } label: {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 17, weight: .heavy))
+                            .foregroundStyle(.primary)
+                    }
+                }
+            }
+        }
     }
 }
