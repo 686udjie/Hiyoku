@@ -522,6 +522,11 @@ extension Settings {
                 key: "Player.forceLandscape",
                 title: NSLocalizedString("FORCE_LANDSCAPE"),
                 value: .toggle(.init())
+            ),
+            .init(
+                key: "Player.doubleTapSkipDuration",
+                title: NSLocalizedString("DOUBLE_TAP_SKIP_DURATION"),
+                value: .stepper(.init(minimumValue: 5, maximumValue: 30, stepValue: 5))
             )
         ]))),
         .init(

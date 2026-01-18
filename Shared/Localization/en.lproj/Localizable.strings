@@ -68,15 +68,17 @@
 "PLAYER_LIBRARY" = "Player Library";
 "PLAYER_EMPTY" = "Player Empty";
 "PLAYER_ADD_CONTENT" = "Add content from the browse tab";
-"FORCE_LANDSCAPE" = "Force Landscape Mode";
 
 // Player settings
+"PLAYER_SETTINGS" = "Player Settings";
 "SUBTITLES" = "Subtitles";
 "SUBTITLES_ENABLED" = "Enabled";
 "FONT_SIZE" = "Font Size";
 "TEXT_COLOR" = "Text Color";
 "BACKGROUND_ENABLED" = "Background";
 "SUBTITLE_DELAY" = "Delay (sec)";
+"FORCE_LANDSCAPE" = "Force Landscape Mode";
+"DOUBLE_TAP_SKIP_DURATION" = "Skip Length";
 
 // Library
 "LIBRARY" = "Reader";

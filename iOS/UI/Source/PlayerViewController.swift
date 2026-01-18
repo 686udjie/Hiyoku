@@ -223,9 +223,18 @@ class PlayerViewController: UIViewController, UIGestureRecognizerDelegate {
     private var isUIVisible = true
     private var autoHideTimer: Timer?
 
+    // Double tap skip properties
+    private var doubleTapLeftGesture: UITapGestureRecognizer!
+    private var doubleTapRightGesture: UITapGestureRecognizer!
+    private lazy var leftSkipFeedbackView = createSkipFeedbackView(direction: .backward)
+    private lazy var rightSkipFeedbackView = createSkipFeedbackView(direction: .forward)
+
     private var skipDuration: Double {
-        get { UserDefaults.standard.double(forKey: "player_skip_duration") == 0 ? 85 : UserDefaults.standard.double(forKey: "player_skip_duration") }
-        set { UserDefaults.standard.set(newValue, forKey: "player_skip_duration") }
+        get {
+            let value = UserDefaults.standard.double(forKey: "Player.doubleTapSkipDuration")
+            return value == 0 ? 10 : value
+        }
+        set { UserDefaults.standard.set(newValue, forKey: "Player.doubleTapSkipDuration") }
     }
 
     private let m3u8Extractor = M3U8Extractor.shared
@@ -362,11 +371,27 @@ extension PlayerViewController {
         let tapGesture = UITapGestureRecognizer(target: self, action: #selector(handleTap))
         videoContainer.addGestureRecognizer(tapGesture)
 
+        // Setup double tap gestures for skip
+        doubleTapLeftGesture = UITapGestureRecognizer(target: self, action: #selector(handleDoubleTapLeft))
+        doubleTapLeftGesture.numberOfTapsRequired = 2
+        doubleTapLeftGesture.delegate = self
+        videoContainer.addGestureRecognizer(doubleTapLeftGesture)
+
+        doubleTapRightGesture = UITapGestureRecognizer(target: self, action: #selector(handleDoubleTapRight))
+        doubleTapRightGesture.numberOfTapsRequired = 2
+        doubleTapRightGesture.delegate = self
+        videoContainer.addGestureRecognizer(doubleTapRightGesture)
+
+        // Single tap should wait for double tap to fail
+        tapGesture.require(toFail: doubleTapLeftGesture)
+        tapGesture.require(toFail: doubleTapRightGesture)
+
          // Add all backgrounds and stand-alone views to videoContainer
         [playPauseBackgroundView, previousBackgroundView, nextBackgroundView,
          closeBackgroundView, listBackgroundView, sliderBackgroundView, speedBackgroundView,
          lockBackgroundView, skipBackgroundView, settingsBackgroundView, subtitleBackgroundView, gutterUnlockButton,
-         watchedTimeLabel, totalTimeLabel, titleStackView].forEach {
+         watchedTimeLabel, totalTimeLabel, titleStackView, leftSkipFeedbackView, rightSkipFeedbackView].forEach {
+
             $0.translatesAutoresizingMaskIntoConstraints = false
             videoContainer.addSubview($0)
         }
@@ -455,7 +480,14 @@ extension PlayerViewController {
             skipBackgroundView.leadingAnchor.constraint(equalTo: sliderBackgroundView.leadingAnchor),
             skipBackgroundView.bottomAnchor.constraint(equalTo: sliderBackgroundView.topAnchor, constant: -8),
             skipBackgroundView.heightAnchor.constraint(equalToConstant: 28),
-            skipBackgroundView.widthAnchor.constraint(greaterThanOrEqualToConstant: 44)
+            skipBackgroundView.widthAnchor.constraint(greaterThanOrEqualToConstant: 44),
+
+            // Skip feedback views
+            leftSkipFeedbackView.leadingAnchor.constraint(equalTo: videoContainer.leadingAnchor, constant: 40),
+            leftSkipFeedbackView.centerYAnchor.constraint(equalTo: videoContainer.centerYAnchor),
+
+            rightSkipFeedbackView.trailingAnchor.constraint(equalTo: videoContainer.trailingAnchor, constant: -40),
+            rightSkipFeedbackView.centerYAnchor.constraint(equalTo: videoContainer.centerYAnchor)
         ])
 
         playPauseButton.addTarget(self, action: #selector(playPauseTapped), for: .touchUpInside)
@@ -497,7 +529,60 @@ extension PlayerViewController {
         return view
     }
 
+    private func createSkipFeedbackView(direction: SkipDirection) -> UIView {
+        let container = UIView()
+        container.backgroundColor = .clear
+        container.alpha = 0
+        container.translatesAutoresizingMaskIntoConstraints = false
+
+        let stackView = UIStackView()
+        stackView.axis = .vertical
+        stackView.alignment = .center
+        stackView.spacing = 8
+        stackView.translatesAutoresizingMaskIntoConstraints = false
+
+        let iconConfig = UIImage.SymbolConfiguration(pointSize: 40, weight: .medium)
+        let iconName = direction == .forward ? "goforward" : "gobackward"
+        let imageView = UIImageView(image: UIImage(systemName: iconName, withConfiguration: iconConfig))
+        imageView.tintColor = .white
+        imageView.contentMode = .scaleAspectFit
+        // Add shadow/glow effect to icon
+        imageView.layer.shadowColor = UIColor.black.cgColor
+        imageView.layer.shadowRadius = 4
+        imageView.layer.shadowOpacity = 0.8
+        imageView.layer.shadowOffset = .zero
+
+        let label = UILabel()
+        label.font = .systemFont(ofSize: 16, weight: .semibold)
+        label.textColor = .white
+        label.textAlignment = .center
+        label.tag = 999 // Tag to identify label for updating
+        // Add shadow/glow effect to text
+        label.layer.shadowColor = UIColor.black.cgColor
+        label.layer.shadowRadius = 4
+        label.layer.shadowOpacity = 0.8
+        label.layer.shadowOffset = .zero
+
+        stackView.addArrangedSubview(imageView)
+        stackView.addArrangedSubview(label)
+        container.addSubview(stackView)
+
+        NSLayoutConstraint.activate([
+            stackView.topAnchor.constraint(equalTo: container.topAnchor),
+            stackView.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+            stackView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            stackView.trailingAnchor.constraint(equalTo: container.trailingAnchor)
+        ])
+
+        return container
+    }
+
+    enum SkipDirection {
+        case forward, backward
+    }
+
     private func updatePlayPauseButton() {
+
         let imageName = isPaused ? "play.fill" : "pause.fill"
         let config = UIImage.SymbolConfiguration(pointSize: 32, weight: .medium)
         playPauseButton.setImage(UIImage(systemName: imageName, withConfiguration: config), for: .normal)
@@ -527,7 +612,64 @@ extension PlayerViewController {
         }
     }
 
+    @objc private func handleDoubleTapLeft() {
+        skipBackward()
+    }
+
+    @objc private func handleDoubleTapRight() {
+        skipForward()
+    }
+
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+        let location = touch.location(in: videoContainer)
+        let containerWidth = videoContainer.bounds.width
+
+        if gestureRecognizer == doubleTapLeftGesture {
+            return location.x < containerWidth / 2
+        } else if gestureRecognizer == doubleTapRightGesture {
+            return location.x >= containerWidth / 2
+        }
+        return true
+    }
+
+    private func skipForward() {
+        guard mpv != nil else { return }
+        let currentPos = position
+        let newPos = currentPos + skipDuration
+        setProperty("time-pos", "\(newPos)")
+        showSkipFeedback(direction: .forward)
+    }
+
+    private func skipBackward() {
+        guard mpv != nil else { return }
+        let currentPos = position
+        let newPos = max(0, currentPos - skipDuration)
+        setProperty("time-pos", "\(newPos)")
+        showSkipFeedback(direction: .backward)
+    }
+
+    private func showSkipFeedback(direction: SkipDirection) {
+        let feedbackView = direction == .forward ? rightSkipFeedbackView : leftSkipFeedbackView
+
+        if let label = feedbackView.viewWithTag(999) as? UILabel {
+            label.text = "\(Int(skipDuration)) seconds"
+        }
+
+        feedbackView.alpha = 0
+        feedbackView.transform = CGAffineTransform(scaleX: 0.8, y: 0.8)
+
+        UIView.animate(withDuration: 0.2, animations: {
+            feedbackView.alpha = 1
+            feedbackView.transform = .identity
+        }, completion: { _ in
+            UIView.animate(withDuration: 0.3, delay: 0.5, options: [], animations: {
+                feedbackView.alpha = 0
+            }, completion: nil)
+        })
+    }
+
     private func setSpeed(_ speed: Double) {
+
         setProperty("speed", "\(speed)")
         speedButton.setTitle(formatSpeed(speed), for: .normal)
         resetAutoHideTimer()
