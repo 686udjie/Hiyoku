@@ -78,6 +78,7 @@ class PlayerViewController: UIViewController, UIGestureRecognizerDelegate {
         color: .systemBlue.withAlphaComponent(0.8),
         borderColor: .systemBlue.withAlphaComponent(0.3)
     )
+    private lazy var speedIndicatorBackgroundView = createBlurBackground(cornerRadius: 18)
 
     private lazy var previousButton: UIButton = {
         let b = UIButton(type: .system)
@@ -218,10 +219,22 @@ class PlayerViewController: UIViewController, UIGestureRecognizerDelegate {
         return b
     }()
 
+    private let speedIndicatorLabel: UILabel = {
+        let l = UILabel()
+        l.text = "2x ▶▶"
+        l.font = .systemFont(ofSize: 16, weight: .bold)
+        l.textColor = .white
+        l.textAlignment = .center
+        return l
+    }()
+
     private var isLocked = false
     private var isSeeking = false
     private var isUIVisible = true
     private var autoHideTimer: Timer?
+    private var originalSpeed: Double = 1
+    private var isSpeedBoosted = false
+    private var currentPlaybackSpeed: Double = 1
 
     // Double tap skip properties
     private var doubleTapLeftGesture: UITapGestureRecognizer!
@@ -386,11 +399,17 @@ extension PlayerViewController {
         tapGesture.require(toFail: doubleTapLeftGesture)
         tapGesture.require(toFail: doubleTapRightGesture)
 
+        // Setup long press gesture for speed boost
+        let longPressGesture = UILongPressGestureRecognizer(target: self, action: #selector(handleLongPress(_:)))
+        longPressGesture.minimumPressDuration = 0.3
+        videoContainer.addGestureRecognizer(longPressGesture)
+
          // Add all backgrounds and stand-alone views to videoContainer
         [playPauseBackgroundView, previousBackgroundView, nextBackgroundView,
          closeBackgroundView, listBackgroundView, sliderBackgroundView, speedBackgroundView,
          lockBackgroundView, skipBackgroundView, settingsBackgroundView, subtitleBackgroundView, gutterUnlockButton,
-         watchedTimeLabel, totalTimeLabel, titleStackView, leftSkipFeedbackView, rightSkipFeedbackView].forEach {
+         watchedTimeLabel, totalTimeLabel, titleStackView, leftSkipFeedbackView, rightSkipFeedbackView,
+         speedIndicatorBackgroundView].forEach {
 
             $0.translatesAutoresizingMaskIntoConstraints = false
             videoContainer.addSubview($0)
@@ -407,6 +426,18 @@ extension PlayerViewController {
         centerInParent(skipButton, parent: skipBackgroundView, size: CGSize(width: 44, height: 28))
         centerInParent(settingsButton, parent: settingsBackgroundView, size: CGSize(width: 30, height: 30))
         centerInParent(subtitleButton, parent: subtitleBackgroundView, size: CGSize(width: 30, height: 30))
+
+        // Setup speed indicator
+        speedIndicatorLabel.translatesAutoresizingMaskIntoConstraints = false
+        speedIndicatorBackgroundView.contentView.addSubview(speedIndicatorLabel)
+        speedIndicatorBackgroundView.alpha = 0
+
+        NSLayoutConstraint.activate([
+            speedIndicatorLabel.centerXAnchor.constraint(equalTo: speedIndicatorBackgroundView.contentView.centerXAnchor),
+            speedIndicatorLabel.centerYAnchor.constraint(equalTo: speedIndicatorBackgroundView.contentView.centerYAnchor),
+            speedIndicatorLabel.leadingAnchor.constraint(equalTo: speedIndicatorBackgroundView.contentView.leadingAnchor, constant: 12),
+            speedIndicatorLabel.trailingAnchor.constraint(equalTo: speedIndicatorBackgroundView.contentView.trailingAnchor, constant: -12)
+        ])
 
         centerInParent(sliderView, parent: sliderBackgroundView, size: .zero, fill: true)
         NSLayoutConstraint.activate([
@@ -487,7 +518,12 @@ extension PlayerViewController {
             leftSkipFeedbackView.centerYAnchor.constraint(equalTo: videoContainer.centerYAnchor),
 
             rightSkipFeedbackView.trailingAnchor.constraint(equalTo: videoContainer.trailingAnchor, constant: -40),
-            rightSkipFeedbackView.centerYAnchor.constraint(equalTo: videoContainer.centerYAnchor)
+            rightSkipFeedbackView.centerYAnchor.constraint(equalTo: videoContainer.centerYAnchor),
+
+            // Speed indicator
+            speedIndicatorBackgroundView.topAnchor.constraint(equalTo: videoContainer.safeAreaLayoutGuide.topAnchor, constant: 16),
+            speedIndicatorBackgroundView.centerXAnchor.constraint(equalTo: videoContainer.centerXAnchor),
+            speedIndicatorBackgroundView.heightAnchor.constraint(equalToConstant: 36)
         ])
 
         playPauseButton.addTarget(self, action: #selector(playPauseTapped), for: .touchUpInside)
@@ -620,6 +656,41 @@ extension PlayerViewController {
         skipForward()
     }
 
+    @objc private func handleLongPress(_ gesture: UILongPressGestureRecognizer) {
+        guard mpv != nil else { return }
+
+        switch gesture.state {
+        case .began:
+            // Boost to 2x
+            if !isSpeedBoosted {
+                originalSpeed = currentPlaybackSpeed
+                isSpeedBoosted = true
+                setProperty("speed", "2")
+                speedButton.setTitle(formatSpeed(2), for: .normal)
+                let generator = UIImpactFeedbackGenerator(style: .medium)
+                generator.impactOccurred()
+
+                UIView.animate(withDuration: 0.2) {
+                    self.speedIndicatorBackgroundView.alpha = 1
+                }
+            }
+
+        case .ended, .cancelled, .failed:
+            if isSpeedBoosted {
+                isSpeedBoosted = false
+                setProperty("speed", "\(originalSpeed)")
+                speedButton.setTitle(formatSpeed(originalSpeed), for: .normal)
+
+                UIView.animate(withDuration: 0.2) {
+                    self.speedIndicatorBackgroundView.alpha = 0
+                }
+            }
+
+        default:
+            break
+        }
+    }
+
     func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
         let location = touch.location(in: videoContainer)
         let containerWidth = videoContainer.bounds.width
@@ -669,7 +740,7 @@ extension PlayerViewController {
     }
 
     private func setSpeed(_ speed: Double) {
-
+        currentPlaybackSpeed = speed
         setProperty("speed", "\(speed)")
         speedButton.setTitle(formatSpeed(speed), for: .normal)
         resetAutoHideTimer()
