@@ -230,11 +230,43 @@ class PlayerViewController: UIViewController, UIGestureRecognizerDelegate {
 
     private let m3u8Extractor = M3U8Extractor.shared
 
-    init(module: ScrapingModule, videoUrl: String, videoTitle: String, headers: [String: String] = [:]) {
+    // Subtitles
+    var subtitleUrl: String?
+    var subtitlesLoader = VTTSubtitlesLoader()
+    var subtitleStackView: UIStackView!
+    var subtitleLabels: [UILabel] = []
+    var subtitleBottomToSliderConstraint: NSLayoutConstraint?
+    var subtitleBottomPadding: CGFloat = 10 {
+        didSet {
+            updateSubtitlePosition()
+        }
+    }
+    var subtitlesEnabled: Bool = true {
+        didSet {
+            subtitleStackView?.isHidden = !subtitlesEnabled
+            // Update button state
+            let config = UIImage.SymbolConfiguration(pointSize: 20, weight: .medium)
+            let imageName = subtitlesEnabled ? "captions.bubble.fill" : "captions.bubble"
+            subtitleButton.setImage(UIImage(systemName: imageName, withConfiguration: config), for: .normal)
+        }
+    }
+    var subtitleDelay: Double = 0
+    private lazy var subtitleButton: UIButton = {
+        let b = UIButton(type: .system)
+        let config = UIImage.SymbolConfiguration(pointSize: 20, weight: .medium)
+        b.setImage(UIImage(systemName: "captions.bubble.fill", withConfiguration: config), for: .normal)
+        b.tintColor = .secondaryLabel
+        b.addTarget(self, action: #selector(subtitleTapped), for: .touchUpInside)
+        return b
+    }()
+    private lazy var subtitleBackgroundView = createBlurBackground(cornerRadius: 22)
+
+    init(module: ScrapingModule, videoUrl: String, videoTitle: String, headers: [String: String] = [:], subtitleUrl: String? = nil) {
         self.module = module
         self.videoUrl = videoUrl
         self.videoTitle = videoTitle
         self.headers = headers
+        self.subtitleUrl = subtitleUrl
         super.init(nibName: nil, bundle: nil)
     }
 
@@ -280,6 +312,12 @@ class PlayerViewController: UIViewController, UIGestureRecognizerDelegate {
         if !videoUrl.isEmpty {
             prepareAndPlay()
         }
+        setupSubtitleLabel()
+        loadSubtitleSettings()
+        if let subUrl = subtitleUrl, !subUrl.isEmpty {
+             subtitlesLoader.load(from: subUrl)
+        }
+        NotificationCenter.default.addObserver(self, selector: #selector(subtitleSettingsDidChange), name: .subtitleSettingsDidChange, object: nil)
     }
     // Player always appears in dark mode
     override func viewWillAppear(_ animated: Bool) {
@@ -327,7 +365,7 @@ extension PlayerViewController {
          // Add all backgrounds and stand-alone views to videoContainer
         [playPauseBackgroundView, previousBackgroundView, nextBackgroundView,
          closeBackgroundView, listBackgroundView, sliderBackgroundView, speedBackgroundView,
-         lockBackgroundView, skipBackgroundView, settingsBackgroundView, gutterUnlockButton,
+         lockBackgroundView, skipBackgroundView, settingsBackgroundView, subtitleBackgroundView, gutterUnlockButton,
          watchedTimeLabel, totalTimeLabel, titleStackView].forEach {
             $0.translatesAutoresizingMaskIntoConstraints = false
             videoContainer.addSubview($0)
@@ -343,9 +381,9 @@ extension PlayerViewController {
         centerInParent(lockButton, parent: lockBackgroundView, size: CGSize(width: 36, height: 28))
         centerInParent(skipButton, parent: skipBackgroundView, size: CGSize(width: 44, height: 28))
         centerInParent(settingsButton, parent: settingsBackgroundView, size: CGSize(width: 30, height: 30))
+        centerInParent(subtitleButton, parent: subtitleBackgroundView, size: CGSize(width: 30, height: 30))
 
         centerInParent(sliderView, parent: sliderBackgroundView, size: .zero, fill: true)
-
         NSLayoutConstraint.activate([
             // Main Controls
             playPauseBackgroundView.centerXAnchor.constraint(equalTo: videoContainer.centerXAnchor),
@@ -387,6 +425,10 @@ extension PlayerViewController {
             settingsBackgroundView.trailingAnchor.constraint(equalTo: videoContainer.safeAreaLayoutGuide.trailingAnchor, constant: -16),
             settingsBackgroundView.widthAnchor.constraint(equalToConstant: 44),
             settingsBackgroundView.heightAnchor.constraint(equalToConstant: 44),
+            subtitleBackgroundView.centerYAnchor.constraint(equalTo: settingsBackgroundView.centerYAnchor),
+            subtitleBackgroundView.trailingAnchor.constraint(equalTo: settingsBackgroundView.leadingAnchor, constant: -12),
+            subtitleBackgroundView.widthAnchor.constraint(equalToConstant: 44),
+            subtitleBackgroundView.heightAnchor.constraint(equalToConstant: 44),
 
             // Slider Area
             sliderBackgroundView.leadingAnchor.constraint(equalTo: videoContainer.safeAreaLayoutGuide.leadingAnchor, constant: 16),
@@ -501,6 +543,8 @@ extension PlayerViewController {
         UIView.animate(withDuration: 0.3) {
             let alpha: CGFloat = self.isUIVisible ? 1 : 0
             self.controlViews.forEach { $0.alpha = alpha }
+            self.updateSubtitlePosition()
+            self.view.layoutIfNeeded()
         }
 
         interactionEnabledViews.forEach { $0.isUserInteractionEnabled = isUIVisible }
@@ -517,16 +561,12 @@ extension PlayerViewController {
             playPauseBackgroundView, previousBackgroundView, nextBackgroundView,
             closeBackgroundView, listBackgroundView, sliderBackgroundView, watchedTimeLabel,
             totalTimeLabel, speedBackgroundView, lockBackgroundView, skipBackgroundView,
-            titleStackView, settingsBackgroundView
+            titleStackView, settingsBackgroundView, subtitleBackgroundView
         ]
     }
 
     private var interactionEnabledViews: [UIView] {
-        [
-            playPauseBackgroundView, previousBackgroundView, nextBackgroundView,
-            closeBackgroundView, listBackgroundView, sliderBackgroundView, speedBackgroundView,
-            lockBackgroundView, skipBackgroundView, settingsBackgroundView
-        ]
+        controlViews.filter { !($0 is UILabel) && !($0 is UIStackView) }
     }
 
     private func resetAutoHideTimer() {
@@ -654,10 +694,14 @@ extension PlayerViewController {
         presentAlert(title: "Video Error", message: message, actions: [dismissAction])
     }
 
-    func loadVideo(url: String, headers: [String: String] = [:]) {
+    func loadVideo(url: String, headers: [String: String] = [:], subtitleUrl: String? = nil) {
         self.videoUrl = url
         self.headers = headers
         self.resolvedUrl = nil
+        if let subUrl = subtitleUrl {
+            self.subtitleUrl = subUrl
+            subtitlesLoader.load(from: subUrl)
+        }
         if isViewLoaded {
             prepareAndPlay()
         }
@@ -679,7 +723,9 @@ extension PlayerViewController {
             await MainActor.run { [weak self] in
                 guard let self = self else { return }
                 // Ensure we are still trying to play the same video
-                guard self.videoUrl == urlToResolve else { return }
+                guard self.videoUrl == urlToResolve else {
+                    return
+                }
                 self.resolvedUrl = resolved
                 self.startMpvPlayback()
             }
@@ -753,6 +799,97 @@ extension PlayerViewController {
              self.present(hostingController, animated: true)
         }
     }
+    // MARK: - Subtitle Logic
+    func setupSubtitleLabel() {
+        subtitleStackView = UIStackView()
+        subtitleStackView.axis = .vertical
+        subtitleStackView.alignment = .center
+        subtitleStackView.distribution = .fill
+        subtitleStackView.spacing = 2
+        videoContainer.addSubview(subtitleStackView)
+        subtitleStackView.translatesAutoresizingMaskIntoConstraints = false
+        // Always pin to slider top
+        subtitleBottomToSliderConstraint = subtitleStackView.bottomAnchor.constraint(equalTo: sliderBackgroundView.topAnchor, constant: -20)
+        NSLayoutConstraint.activate([
+            subtitleStackView.centerXAnchor.constraint(equalTo: videoContainer.centerXAnchor),
+            subtitleStackView.leadingAnchor.constraint(greaterThanOrEqualTo: videoContainer.leadingAnchor, constant: 36),
+            subtitleStackView.trailingAnchor.constraint(lessThanOrEqualTo: videoContainer.trailingAnchor, constant: -36),
+            subtitleBottomToSliderConstraint!
+        ])
+        for _ in 0..<2 {
+            let label = UILabel()
+            label.textAlignment = .center
+            label.numberOfLines = 0
+            label.font = UIFont.systemFont(ofSize: 20)
+            // Add shadow for better visibility
+            label.layer.shadowColor = UIColor.black.cgColor
+            label.layer.shadowOffset = CGSize(width: 1, height: 1)
+            label.layer.shadowOpacity = 1
+            label.layer.shadowRadius = 1
+            subtitleLabels.append(label)
+            subtitleStackView.addArrangedSubview(label)
+        }
+        updateSubtitleLabelAppearance()
+    }
+    func updateSubtitleLabelAppearance() {
+        let settings = SubtitleSettingsManager.shared.settings
+        for label in subtitleLabels {
+            label.textColor = settings.uiColor
+            label.font = UIFont.systemFont(ofSize: CGFloat(settings.fontSize), weight: .medium)
+            label.layer.shadowRadius = CGFloat(settings.shadowRadius)
+            if settings.backgroundEnabled {
+                label.backgroundColor = UIColor.black.withAlphaComponent(0.5)
+            } else {
+                label.backgroundColor = .clear
+            }
+        }
+    }
+
+    private func updateSubtitlePosition() {
+        if isUIVisible {
+            subtitleBottomToSliderConstraint?.constant = -20 - subtitleBottomPadding
+        } else {
+            subtitleBottomToSliderConstraint?.constant = 20
+        }
+    }
+
+    func loadSubtitleSettings() {
+        let settings = SubtitleSettingsManager.shared.settings
+        self.subtitlesEnabled = settings.enabled
+        self.subtitleDelay = settings.subtitleDelay
+        self.subtitleBottomPadding = settings.bottomPadding
+        updateSubtitleLabelAppearance()
+    }
+    @objc private func subtitleSettingsDidChange() {
+        DispatchQueue.main.async {
+            self.loadSubtitleSettings()
+        }
+    }
+
+    @objc private func subtitleTapped() {
+        subtitlesEnabled.toggle()
+        SubtitleSettingsManager.shared.update { $0.enabled = subtitlesEnabled }
+        loadSubtitleSettings()
+    }
+    func updateSubtitleStack(with lines: [String]) {
+        // Hide unused labels
+        for label in subtitleLabels {
+            label.text = nil
+            label.isHidden = true
+        }
+        // Populate labels
+        for (index, line) in lines.enumerated() where index < subtitleLabels.count {
+            subtitleLabels[index].text = line
+            subtitleLabels[index].isHidden = false
+        }
+        subtitleStackView.isHidden = false
+    }
+    func clearSubtitleStack() {
+        for label in subtitleLabels {
+            label.text = nil
+            label.isHidden = true
+        }
+    }
 }
 
 // MARK: - MPV Core
@@ -769,7 +906,8 @@ extension PlayerViewController {
 
         let status = mpv_initialize(handle)
         guard status >= 0 else {
-            throw NSError(domain: "MPV", code: Int(status), userInfo: [NSLocalizedDescriptionKey: "Failed to initialize mpv"])
+            let errorMsg = String(cString: mpv_error_string(status))
+            throw NSError(domain: "MPV", code: Int(status), userInfo: [NSLocalizedDescriptionKey: "Failed to initialize mpv: \(errorMsg)"])
         }
 
         try createRenderContext()
@@ -918,12 +1056,20 @@ extension PlayerViewController {
     }
 
     private func startMpvPlayback() {
-        guard let handle = mpv else { return }
+        guard let handle = mpv else {
+            return
+        }
         updateHTTPHeaders()
-        guard let urlToPlay = resolvedUrl else { return }
+        guard let urlToPlay = resolvedUrl else {
+            return
+        }
         let cmd = ["loadfile", urlToPlay, "replace"]
         withCStringArray(cmd) { ptr in
-            mpv_command(handle, ptr)
+            let result = mpv_command(handle, ptr)
+            if result < 0 {
+                let errorMsg = String(cString: mpv_error_string(result))
+                print("MPV Error: loadfile failed: \(errorMsg)")
+            }
         }
         isRunning = true
         isPaused = false
@@ -1016,9 +1162,37 @@ extension PlayerViewController {
             self.updateTimeLabels()
             if name == "time-pos" && self.duration > 0 && !self.isSeeking {
                 self.sliderView.currentValue = CGFloat(value / self.duration)
+                self.updateSubtitles(for: value)
             } else if name == "speed" {
                 self.speedButton.setTitle(self.formatSpeed(value), for: .normal)
             }
+        }
+    }
+
+    private func updateSubtitles(for time: Double) {
+        if subtitlesEnabled {
+            let adjustedTime = time - subtitleDelay
+            let cues = subtitlesLoader.cues.filter { adjustedTime >= $0.startTime && adjustedTime <= $0.endTime }
+
+            if cues.isEmpty {
+                clearSubtitleStack()
+            } else {
+                var lines: [String] = []
+                let maxLines = 2
+                for cue in cues {
+                    if lines.count >= maxLines { break }
+                    for rawLine in cue.lines {
+                        if lines.count >= maxLines { break }
+                        let cleaned = rawLine.strippedHTML
+                        if !cleaned.isEmpty {
+                            lines.append(cleaned)
+                        }
+                    }
+                }
+                updateSubtitleStack(with: lines)
+            }
+        } else {
+            clearSubtitleStack()
         }
     }
 

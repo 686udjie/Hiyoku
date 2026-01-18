@@ -210,15 +210,26 @@ struct PlayerInfoView: View {
             return
         }
 
-        let streamInfos = await JSController.shared.fetchPlayerStreams(episodeId: episode.url, module: module)
+        let (streamInfos, subtitleUrl) = await JSController.shared.fetchPlayerStreams(episodeId: episode.url, module: module)
 
         if let streamInfo = streamInfos.first, !streamInfo.url.isEmpty {
             currentStreamUrl = streamInfo.url
             currentStreamHeaders = streamInfo.headers
+            let updatedEpisode = PlayerEpisode(
+                id: episode.id,
+                number: episode.number,
+                title: episode.title,
+                url: episode.url,
+                dateUploaded: episode.dateUploaded,
+                scanlator: episode.scanlator,
+                language: episode.language,
+                subtitleUrl: subtitleUrl ?? episode.subtitleUrl
+            )
+
             if let session = playerSession {
-                session.episode = episode
+                session.episode = updatedEpisode
             } else {
-                playerSession = PlayerSession(episode: episode)
+                playerSession = PlayerSession(episode: updatedEpisode)
             }
         } else {
             errorMessage = "Unable to find video stream for this episode"

@@ -15,6 +15,7 @@ struct PlayerEpisode: Identifiable, Codable, Hashable {
     let dateUploaded: Date?
     let scanlator: String?
     let language: String
+    let subtitleUrl: String?
 
     init(
         id: UUID = UUID(),
@@ -23,7 +24,8 @@ struct PlayerEpisode: Identifiable, Codable, Hashable {
         url: String,
         dateUploaded: Date? = nil,
         scanlator: String? = nil,
-        language: String = "en"
+        language: String = "",
+        subtitleUrl: String? = nil
     ) {
         self.id = id
         self.number = number
@@ -32,5 +34,6 @@ struct PlayerEpisode: Identifiable, Codable, Hashable {
         self.dateUploaded = dateUploaded
         self.scanlator = scanlator
         self.language = language
+        self.subtitleUrl = subtitleUrl
     }
 }

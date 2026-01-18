@@ -292,32 +292,26 @@ extension SettingView {
 extension SettingView {
     @ViewBuilder
     func selectView(value: SelectSetting) -> some View {
-        Button {
-            if value.authToOpen ?? false {
-                Task {
-                    let success = await auth()
-                    if success {
-                        pageIsActive = true
+        if setting.key == "SubtitleSettings.foregroundColor" {
+            HStack {
+                Text(setting.title)
+                    .lineLimit(1)
+                Spacer()
+                Menu {
+                    ForEach(value.values.indices, id: \.self) { offset in
+                        let item = value.values[offset]
+                        Button {
+                            stringListBinding = [item]
+                        } label: {
+                            let title = value.titles?[safe: offset] ?? item
+                            if stringListBinding.contains(item) {
+                                Label(title, systemImage: "checkmark")
+                            } else {
+                                Text(title)
+                            }
+                        }
                     }
-                }
-            } else {
-                pageIsActive = true
-            }
-        } label: {
-            NavigationLink(
-                destination: SelectDestination(
-                    setting: setting,
-                    value: value,
-                    key: key(setting.key),
-                    stringListBinding: $stringListBinding
-                )
-                .environment(\.settingPageContent, pageContentHandler),
-                isActive: $pageIsActive
-            ) {
-                HStack {
-                    Text(setting.title)
-                        .lineLimit(1)
-                    Spacer()
+                } label: {
                     if let item = stringListBinding.first {
                         let title = value.values
                             .firstIndex { $0 == item }
@@ -325,20 +319,70 @@ extension SettingView {
                         Text(title ?? item)
                             .foregroundStyle(Color.secondaryLabel)
                             .lineLimit(1)
+                    } else {
+                        Text("Select")
+                            .foregroundStyle(Color.secondaryLabel)
                     }
                 }
             }
-            .environment(\.isEnabled, true) // remove double disabled effect
-        }
-        .foregroundStyle(.primary)
-        .disabled(disabled)
-        .opacity({
-            if #available(iOS 26.0, *) {
-                1 // ios 26 has the correct disabled style
-            } else {
-                disabled ? disabledOpacity : 1
+            .foregroundStyle(.primary)
+            .disabled(disabled)
+            .opacity({
+                if #available(iOS 26.0, *) {
+                    1
+                } else {
+                    disabled ? disabledOpacity : 1
+                }
+            }())
+        } else {
+            Button {
+                if value.authToOpen ?? false {
+                    Task {
+                        let success = await auth()
+                        if success {
+                            pageIsActive = true
+                        }
+                    }
+                } else {
+                    pageIsActive = true
+                }
+            } label: {
+                NavigationLink(
+                    destination: SelectDestination(
+                        setting: setting,
+                        value: value,
+                        key: key(setting.key),
+                        stringListBinding: $stringListBinding
+                    )
+                    .environment(\.settingPageContent, pageContentHandler),
+                    isActive: $pageIsActive
+                ) {
+                    HStack {
+                        Text(setting.title)
+                            .lineLimit(1)
+                        Spacer()
+                        if let item = stringListBinding.first {
+                            let title = value.values
+                                .firstIndex { $0 == item }
+                                .flatMap { value.titles?[safe: $0] }
+                            Text(title ?? item)
+                                .foregroundStyle(Color.secondaryLabel)
+                                .lineLimit(1)
+                        }
+                    }
+                }
+                .environment(\.isEnabled, true) // remove double disabled effect
             }
-        }())
+            .foregroundStyle(.primary)
+            .disabled(disabled)
+            .opacity({
+                if #available(iOS 26.0, *) {
+                    1 // ios 26 has the correct disabled style
+                } else {
+                    disabled ? disabledOpacity : 1
+                }
+            }())
+        }
     }
 
     private struct SelectDestination: View {

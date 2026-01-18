@@ -523,7 +523,40 @@ extension Settings {
                 title: NSLocalizedString("FORCE_LANDSCAPE"),
                 value: .toggle(.init())
             )
-        ])))
+        ]))),
+        .init(
+            title: NSLocalizedString("SUBTITLES"),
+            value: .group(.init(items: [
+                .init(
+                    key: "SubtitleSettings.enabled",
+                    title: NSLocalizedString("SUBTITLES_ENABLED"),
+                    value: .toggle(.init())
+                ),
+                .init(
+                    key: "SubtitleSettings.fontSize",
+                    title: NSLocalizedString("FONT_SIZE"),
+                    value: .stepper(.init(minimumValue: 10, maximumValue: 50, stepValue: 2))
+                ),
+                .init(
+                    key: "SubtitleSettings.foregroundColor",
+                    title: NSLocalizedString("TEXT_COLOR"),
+                    value: .select(.init(
+                        values: ["white", "yellow", "green", "cyan", "blue", "red"],
+                        titles: ["White", "Yellow", "Green", "Cyan", "Blue", "Red"]
+                    ))
+                ),
+                .init(
+                    key: "SubtitleSettings.backgroundEnabled",
+                    title: NSLocalizedString("BACKGROUND_ENABLED"),
+                    value: .toggle(.init())
+                ),
+                .init(
+                    key: "SubtitleSettings.subtitleDelay",
+                    title: NSLocalizedString("SUBTITLE_DELAY"),
+                    value: .stepper(.init(minimumValue: -10, maximumValue: 10, stepValue: 0.5))
+                )
+            ]))
+        )
     ]
 
     private static let advancedSettings: [Setting] = [

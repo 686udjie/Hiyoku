@@ -17,6 +17,8 @@
 		0C807DDD27D47C2D0042EE7B /* CircularProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C807DDC27D47C2D0042EE7B /* CircularProgressView.swift */; };
 		12F69E4E5041E5F6FD24A8D2 /* PlayerInfoView+ViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 403A8669CFBBAA386B00E5CE /* PlayerInfoView+ViewModel.swift */; };
 		1402694F2F1A3580006DA968 /* MPVKit-GPL in Frameworks */ = {isa = PBXBuildFile; productRef = FB1CE0022EFE950300E37A6E /* MPVKit-GPL */; };
+		1424DE302F1D41380086BA0A /* SubtitleSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1424DE2F2F1D41380086BA0A /* SubtitleSettings.swift */; };
+		1424DE342F1D41710086BA0A /* VTTSubtitlesLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1424DE332F1D416F0086BA0A /* VTTSubtitlesLoader.swift */; };
 		148D0C932F1BB37A003588D7 /* PlaceholderGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 148D0C922F1BB37A003588D7 /* PlaceholderGridView.swift */; };
 		37F3E66D2850F62100A944E0 /* Collection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37F3E66C2850F62100A944E0 /* Collection.swift */; };
 		3C16530390D04B6A87F652BD /* UserDefaultsKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8C802C3CBD1465FA1056840 /* UserDefaultsKeys.swift */; };
@@ -427,6 +429,8 @@
 		04B48CFD2CD6B3AD00F719D0 /* ShikimoriQueries.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShikimoriQueries.swift; sourceTree = "<group>"; };
 		0C807DDC27D47C2D0042EE7B /* CircularProgressView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CircularProgressView.swift; sourceTree = "<group>"; };
 		1364BB75AB1D280AAFB4BA77 /* PlayerLibraryManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlayerLibraryManager.swift; sourceTree = "<group>"; };
+		1424DE2F2F1D41380086BA0A /* SubtitleSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubtitleSettings.swift; sourceTree = "<group>"; };
+		1424DE332F1D416F0086BA0A /* VTTSubtitlesLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VTTSubtitlesLoader.swift; sourceTree = "<group>"; };
 		148D0C922F1BB37A003588D7 /* PlaceholderGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaceholderGridView.swift; sourceTree = "<group>"; };
 		1A2B3C4D5E6F7A8B9C0D1E2F /* Player.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = Player.swift; path = Player/Player.swift; sourceTree = "<group>"; };
 		37F3E66C2850F62100A944E0 /* Collection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Collection.swift; sourceTree = "<group>"; };
@@ -921,6 +925,15 @@
 			name = Player;
 			sourceTree = "<group>";
 		};
+		1424DE2E2F1D41230086BA0A /* Helpers */ = {
+			isa = PBXGroup;
+			children = (
+				1424DE332F1D416F0086BA0A /* VTTSubtitlesLoader.swift */,
+				1424DE2F2F1D41380086BA0A /* SubtitleSettings.swift */,
+			);
+			path = Helpers;
+			sourceTree = "<group>";
+		};
 		1871B4712E81241200C272AD /* bangumi */ = {
 			isa = PBXGroup;
 			children = (
@@ -954,6 +967,7 @@
 		FB02E1EE288D7B9D00B9E2DE /* UI */ = {
 			isa = PBXGroup;
 			children = (
+				1424DE2E2F1D41230086BA0A /* Helpers */,
 				FB02E1EF288D7BA700B9E2DE /* Common */,
 				FB02E1F0288D7BAF00B9E2DE /* Library */,
 				FB427509295FB78E00131377 /* Browse */,
@@ -2361,6 +2375,7 @@
 				FB16E62A2DF4D85900E09ED9 /* UIConstants.swift in Sources */,
 				FBED231727B83B670095D0C0 /* UISwitch.swift in Sources */,
 				FB034E992EAAFA850072EEEB /* KavitaApi.swift in Sources */,
+				1424DE342F1D41710086BA0A /* VTTSubtitlesLoader.swift in Sources */,
 				FB55AFA528AAAEF70083EFC3 /* BaseViewController.swift in Sources */,
 				FB716E04283E7D4D00F1BB5D /* String.swift in Sources */,
 				FB02E1F4288D7C0C00B9E2DE /* Manga.swift in Sources */,
@@ -2568,6 +2583,7 @@
 				FBE7A5942DE35AC400CA5B60 /* CustomSourceConfig.swift in Sources */,
 				FB4B0AF1285D46BF0066A13B /* Date.swift in Sources */,
 				FB9A484029688B5300FFC414 /* MigrateSourcesView.swift in Sources */,
+				1424DE302F1D41380086BA0A /* SubtitleSettings.swift in Sources */,
 				FB4EBFC42E45124900D83F9A /* TextFieldWrapper.swift in Sources */,
 				FB0CAA4C28A2AD480024561A /* CoreDataManager+Manga.swift in Sources */,
 				FB1BEF8C2E3BFFF000098D21 /* HistorySection.swift in Sources */,

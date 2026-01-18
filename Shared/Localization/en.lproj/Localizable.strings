@@ -70,6 +70,14 @@
 "PLAYER_ADD_CONTENT" = "Add content from the browse tab";
 "FORCE_LANDSCAPE" = "Force Landscape Mode";
 
+// Player settings
+"SUBTITLES" = "Subtitles";
+"SUBTITLES_ENABLED" = "Enabled";
+"FONT_SIZE" = "Font Size";
+"TEXT_COLOR" = "Text Color";
+"BACKGROUND_ENABLED" = "Background";
+"SUBTITLE_DELAY" = "Delay (sec)";
+
 // Library
 "LIBRARY" = "Reader";
 "LIBRARY_SEARCH" = "Search in Reader";

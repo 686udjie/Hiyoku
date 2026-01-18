@@ -207,8 +207,34 @@ class JSController: NSObject, ObservableObject {
         Array(loadedScripts.values)
     }
 
-    // MARK: - Search Operations
+    // MARK: - Helper Methods
+    private func awaitPromiseResolution(_ promise: JSValue) async -> JSValue? {
+        await withCheckedContinuation { continuation in
+            var didResume = false
+            let resumeOnce: (JSValue?) -> Void = { value in
+                guard !didResume else { return }
+                didResume = true
+                continuation.resume(returning: value)
+            }
 
+            let thenBlock: @convention(block) (JSValue) -> Void = { result in
+                resumeOnce(result)
+            }
+            let catchBlock: @convention(block) (JSValue) -> Void = { _ in
+                resumeOnce(nil)
+            }
+
+            let thenFunction = JSValue(object: thenBlock, in: context)
+            let catchFunction = JSValue(object: catchBlock, in: context)
+
+            promise.invokeMethod("then", withArguments: [thenFunction as Any])
+            promise.invokeMethod("catch", withArguments: [catchFunction as Any])
+        }
+    }
+}
+
+// MARK: - Search Operations
+extension JSController {
     /// Performs a search using the specified module's JavaScript search function
     /// - Parameters:
     ///   - keyword: The search query
@@ -299,30 +325,6 @@ class JSController: NSObject, ObservableObject {
         }
     }
 
-    private func awaitPromiseResolution(_ promise: JSValue) async -> JSValue? {
-        await withCheckedContinuation { continuation in
-            var didResume = false
-            let resumeOnce: (JSValue?) -> Void = { value in
-                guard !didResume else { return }
-                didResume = true
-                continuation.resume(returning: value)
-            }
-
-            let thenBlock: @convention(block) (JSValue) -> Void = { result in
-                resumeOnce(result)
-            }
-            let catchBlock: @convention(block) (JSValue) -> Void = { _ in
-                resumeOnce(nil)
-            }
-
-            let thenFunction = JSValue(object: thenBlock, in: context)
-            let catchFunction = JSValue(object: catchBlock, in: context)
-
-            promise.invokeMethod("then", withArguments: [thenFunction as Any])
-            promise.invokeMethod("catch", withArguments: [catchFunction as Any])
-        }
-    }
-
     private func parseSearchResults(_ result: JSValue) -> [SearchItem] {
         guard let jsonString = result.toString(),
               let data = jsonString.data(using: .utf8) else {
@@ -346,9 +348,10 @@ class JSController: NSObject, ObservableObject {
             return []
         }
     }
+}
 
-    // MARK: - Episode Operations
-
+// MARK: - Episode Operations
+extension JSController {
     /// Extracts episode list for content using the module's JavaScript functions
     /// Copied exactly from Sora's fetchDetailsJS implementation
     /// - Parameters:
@@ -437,14 +440,7 @@ class JSController: NSObject, ObservableObject {
             return []
         }
     }
-    private func fetchPlayerEpisodesInternal(contentUrl: String, module: ScrapingModule, completion: @escaping ([PlayerEpisode]) -> Void) {
-        Task {
-            let episodes = await self.fetchPlayerEpisodes(contentUrl: contentUrl, module: module)
-            DispatchQueue.main.async {
-                completion(episodes)
-            }
-        }
-    }
+
     private func parseEpisodesFromResult(_ result: JSValue) -> [PlayerEpisode] {
         // Try to parse as array directly
         if let episodesArray = result.toArray() as? [[String: String]] {
@@ -461,7 +457,8 @@ class JSController: NSObject, ObservableObject {
                     url: link,
                     dateUploaded: nil,
                     scanlator: episodeData["scanlator"],
-                    language: episodeData["language"] ?? "en"
+                    language: episodeData["language"] ?? "",
+                    subtitleUrl: episodeData["subtitle"] ?? episodeData["subtitles"]
                 )
             }
         }
@@ -483,7 +480,8 @@ class JSController: NSObject, ObservableObject {
                             url: link,
                             dateUploaded: nil,
                             scanlator: item["scanlator"] as? String,
-                            language: (item["language"] as? String) ?? "en"
+                            language: (item["language"] as? String) ?? "",
+                            subtitleUrl: (item["subtitle"] as? String) ?? (item["subtitles"] as? String)
                         )
                     }
                 }
@@ -492,77 +490,91 @@ class JSController: NSObject, ObservableObject {
         }
         return []
     }
+}
 
-    // MARK: - Streaming Operations
-
+// MARK: - Streaming Operations
+extension JSController {
     /// Extracts streaming URLs for a player using the module's JavaScript functions
     /// - Parameters:
     ///   - episodeId: The episode ID (from extractEpisodes result) to get streams for
     ///   - module: The module to use for stream extraction
     ///   - completion: Callback with stream info (URL and headers) or empty array on failure
-    func fetchPlayerStreams(episodeId: String, module: ScrapingModule, completion: @escaping ([(url: String, headers: [String: String])]) -> Void) {
+    func fetchPlayerStreams(
+        episodeId: String,
+        module: ScrapingModule,
+        completion: @escaping ([(url: String, headers: [String: String])], String?) -> Void
+    ) {
         Task {
-            let streams = await self.fetchPlayerStreams(episodeId: episodeId, module: module)
+            let (streams, subtitle) = await self.fetchPlayerStreams(episodeId: episodeId, module: module)
             DispatchQueue.main.async {
-                completion(streams)
+                completion(streams, subtitle)
             }
         }
     }
 
-    func fetchPlayerStreams(episodeId: String, module: ScrapingModule) async -> [(url: String, headers: [String: String])] {
+    func fetchPlayerStreams(
+        episodeId: String,
+        module: ScrapingModule
+    ) async -> (streams: [(url: String, headers: [String: String])], subtitle: String?) {
         await contextMutex.withLock {
             do {
                 try await ensureModuleLoaded(module)
 
                 if context.exception != nil {
-                    return []
+                    return ([], nil)
                 }
                 guard !episodeId.isEmpty else {
-                    return []
+                    return ([], nil)
                 }
                 guard let streamFunction = try? getJavaScriptFunction("extractStreamUrl", module: module) else {
-                    return []
+                    return ([], nil)
                 }
                 guard let promiseValue = streamFunction.call(withArguments: [episodeId]) else {
-                    return []
+                    return ([], nil)
                 }
                 guard let result = await awaitPromiseResolution(promiseValue) else {
-                    return []
+                    return ([], nil)
                 }
                 return parseStreamResultFromJSValue(result)
             } catch {
-                return []
+                return ([], nil)
             }
         }
     }
 
-    private func parseStreamResultFromJSValue(_ result: JSValue) -> [(url: String, headers: [String: String])] {
+    private func parseStreamResultFromJSValue(_ result: JSValue) -> ([(url: String, headers: [String: String])], String?) {
         // Check if result is null or undefined
         if result.isNull || result.isUndefined {
-            return []
+            return ([], nil)
         }
 
         // Try to get string representation
         guard let resultString = result.toString(), !resultString.isEmpty else {
-            return []
+            return ([], nil)
         }
 
         // Check if it's still a Promise object
         if resultString == "[object Promise]" {
-            return []
+            return ([], nil)
         }
 
         return parseStreamResult(resultString)
     }
 
-    private func parseStreamResult(_ resultString: String) -> [(url: String, headers: [String: String])] {
+    private func parseStreamResult(_ resultString: String) -> ([(url: String, headers: [String: String])], String?) {
         // Try to parse as JSON first
         if let data = resultString.data(using: .utf8) {
             do {
                 if let json = try JSONSerialization.jsonObject(with: data, options: []) as? [String: Any] {
                     var streamInfos: [(url: String, headers: [String: String])] = []
+                    var subtitleUrl: String?
 
-                    // Handle different JSON formats like Sora does
+                    // Extract subtitle
+                    if let subs = json["subtitles"] as? [String], let first = subs.first {
+                        subtitleUrl = first
+                    } else if let sub = json["subtitles"] as? String {
+                        subtitleUrl = sub
+                    }
                     // Module returns: { streams: [{ title: "SUB", streamUrl: "m3u8_url", headers: {...} }], subtitles: "..." }
                     if let streamSources = json["streams"] as? [[String: Any]] {
                         // Extract streamUrl and headers from stream objects (module format)
@@ -603,28 +615,28 @@ class JSController: NSObject, ObservableObject {
                         ])]
                     }
 
-                    return streamInfos
+                    return (streamInfos, subtitleUrl)
                 }
 
                 // Try to parse as simple array of strings
                 if let streamsArray = try JSONSerialization.jsonObject(with: data, options: []) as? [String] {
-                    return streamsArray.map { url in
+                    return (streamsArray.map { url in
                         (url: url, headers: [
                             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " +
                                 "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
                             "Referer": url
                         ])
-                    }
+                    }, nil)
                 }
             } catch {
             }
         }
 
         // If not JSON, treat as direct URL with default headers
-        return [(url: resultString, headers: [
+        return ([(url: resultString, headers: [
             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " +
                 "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "Referer": resultString
-        ])]
+        ])], nil)
     }
 }

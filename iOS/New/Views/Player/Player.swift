@@ -43,7 +43,8 @@ struct Player: UIViewControllerRepresentable {
             module: module,
             videoUrl: initialUrl,
             videoTitle: "Episode \(episode.number): \(episode.title)",
-            headers: streamHeaders
+            headers: streamHeaders,
+            subtitleUrl: episode.subtitleUrl
         )
 
         videoPlayerController.configure(episodes: episodes, current: episode, title: title)
@@ -78,7 +79,7 @@ struct Player: UIViewControllerRepresentable {
 
         // manual streamUrl injection
         if let newUrl = streamUrl, !newUrl.isEmpty, newUrl != videoPlayerController.videoUrl {
-            videoPlayerController.loadVideo(url: newUrl, headers: streamHeaders)
+            videoPlayerController.loadVideo(url: newUrl, headers: streamHeaders, subtitleUrl: episode.subtitleUrl)
             videoPlayerController.updateTitle("Episode \(episode.number): \(episode.title)")
         } else if streamUrl == nil || streamUrl?.isEmpty == true {
         // Check if episode changed for internal loading
@@ -110,10 +111,11 @@ struct Player: UIViewControllerRepresentable {
             return
         }
 
-        let streamInfos = await JSController.shared.fetchPlayerStreams(episodeId: episode.url, module: module)
+        let (streamInfos, subtitleUrl) = await JSController.shared.fetchPlayerStreams(episodeId: episode.url, module: module)
         await MainActor.run {
             if let streamInfo = streamInfos.first, !streamInfo.url.isEmpty {
-                videoPlayerController.loadVideo(url: streamInfo.url, headers: streamInfo.headers)
+                let effectiveSubtitleUrl = subtitleUrl
+                videoPlayerController.loadVideo(url: streamInfo.url, headers: streamInfo.headers, subtitleUrl: effectiveSubtitleUrl)
                 context.coordinator.videoPlayerController = videoPlayerController
                 context.coordinator.hasLoaded = true
             } else {
