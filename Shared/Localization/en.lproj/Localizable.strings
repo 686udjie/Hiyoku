@@ -79,6 +79,8 @@
 "SUBTITLE_DELAY" = "Delay (sec)";
 "FORCE_LANDSCAPE" = "Force Landscape Mode";
 "DOUBLE_TAP_SKIP_DURATION" = "Skip Length";
+"TWO_FINGER_TAP_TO_PAUSE" = "Two-Finger Tap to Pause";
+"TWO_FINGER_TAP_TO_PAUSE_TEXT" = "Toggle whether tapping with two fingers should pause/play the video.";
 
 // Library
 "LIBRARY" = "Reader";

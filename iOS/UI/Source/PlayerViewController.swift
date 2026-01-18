@@ -239,6 +239,7 @@ class PlayerViewController: UIViewController, UIGestureRecognizerDelegate {
     // Double tap skip properties
     private var doubleTapLeftGesture: UITapGestureRecognizer!
     private var doubleTapRightGesture: UITapGestureRecognizer!
+    private var twoFingerTapGesture: UITapGestureRecognizer!
     private lazy var leftSkipFeedbackView = createSkipFeedbackView(direction: .backward)
     private lazy var rightSkipFeedbackView = createSkipFeedbackView(direction: .forward)
 
@@ -398,6 +399,11 @@ extension PlayerViewController {
         // Single tap should wait for double tap to fail
         tapGesture.require(toFail: doubleTapLeftGesture)
         tapGesture.require(toFail: doubleTapRightGesture)
+
+        // Setup two finger tap gesture
+        twoFingerTapGesture = UITapGestureRecognizer(target: self, action: #selector(handleTwoFingerTap))
+        twoFingerTapGesture.numberOfTouchesRequired = 2
+        videoContainer.addGestureRecognizer(twoFingerTapGesture)
 
         // Setup long press gesture for speed boost
         let longPressGesture = UILongPressGestureRecognizer(target: self, action: #selector(handleLongPress(_:)))
@@ -654,6 +660,11 @@ extension PlayerViewController {
 
     @objc private func handleDoubleTapRight() {
         skipForward()
+    }
+
+    @objc private func handleTwoFingerTap() {
+        guard UserDefaults.standard.bool(forKey: "Player.twoFingerTapToPause") else { return }
+        playPauseTapped()
     }
 
     @objc private func handleLongPress(_ gesture: UILongPressGestureRecognizer) {

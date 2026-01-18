@@ -527,6 +527,11 @@ extension Settings {
                 key: "Player.doubleTapSkipDuration",
                 title: NSLocalizedString("DOUBLE_TAP_SKIP_DURATION"),
                 value: .stepper(.init(minimumValue: 5, maximumValue: 30, stepValue: 5))
+            ),
+            .init(
+                key: "Player.twoFingerTapToPause",
+                title: NSLocalizedString("TWO_FINGER_TAP_TO_PAUSE"),
+                value: .toggle(.init(subtitle: NSLocalizedString("TWO_FINGER_TAP_TO_PAUSE_TEXT")))
             )
         ]))),
         .init(
