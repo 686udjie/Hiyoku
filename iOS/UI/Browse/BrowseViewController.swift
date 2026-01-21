@@ -207,14 +207,18 @@ class BrowseViewController: BaseTableViewController, DebouncedSearchable {
 }
 
 extension BrowseViewController {
-    func uninstall(sources: [AidokuRunner.Source]) {
+    func uninstall(sources: [AidokuRunner.Source], modules: [ScrapingModule] = []) {
         let containsLocalSource = sources.contains(where: { $0.id == LocalSourceRunner.sourceKey })
 
         func commit() {
             for source in sources {
                 SourceManager.shared.remove(source: source)
             }
+            for module in modules {
+                ModuleManager.shared.deleteModule(module)
+            }
             self.viewModel.loadInstalledSources()
+            self.viewModel.loadPinnedSources()
             self.updateDataSource()
             self.setEditing(false, animated: true)
         }
@@ -301,11 +305,16 @@ extension BrowseViewController {
             continueActionName: NSLocalizedString("UNINSTALL"),
             sourceItem: toolbarItems?.first
         ) {
-            let sources = self.tableView.indexPathsForSelectedRows?.compactMap { (path: IndexPath) -> AidokuRunner.Source? in
+            let selections = self.tableView.indexPathsForSelectedRows ?? []
+            let sources = selections.compactMap { path -> AidokuRunner.Source? in
                 guard let info = self.dataSource.itemIdentifier(for: path) else { return nil }
                 return SourceManager.shared.source(for: info.sourceId)
-            } ?? []
-            self.uninstall(sources: sources)
+            }
+            let modules = selections.compactMap { path -> ScrapingModule? in
+                guard let info = self.dataSource.itemIdentifier(for: path) else { return nil }
+                return ModuleManager.shared.modules.first { $0.id.uuidString == info.sourceId }
+            }
+            self.uninstall(sources: sources, modules: modules)
         }
     }
 }
@@ -398,11 +407,13 @@ extension BrowseViewController {
             !tableView.isEditing, // do not allow context menu when the sources are being edited
             case let section = dataSource.sectionIdentifier(for: indexPath.section),
             section == .installed || section == .pinned,
-            let info = dataSource.itemIdentifier(for: indexPath),
-            let source = SourceManager.shared.source(for: info.sourceId)
+            let info = dataSource.itemIdentifier(for: indexPath)
         else {
             return nil
         }
+        let module = ModuleManager.shared.modules.first { $0.id.uuidString == info.sourceId }
+        let source = SourceManager.shared.source(for: info.sourceId)
+        guard module != nil || source != nil else { return nil }
         return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { _ -> UIMenu? in
             let editAction = UIMenu(title: "", options: .displayInline, children: [
                 UIAction(
@@ -417,11 +428,23 @@ extension BrowseViewController {
                 title: section == .pinned ? NSLocalizedString("UNPIN") : NSLocalizedString("PIN"),
                 image: UIImage(systemName: section == .pinned ? "pin.slash" : "pin")
             ) { _ in
-                if section == .pinned {
-                    SourceManager.shared.unpin(source: source)
-                } else {
-                    SourceManager.shared.pin(source: source)
+                if let source {
+                    if section == .pinned {
+                        SourceManager.shared.unpin(source: source)
+                    } else {
+                        SourceManager.shared.pin(source: source)
+                    }
+                } else if let module {
+                    let key = "Browse.pinnedList"
+                    var pinnedList = UserDefaults.standard.stringArray(forKey: key) ?? []
+                    if section == .pinned {
+                        pinnedList.removeAll { $0 == module.id.uuidString }
+                    } else if !pinnedList.contains(module.id.uuidString) {
+                        pinnedList.append(module.id.uuidString)
+                    }
+                    UserDefaults.standard.set(pinnedList, forKey: key)
                 }
+                self.viewModel.loadInstalledSources()
                 self.viewModel.loadPinnedSources()
                 self.updateDataSource()
             }
@@ -431,7 +454,14 @@ extension BrowseViewController {
                 image: UIImage(systemName: "trash"),
                 attributes: .destructive
             ) { _ in
-                self.uninstall(sources: [source])
+                if let source {
+                    self.uninstall(sources: [source])
+                } else if let module {
+                    ModuleManager.shared.deleteModule(module)
+                    self.viewModel.loadInstalledSources()
+                    self.viewModel.loadPinnedSources()
+                    self.updateDataSource()
+                }
             }
 
             return UIMenu(title: "", children: [
