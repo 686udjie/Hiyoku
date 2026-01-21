@@ -150,7 +150,7 @@ extension JSContext {
 
             let headers = self.processHeaders(headersAny)
 
-            let httpMethod = method ?? "GET"
+            let httpMethod = (method ?? "GET").uppercased()
             var request = URLRequest(url: url)
             request.httpMethod = httpMethod
 
@@ -256,8 +256,9 @@ extension JSContext {
         let fetchv2Definition = """
             function fetchv2(url, headers = {}, method = "GET", body = null, redirect = true, encoding) {
 
+                var normalizedMethod = (method || "GET").toUpperCase();
                 var processedBody = null;
-                if(method != "GET") {
+                if(normalizedMethod != "GET") {
                     processedBody = (body && (typeof body === 'object')) ? JSON.stringify(body) : (body || null)
                 }
 
@@ -270,7 +271,7 @@ extension JSContext {
                 }
 
                 return new Promise(function(resolve, reject) {
-                    fetchV2Native(url, processedHeaders, method, processedBody, redirect, finalEncoding, function(rawText) {
+                    fetchV2Native(url, processedHeaders, normalizedMethod, processedBody, redirect, finalEncoding, function(rawText) {
                         const responseObj = {
                             headers: rawText.headers,
                             status: rawText.status,
