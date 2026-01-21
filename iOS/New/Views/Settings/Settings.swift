@@ -519,6 +519,11 @@ extension Settings {
     static let playerSettings: [Setting] = [
         .init(value: .group(.init(items: [
             .init(
+                key: "Player.askForStreamResolution",
+                title: NSLocalizedString("STREAM_SELECTION_MENU"),
+                value: .toggle(.init())
+            ),
+            .init(
                 key: "Player.forceLandscape",
                 title: NSLocalizedString("FORCE_LANDSCAPE"),
                 value: .toggle(.init())

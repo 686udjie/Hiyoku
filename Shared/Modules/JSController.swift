@@ -12,8 +12,14 @@ import JavaScriptCore
 
 /// Manages JavaScript execution context for player modules
 /// Handles module loading, search operations, and stream extraction
-class JSController: NSObject, ObservableObject {
-    static let shared = JSController()
+public struct StreamInfo: Codable, Sendable {
+    public let title: String
+    public let url: String
+    public let headers: [String: String]
+}
+
+public class JSController: ObservableObject {
+    public static let shared = JSController()
 
     private actor JSContextMutex {
         private var isLocked = false
@@ -46,14 +52,14 @@ class JSController: NSObject, ObservableObject {
     }
 
     var context: JSContext
+    private var modules: [String: JSValue] = [:] // Used for direct JSValue access if needed, though mostly using context
     private var loadedScripts: [String: ScrapingModule] = [:]
     private var currentModuleId: String?
-
+    private let queue = DispatchQueue(label: "com.aidoku.jscontroller", qos: .userInitiated)
     private let contextMutex = JSContextMutex()
 
-    override init() {
+    init() {
         self.context = JSContext()
-        super.init()
         setupContext()
     }
 
@@ -502,7 +508,7 @@ extension JSController {
     func fetchPlayerStreams(
         episodeId: String,
         module: ScrapingModule,
-        completion: @escaping ([(url: String, headers: [String: String])], String?) -> Void
+        completion: @escaping ([StreamInfo], String?) -> Void
     ) {
         Task {
             let (streams, subtitle) = await self.fetchPlayerStreams(episodeId: episodeId, module: module)
@@ -512,29 +518,16 @@ extension JSController {
         }
     }
 
-    func fetchPlayerStreams(
-        episodeId: String,
-        module: ScrapingModule
-    ) async -> (streams: [(url: String, headers: [String: String])], subtitle: String?) {
+    func fetchPlayerStreams(episodeId: String, module: ScrapingModule) async -> ([StreamInfo], String?) {
         await contextMutex.withLock {
             do {
                 try await ensureModuleLoaded(module)
+                guard validateContext() else { return ([], nil) }
+                guard let extractStreamUrl = context.objectForKeyedSubscript("extractStreamUrl") else {
+                    return ([], nil)
+                }
 
-                if context.exception != nil {
-                    return ([], nil)
-                }
-                guard !episodeId.isEmpty else {
-                    return ([], nil)
-                }
-                guard let streamFunction = try? getJavaScriptFunction("extractStreamUrl", module: module) else {
-                    return ([], nil)
-                }
-                guard let promiseValue = streamFunction.call(withArguments: [episodeId]) else {
-                    return ([], nil)
-                }
-                guard let result = await awaitPromiseResolution(promiseValue) else {
-                    return ([], nil)
-                }
+                let result = extractStreamUrl.call(withArguments: [episodeId])
                 return parseStreamResultFromJSValue(result)
             } catch {
                 return ([], nil)
@@ -542,10 +535,12 @@ extension JSController {
         }
     }
 
-    private func parseStreamResultFromJSValue(_ result: JSValue) -> ([(url: String, headers: [String: String])], String?) {
-        // Check if result is null or undefined
-        if result.isNull || result.isUndefined {
-            return ([], nil)
+    private func parseStreamResultFromJSValue(_ result: JSValue?) -> ([StreamInfo], String?) {
+        guard let result = result else { return ([], nil) }
+
+        // Handle Promise if returned
+        if result.hasProperty("then") {
+            // Placeholder for Promise handling if needed in future
         }
 
         // Try to get string representation
@@ -553,20 +548,15 @@ extension JSController {
             return ([], nil)
         }
 
-        // Check if it's still a Promise object
-        if resultString == "[object Promise]" {
-            return ([], nil)
-        }
-
         return parseStreamResult(resultString)
     }
 
-    private func parseStreamResult(_ resultString: String) -> ([(url: String, headers: [String: String])], String?) {
+    private func parseStreamResult(_ resultString: String) -> ([StreamInfo], String?) {
         // Try to parse as JSON first
         if let data = resultString.data(using: .utf8) {
             do {
                 if let json = try JSONSerialization.jsonObject(with: data, options: []) as? [String: Any] {
-                    var streamInfos: [(url: String, headers: [String: String])] = []
+                    var streamInfos: [StreamInfo] = []
                     var subtitleUrl: String?
 
                     // Extract subtitle
@@ -578,10 +568,12 @@ extension JSController {
                     // Module returns: { streams: [{ title: "SUB", streamUrl: "m3u8_url", headers: {...} }], subtitles: "..." }
                     if let streamSources = json["streams"] as? [[String: Any]] {
                         // Extract streamUrl and headers from stream objects (module format)
-                        streamInfos = streamSources.compactMap { source -> (url: String, headers: [String: String])? in
+                        streamInfos = streamSources.compactMap { source -> StreamInfo? in
                             guard let streamUrl = source["streamUrl"] as? String ?? source["url"] as? String ?? source["stream"] as? String else {
                                 return nil
                             }
+
+                            let title = source["title"] as? String ?? "Stream"
 
                             // Extract headers if provided
                             var headers: [String: String] = [:]
@@ -595,20 +587,19 @@ extension JSController {
                                     "Referer": streamUrl
                                 ]
                             }
-
-                            return (url: streamUrl, headers: headers)
+                            return StreamInfo(title: title, url: streamUrl, headers: headers)
                         }
                     } else if let streamsArray = json["streams"] as? [String] {
                         // Simple array of URLs - use default headers
                         streamInfos = streamsArray.map { url in
-                            (url: url, headers: [
+                            StreamInfo(title: "Stream", url: url, headers: [
                                 "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " +
                                     "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
                                 "Referer": url
                             ])
                         }
                     } else if let streamUrl = json["stream"] as? String {
-                        streamInfos = [(url: streamUrl, headers: [
+                        streamInfos = [StreamInfo(title: "Stream", url: streamUrl, headers: [
                             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " +
                                 "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
                             "Referer": streamUrl
@@ -621,7 +612,7 @@ extension JSController {
                 // Try to parse as simple array of strings
                 if let streamsArray = try JSONSerialization.jsonObject(with: data, options: []) as? [String] {
                     return (streamsArray.map { url in
-                        (url: url, headers: [
+                        StreamInfo(title: "Stream", url: url, headers: [
                             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " +
                                 "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
                             "Referer": url
@@ -633,7 +624,7 @@ extension JSController {
         }
 
         // If not JSON, treat as direct URL with default headers
-        return ([(url: resultString, headers: [
+        return ([StreamInfo(title: "Stream", url: resultString, headers: [
             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " +
                 "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "Referer": resultString

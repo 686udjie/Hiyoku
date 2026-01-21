@@ -17,12 +17,18 @@ class PlayerSession: ObservableObject, Identifiable {
 struct PlayerInfoView: View {
     @StateObject private var viewModel: ViewModel
 
+    @AppStorage("Player.askForStreamResolution") private var askForStreamResolution = false
+
     @State private var showingCoverView = false
     @State private var descriptionExpanded = false
     @State private var playerSession: PlayerSession?
     @State private var currentStreamUrl: String?
     @State private var currentStreamHeaders: [String: String]?
     @State private var errorMessage: String?
+    @State private var showingStreamSelection = false
+    @State private var availableStreams: [StreamInfo] = []
+    @State private var tempSubtitleUrl: String?
+    @State private var selectedEpisodeForStream: PlayerEpisode?
 
     @State private var episodesLoaded = false
 
@@ -75,6 +81,17 @@ struct PlayerInfoView: View {
                 if let errorMessage = errorMessage {
                     Text(errorMessage)
                 }
+            }
+
+            .confirmationDialog("Select Resolution", isPresented: $showingStreamSelection, titleVisibility: .visible) {
+                 ForEach(availableStreams, id: \.url) { stream in
+                     Button(stream.title) {
+                         Task {
+                             await playSelectedStream(stream, subtitleUrl: tempSubtitleUrl)
+                         }
+                     }
+                 }
+                 Button("Cancel", role: .cancel) {}
             }
             .task {
                 guard !episodesLoaded else { return }
@@ -212,27 +229,44 @@ struct PlayerInfoView: View {
 
         let (streamInfos, subtitleUrl) = await JSController.shared.fetchPlayerStreams(episodeId: episode.url, module: module)
 
-        if let streamInfo = streamInfos.first, !streamInfo.url.isEmpty {
-            currentStreamUrl = streamInfo.url
-            currentStreamHeaders = streamInfo.headers
-            let updatedEpisode = PlayerEpisode(
-                id: episode.id,
-                number: episode.number,
-                title: episode.title,
-                url: episode.url,
-                dateUploaded: episode.dateUploaded,
-                scanlator: episode.scanlator,
-                language: episode.language,
-                subtitleUrl: subtitleUrl ?? episode.subtitleUrl
-            )
-
-            if let session = playerSession {
-                session.episode = updatedEpisode
-            } else {
-                playerSession = PlayerSession(episode: updatedEpisode)
-            }
-        } else {
+        guard !streamInfos.isEmpty else {
             errorMessage = "Unable to find video stream for this episode"
+            return
+        }
+
+        if askForStreamResolution, streamInfos.count > 1 {
+            availableStreams = streamInfos
+            tempSubtitleUrl = subtitleUrl
+            selectedEpisodeForStream = episode
+            showingStreamSelection = true
+            return
+        }
+        if let firstStream = streamInfos.first {
+            await playSelectedStream(firstStream, subtitleUrl: subtitleUrl, episode: episode)
+        }
+    }
+
+    @MainActor
+    private func playSelectedStream(_ stream: StreamInfo, subtitleUrl: String?, episode: PlayerEpisode? = nil) async {
+        guard let episode = episode ?? selectedEpisodeForStream else { return }
+
+        currentStreamUrl = stream.url
+        currentStreamHeaders = stream.headers
+        let updatedEpisode = PlayerEpisode(
+            id: episode.id,
+            number: episode.number,
+            title: episode.title,
+            url: episode.url,
+            dateUploaded: episode.dateUploaded,
+            scanlator: episode.scanlator,
+            language: episode.language,
+            subtitleUrl: subtitleUrl ?? episode.subtitleUrl
+        )
+
+        if let session = playerSession {
+            session.episode = updatedEpisode
+        } else {
+            playerSession = PlayerSession(episode: updatedEpisode)
         }
     }
 }
