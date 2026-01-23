@@ -72,16 +72,17 @@
 // Player settings
 "PLAYER_SETTINGS" = "Player Settings";
 "SUBTITLES" = "Subtitles";
-"SUBTITLES_ENABLED" = "Enabled";
 "FONT_SIZE" = "Font Size";
 "TEXT_COLOR" = "Text Color";
 "BACKGROUND_ENABLED" = "Background";
 "SUBTITLE_DELAY" = "Delay (sec)";
 "FORCE_LANDSCAPE" = "Force Landscape Mode";
-"DOUBLE_TAP_SKIP_DURATION" = "Skip Length";
 "TWO_FINGER_TAP_TO_PAUSE" = "Two-Finger Tap to Pause";
-"TWO_FINGER_TAP_TO_PAUSE_TEXT" = "Toggle whether tapping with two fingers should pause/play the video.";
+"DOUBLE_TAP_SKIP_DURATION" = "Skip Length";
 "STREAM_SELECTION_MENU" = "Stream Selection Menu";
+"PREFERRED_AUDIO_CHANNEL" = "Preferred Audio Channel";
+"PREFERRED_RESOLUTION_WIFI" = "Preferred Resolution (Wi-Fi)";
+"PREFERRED_RESOLUTION_CELLULAR" = "Preferred Resolution (Cellular)";
 
 // Library
 "LIBRARY" = "Reader";

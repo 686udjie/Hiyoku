@@ -19,6 +19,7 @@
 		1402694F2F1A3580006DA968 /* MPVKit-GPL in Frameworks */ = {isa = PBXBuildFile; productRef = FB1CE0022EFE950300E37A6E /* MPVKit-GPL */; };
 		1424DE302F1D41380086BA0A /* SubtitleSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1424DE2F2F1D41380086BA0A /* SubtitleSettings.swift */; };
 		1424DE342F1D41710086BA0A /* VTTSubtitlesLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1424DE332F1D416F0086BA0A /* VTTSubtitlesLoader.swift */; };
+		142D150C2F23F58C00BAFC83 /* SkipDurationPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 142D150B2F23F58C00BAFC83 /* SkipDurationPickerView.swift */; };
 		148D0C932F1BB37A003588D7 /* PlaceholderGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 148D0C922F1BB37A003588D7 /* PlaceholderGridView.swift */; };
 		37F3E66D2850F62100A944E0 /* Collection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37F3E66C2850F62100A944E0 /* Collection.swift */; };
 		3C16530390D04B6A87F652BD /* UserDefaultsKeys.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8C802C3CBD1465FA1056840 /* UserDefaultsKeys.swift */; };
@@ -431,6 +432,7 @@
 		1364BB75AB1D280AAFB4BA77 /* PlayerLibraryManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlayerLibraryManager.swift; sourceTree = "<group>"; };
 		1424DE2F2F1D41380086BA0A /* SubtitleSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubtitleSettings.swift; sourceTree = "<group>"; };
 		1424DE332F1D416F0086BA0A /* VTTSubtitlesLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VTTSubtitlesLoader.swift; sourceTree = "<group>"; };
+		142D150B2F23F58C00BAFC83 /* SkipDurationPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkipDurationPickerView.swift; sourceTree = "<group>"; };
 		148D0C922F1BB37A003588D7 /* PlaceholderGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaceholderGridView.swift; sourceTree = "<group>"; };
 		1A2B3C4D5E6F7A8B9C0D1E2F /* Player.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = Player.swift; path = Player/Player.swift; sourceTree = "<group>"; };
 		37F3E66C2850F62100A944E0 /* Collection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Collection.swift; sourceTree = "<group>"; };
@@ -1047,6 +1049,7 @@
 		FB05F8652964907200D1EA2D /* Source */ = {
 			isa = PBXGroup;
 			children = (
+				142D150B2F23F58C00BAFC83 /* SkipDurationPickerView.swift */,
 				FB05F8662964917A00D1EA2D /* SourceViewController.swift */,
 				FB05F86A2964BFBC00D1EA2D /* SourceViewModel.swift */,
 				D97AF6A4C3DCE5C50512308B /* PlayerSourceViewController.swift */,
@@ -2524,6 +2527,7 @@
 				148D0C932F1BB37A003588D7 /* PlaceholderGridView.swift in Sources */,
 				FB1854662EF9B11E0063F698 /* UINavigationController+DismissGestures.swift in Sources */,
 				FB261ED52ECB8B8400743F56 /* LogEntry.swift in Sources */,
+				142D150C2F23F58C00BAFC83 /* SkipDurationPickerView.swift in Sources */,
 				FB662EDB2DA813E300007514 /* MultiSelectFilterView.swift in Sources */,
 				FB72502427CBF8C00037F1C9 /* SettingsTableViewController.swift in Sources */,
 				FB6340B3278F898E0072A2A2 /* Filter.swift in Sources */,

@@ -80,23 +80,9 @@ class PlayerViewController: UIViewController, UIGestureRecognizerDelegate {
     )
     private lazy var speedIndicatorBackgroundView = createBlurBackground(cornerRadius: 18)
 
-    private lazy var previousButton: UIButton = {
-        let b = UIButton(type: .system)
-        let config = UIImage.SymbolConfiguration(pointSize: 20, weight: .medium)
-        b.setImage(UIImage(systemName: "backward.end.fill", withConfiguration: config), for: .normal)
-        b.tintColor = .secondaryLabel
-        b.addTarget(self, action: #selector(previousTapped), for: .touchUpInside)
-        return b
-    }()
+    private lazy var previousButton = createSystemButton(symbol: "backward.end.fill", action: #selector(previousTapped))
 
-    private lazy var nextButton: UIButton = {
-        let b = UIButton(type: .system)
-        let config = UIImage.SymbolConfiguration(pointSize: 20, weight: .medium)
-        b.setImage(UIImage(systemName: "forward.end.fill", withConfiguration: config), for: .normal)
-        b.tintColor = .secondaryLabel
-        b.addTarget(self, action: #selector(nextTapped), for: .touchUpInside)
-        return b
-    }()
+    private lazy var nextButton = createSystemButton(symbol: "forward.end.fill", action: #selector(nextTapped))
 
     private let closeButton: UIButton = {
         let b = UIButton(type: .close)
@@ -141,34 +127,16 @@ class PlayerViewController: UIViewController, UIGestureRecognizerDelegate {
         return b
     }()
 
-    private lazy var listButton: UIButton = {
-        let b = UIButton(type: .system)
-        let config = UIImage.SymbolConfiguration(pointSize: 20, weight: .medium)
-        b.setImage(UIImage(systemName: "list.bullet", withConfiguration: config), for: .normal)
-        b.tintColor = .secondaryLabel
-        b.addTarget(self, action: #selector(listTapped), for: .touchUpInside)
-        return b
-    }()
+    private lazy var listButton = createSystemButton(symbol: "list.bullet", action: #selector(listTapped))
 
     private lazy var listBackgroundView = createBlurBackground(cornerRadius: 22)
 
     private lazy var lockButton: UIButton = {
-        let b = UIButton(type: .system)
-        let config = UIImage.SymbolConfiguration(pointSize: 16, weight: .medium)
-        b.setImage(UIImage(systemName: "lock.open.fill", withConfiguration: config), for: .normal)
-        b.tintColor = .secondaryLabel
-        b.addTarget(self, action: #selector(lockTapped), for: .touchUpInside)
+        let b = createSystemButton(symbol: "lock.open.fill", size: 16, action: #selector(lockTapped))
         return b
     }()
 
-    private lazy var settingsButton: UIButton = {
-        let b = UIButton(type: .system)
-        let config = UIImage.SymbolConfiguration(pointSize: 20, weight: .medium)
-        b.setImage(UIImage(systemName: "gearshape.fill", withConfiguration: config), for: .normal)
-        b.tintColor = .secondaryLabel
-        b.addTarget(self, action: #selector(settingsTapped), for: .touchUpInside)
-        return b
-    }()
+    private lazy var settingsButton = createSystemButton(symbol: "gearshape.fill", action: #selector(settingsTapped))
 
     private lazy var settingsBackgroundView = createBlurBackground(cornerRadius: 22)
 
@@ -208,9 +176,9 @@ class PlayerViewController: UIViewController, UIGestureRecognizerDelegate {
         return b
     }()
 
-    private lazy var skipButton: UIButton = {
+    private lazy var skipIntroButton: UIButton = {
         let b = UIButton(type: .system)
-        b.setTitle("\(Int(skipDuration))s", for: .normal)
+        b.setTitle("\(Int(skipIntroButtonDuration))s", for: .normal)
         b.titleLabel?.font = .systemFont(ofSize: 15, weight: .semibold)
         b.tintColor = .white
         b.addTarget(self, action: #selector(skipTapped), for: .touchUpInside)
@@ -243,7 +211,18 @@ class PlayerViewController: UIViewController, UIGestureRecognizerDelegate {
     private lazy var leftSkipFeedbackView = createSkipFeedbackView(direction: .backward)
     private lazy var rightSkipFeedbackView = createSkipFeedbackView(direction: .forward)
 
-    private var skipDuration: Double {
+    // SkipIntroButton duration
+    private var skipIntroButtonDuration: Double = {
+        let saved = UserDefaults.standard.double(forKey: "Player.skipIntroButtonDuration")
+        return saved == 0 ? 85 : saved
+    }() {
+        didSet {
+            UserDefaults.standard.set(skipIntroButtonDuration, forKey: "Player.skipIntroButtonDuration")
+            skipIntroButton.setTitle("\(Int(skipIntroButtonDuration))s", for: .normal)
+        }
+    }
+
+    private var doubleTapSkipDuration: Double {
         get {
             let value = UserDefaults.standard.double(forKey: "Player.doubleTapSkipDuration")
             return value == 0 ? 10 : value
@@ -274,14 +253,7 @@ class PlayerViewController: UIViewController, UIGestureRecognizerDelegate {
         }
     }
     var subtitleDelay: Double = 0
-    private lazy var subtitleButton: UIButton = {
-        let b = UIButton(type: .system)
-        let config = UIImage.SymbolConfiguration(pointSize: 20, weight: .medium)
-        b.setImage(UIImage(systemName: "captions.bubble.fill", withConfiguration: config), for: .normal)
-        b.tintColor = .secondaryLabel
-        b.addTarget(self, action: #selector(subtitleTapped), for: .touchUpInside)
-        return b
-    }()
+    private lazy var subtitleButton = createSystemButton(symbol: "captions.bubble.fill", action: #selector(subtitleTapped))
     private lazy var subtitleBackgroundView = createBlurBackground(cornerRadius: 22)
 
     init(module: ScrapingModule, videoUrl: String, videoTitle: String, headers: [String: String] = [:], subtitleUrl: String? = nil) {
@@ -408,6 +380,7 @@ extension PlayerViewController {
         // Setup long press gesture for speed boost
         let longPressGesture = UILongPressGestureRecognizer(target: self, action: #selector(handleLongPress(_:)))
         longPressGesture.minimumPressDuration = 0.3
+        longPressGesture.delegate = self
         videoContainer.addGestureRecognizer(longPressGesture)
 
          // Add all backgrounds and stand-alone views to videoContainer
@@ -429,7 +402,7 @@ extension PlayerViewController {
         centerInParent(listButton, parent: listBackgroundView, size: CGSize(width: 30, height: 30))
         centerInParent(speedButton, parent: speedBackgroundView, size: CGSize(width: 44, height: 28))
         centerInParent(lockButton, parent: lockBackgroundView, size: CGSize(width: 36, height: 28))
-        centerInParent(skipButton, parent: skipBackgroundView, size: CGSize(width: 44, height: 28))
+        centerInParent(skipIntroButton, parent: skipBackgroundView, size: CGSize(width: 44, height: 28))
         centerInParent(settingsButton, parent: settingsBackgroundView, size: CGSize(width: 30, height: 30))
         centerInParent(subtitleButton, parent: subtitleBackgroundView, size: CGSize(width: 30, height: 30))
 
@@ -571,6 +544,18 @@ extension PlayerViewController {
         return view
     }
 
+    private func createSymbolConfig(size: CGFloat, weight: UIImage.SymbolWeight = .medium) -> UIImage.SymbolConfiguration {
+        UIImage.SymbolConfiguration(pointSize: size, weight: weight)
+    }
+
+    private func createSystemButton(symbol: String, size: CGFloat = 20, action: Selector) -> UIButton {
+        let button = UIButton(type: .system)
+        button.setImage(UIImage(systemName: symbol, withConfiguration: createSymbolConfig(size: size)), for: .normal)
+        button.tintColor = .secondaryLabel
+        button.addTarget(self, action: action, for: .touchUpInside)
+        return button
+    }
+
     private func createSkipFeedbackView(direction: SkipDirection) -> UIView {
         let container = UIView()
         container.backgroundColor = .clear
@@ -706,18 +691,26 @@ extension PlayerViewController {
         let location = touch.location(in: videoContainer)
         let containerWidth = videoContainer.bounds.width
 
+        // Handle double tap gestures
         if gestureRecognizer == doubleTapLeftGesture {
             return location.x < containerWidth / 2
         } else if gestureRecognizer == doubleTapRightGesture {
             return location.x >= containerWidth / 2
         }
+        if gestureRecognizer is UILongPressGestureRecognizer {
+            let skipButtonFrameInContainer = skipBackgroundView.convert(skipIntroButton.frame, to: videoContainer)
+            if skipButtonFrameInContainer.contains(location) {
+                return false
+            }
+        }
+
         return true
     }
 
     private func skipForward() {
         guard mpv != nil else { return }
         let currentPos = position
-        let newPos = currentPos + skipDuration
+        let newPos = currentPos + doubleTapSkipDuration
         setProperty("time-pos", "\(newPos)")
         showSkipFeedback(direction: .forward)
     }
@@ -725,7 +718,7 @@ extension PlayerViewController {
     private func skipBackward() {
         guard mpv != nil else { return }
         let currentPos = position
-        let newPos = max(0, currentPos - skipDuration)
+        let newPos = max(0, currentPos - doubleTapSkipDuration)
         setProperty("time-pos", "\(newPos)")
         showSkipFeedback(direction: .backward)
     }
@@ -734,7 +727,7 @@ extension PlayerViewController {
         let feedbackView = direction == .forward ? rightSkipFeedbackView : leftSkipFeedbackView
 
         if let label = feedbackView.viewWithTag(999) as? UILabel {
-            label.text = "\(Int(skipDuration)) seconds"
+            label.text = "\(Int(doubleTapSkipDuration)) seconds"
         }
 
         feedbackView.alpha = 0
@@ -778,6 +771,37 @@ extension PlayerViewController {
         } else {
             autoHideTimer?.invalidate()
         }
+    }
+
+    @objc private func skipLongPressed(_ gesture: UILongPressGestureRecognizer) {
+        guard gesture.state == .began else { return }
+        let generator = UIImpactFeedbackGenerator(style: .medium)
+        generator.impactOccurred()
+
+        presentSkipDurationPicker()
+    }
+
+    private func presentSkipDurationPicker() {
+        self.pause()
+
+        let pickerVC = SkipDurationPickerViewController()
+        pickerVC.selectedDuration = skipIntroButtonDuration
+
+        let alert = UIAlertController(title: "Change intro length", message: nil, preferredStyle: .alert)
+        alert.setValue(pickerVC, forKey: "contentViewController")
+
+        let doneAction = UIAlertAction(title: "Done", style: .default) { [weak self, weak pickerVC] _ in
+            guard let self = self, let pickerVC = pickerVC else { return }
+            self.skipIntroButtonDuration = pickerVC.getSelectedDuration()
+            self.play()
+        }
+
+        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { [weak self] _ in
+            self?.play()
+        })
+        alert.addAction(doneAction)
+
+        present(alert, animated: true)
     }
 
     private var controlViews: [UIView] {
@@ -830,27 +854,9 @@ extension PlayerViewController {
     @objc private func skipTapped() {
         guard mpv != nil else { return }
         let currentPos = position
-        let newPos = currentPos + skipDuration
+        let newPos = currentPos + skipIntroButtonDuration
         setProperty("time-pos", "\(newPos)")
         resetAutoHideTimer()
-    }
-
-    @objc private func skipLongPressed(_ gesture: UILongPressGestureRecognizer) {
-        if gesture.state == .began {
-            let configVC = SkipConfigViewController()
-            configVC.currentValue = Int(skipDuration)
-            configVC.onSave = { [weak self] newValue in
-                guard let self = self else { return }
-                self.skipDuration = Double(newValue)
-                self.skipButton.setTitle("\(newValue)s", for: .normal)
-            }
-
-            let alert = UIAlertController(title: "Change intro length", message: nil, preferredStyle: .alert)
-            alert.setValue(configVC, forKey: "contentViewController")
-            alert.addAction(UIAlertAction(title: "Done", style: .default, handler: nil))
-
-            present(alert, animated: true, completion: nil)
-        }
     }
 
     @objc private func playPauseTapped() {
@@ -1058,7 +1064,7 @@ extension PlayerViewController {
     func updateSubtitleLabelAppearance() {
         let settings = SubtitleSettingsManager.shared.settings
         for label in subtitleLabels {
-            label.textColor = settings.uiColor
+            label.textColor = .white
             label.font = UIFont.systemFont(ofSize: CGFloat(settings.fontSize), weight: .medium)
             label.layer.shadowRadius = CGFloat(settings.shadowRadius)
             if settings.backgroundEnabled {
@@ -1289,11 +1295,7 @@ extension PlayerViewController {
         }
         let cmd = ["loadfile", urlToPlay, "replace"]
         withCStringArray(cmd) { ptr in
-            let result = mpv_command(handle, ptr)
-            if result < 0 {
-                let errorMsg = String(cString: mpv_error_string(result))
-                print("MPV Error: loadfile failed: \(errorMsg)")
-            }
+            _ = mpv_command(handle, ptr)
         }
         isRunning = true
         isPaused = false

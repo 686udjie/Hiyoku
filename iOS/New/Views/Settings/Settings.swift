@@ -519,46 +519,28 @@ extension Settings {
     static let playerSettings: [Setting] = [
         .init(value: .group(.init(items: [
             .init(
-                key: "Player.askForStreamResolution",
-                title: NSLocalizedString("STREAM_SELECTION_MENU"),
-                value: .toggle(.init())
-            ),
-            .init(
                 key: "Player.forceLandscape",
                 title: NSLocalizedString("FORCE_LANDSCAPE"),
                 value: .toggle(.init())
             ),
             .init(
-                key: "Player.doubleTapSkipDuration",
-                title: NSLocalizedString("DOUBLE_TAP_SKIP_DURATION"),
-                value: .stepper(.init(minimumValue: 5, maximumValue: 30, stepValue: 5))
-            ),
-            .init(
                 key: "Player.twoFingerTapToPause",
                 title: NSLocalizedString("TWO_FINGER_TAP_TO_PAUSE"),
-                value: .toggle(.init(subtitle: NSLocalizedString("TWO_FINGER_TAP_TO_PAUSE_TEXT")))
+                value: .toggle(.init())
+            ),
+            .init(
+                key: "Player.doubleTapSkipDuration",
+                title: NSLocalizedString("DOUBLE_TAP_SKIP_DURATION"),
+                value: .stepper(.init(minimumValue: 5, maximumValue: 60, stepValue: 5))
             )
         ]))),
         .init(
             title: NSLocalizedString("SUBTITLES"),
             value: .group(.init(items: [
                 .init(
-                    key: "SubtitleSettings.enabled",
-                    title: NSLocalizedString("SUBTITLES_ENABLED"),
-                    value: .toggle(.init())
-                ),
-                .init(
                     key: "SubtitleSettings.fontSize",
                     title: NSLocalizedString("FONT_SIZE"),
                     value: .stepper(.init(minimumValue: 10, maximumValue: 50, stepValue: 2))
-                ),
-                .init(
-                    key: "SubtitleSettings.foregroundColor",
-                    title: NSLocalizedString("TEXT_COLOR"),
-                    value: .select(.init(
-                        values: ["white", "yellow", "green", "cyan", "blue", "red"],
-                        titles: ["White", "Yellow", "Green", "Cyan", "Blue", "Red"]
-                    ))
                 ),
                 .init(
                     key: "SubtitleSettings.backgroundEnabled",
@@ -569,6 +551,43 @@ extension Settings {
                     key: "SubtitleSettings.subtitleDelay",
                     title: NSLocalizedString("SUBTITLE_DELAY"),
                     value: .stepper(.init(minimumValue: -10, maximumValue: 10, stepValue: 0.5))
+                )
+            ]))
+        ),
+        .init(
+            title: NSLocalizedString("ADVANCED"),
+            value: .group(.init(items: [
+                .init(
+                    key: "Player.askForStreamResolution",
+                    title: NSLocalizedString("STREAM_SELECTION_MENU"),
+                    value: .toggle(.init())
+                ),
+                .init(
+                    key: "Player.preferredAudioChannel",
+                    title: NSLocalizedString("PREFERRED_AUDIO_CHANNEL"),
+                    requiresFalse: "Player.askForStreamResolution",
+                    value: .select(.init(
+                        values: ["SUB", "DUB"],
+                        titles: ["SUB", "DUB"]
+                    ))
+                ),
+                .init(
+                    key: "Player.preferredResolutionWifi",
+                    title: NSLocalizedString("PREFERRED_RESOLUTION_WIFI"),
+                    requiresFalse: "Player.askForStreamResolution",
+                    value: .select(.init(
+                        values: ["auto", "2160p", "1440p", "1080p", "720p", "480p", "360p"],
+                        titles: ["Auto", "2160p", "1440p", "1080p", "720p", "480p", "360p"]
+                    ))
+                ),
+                .init(
+                    key: "Player.preferredResolutionCellular",
+                    title: NSLocalizedString("PREFERRED_RESOLUTION_CELLULAR"),
+                    requiresFalse: "Player.askForStreamResolution",
+                    value: .select(.init(
+                        values: ["auto", "1080p", "720p", "480p", "360p"],
+                        titles: ["Auto", "1080p", "720p", "480p", "360p"]
+                    ))
                 )
             ]))
         )

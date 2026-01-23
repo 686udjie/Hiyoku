@@ -16,10 +16,6 @@ struct SubtitleSettings {
         get { UserDefaults.standard.bool(forKey: "SubtitleSettings.enabled") }
         set { UserDefaults.standard.set(newValue, forKey: "SubtitleSettings.enabled") }
     }
-    var foregroundColor: String {
-        get { UserDefaults.standard.string(forKey: "SubtitleSettings.foregroundColor") ?? "white" }
-        set { UserDefaults.standard.set(newValue, forKey: "SubtitleSettings.foregroundColor") }
-    }
     var fontSize: Double {
         get {
             let val = UserDefaults.standard.double(forKey: "SubtitleSettings.fontSize")
@@ -50,18 +46,6 @@ struct SubtitleSettings {
         set { UserDefaults.standard.set(newValue, forKey: "SubtitleSettings.subtitleDelay") }
     }
 
-    var uiColor: UIColor {
-        switch foregroundColor.lowercased() {
-        case "white": return .white
-        case "yellow": return .yellow
-        case "green": return .green
-        case "cyan": return .cyan
-        case "blue": return .blue
-        case "magenta": return .magenta
-        case "red": return .red
-        default: return .white
-        }
-    }
 }
 
 class SubtitleSettingsManager: ObservableObject {
@@ -72,7 +56,6 @@ class SubtitleSettingsManager: ObservableObject {
         set {
             update { current in
                 current.enabled = newValue.enabled
-                current.foregroundColor = newValue.foregroundColor
                 current.fontSize = newValue.fontSize
                 current.shadowRadius = newValue.shadowRadius
                 current.backgroundEnabled = newValue.backgroundEnabled
@@ -91,7 +74,6 @@ class SubtitleSettingsManager: ObservableObject {
         // defaults
         UserDefaults.standard.register(defaults: [
              "SubtitleSettings.enabled": true,
-             "SubtitleSettings.foregroundColor": "white",
              "SubtitleSettings.fontSize": 20,
              "SubtitleSettings.shadowRadius": 1,
              "SubtitleSettings.backgroundEnabled": true,

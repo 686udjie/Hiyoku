@@ -29,7 +29,10 @@ class PlayerSourceViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        configure()
+    }
 
+    func configure() {
         title = module.metadata.sourceName
         view.backgroundColor = .systemBackground
 
@@ -40,10 +43,24 @@ class PlayerSourceViewController: UIViewController {
         searchController = UISearchController(searchResultsController: resultsViewController)
         searchController.searchResultsUpdater = self
         searchController.obscuresBackgroundDuringPresentation = false
+        searchController.hidesNavigationBarDuringPresentation = true
         searchController.searchBar.delegate = self
+
+        if #available(iOS 16, *) {
+            navigationItem.preferredSearchBarPlacement = .stacked
+        }
 
         navigationItem.searchController = searchController
         navigationItem.hidesSearchBarWhenScrolling = false
+
+        // fix iPadOS 26 bug
+        if #available(iOS 26.0, *), UIDevice.current.userInterfaceIdiom == .pad {
+            typealias SetClearAsCancelButtonVisibility = @convention(c) (NSObject, Selector, NSInteger) -> Void
+            let selector = NSSelectorFromString("_setClearAsCancelButtonVisibilityWhenEmpty:")
+            let methodIMP = searchController.method(for: selector)
+            let method = unsafeBitCast(methodIMP, to: SetClearAsCancelButtonVisibility.self)
+            method(searchController, selector, 1)
+        }
 
         if let initialQuery = initialSearchQuery, !initialQuery.isEmpty {
             searchController.searchBar.text = initialQuery
@@ -430,18 +447,5 @@ extension PlayerSearchResultsViewController: UICollectionViewDelegate {
              // TODO: Add context menu actions here
              nil
         }
-    }
-}
-
-// MARK: - Helper Extension
-private extension UIView {
-    func findSubview(withAccessibilityIdentifier identifier: String) -> UIView? {
-        if accessibilityIdentifier == identifier { return self }
-        for subview in subviews {
-            if let match = subview.findSubview(withAccessibilityIdentifier: identifier) {
-                return match
-            }
-        }
-        return nil
     }
 }

@@ -129,6 +129,8 @@ public class JSController: ObservableObject {
         context = JSContext()
         setupContext()
         context.evaluateScript(script)
+        _ = context.objectForKeyedSubscript("extractEpisodes") != nil
+        _ = context.objectForKeyedSubscript("extractStreamUrl") != nil
     }
 
     // MARK: - Module Management
@@ -522,7 +524,9 @@ extension JSController {
         await contextMutex.withLock {
             do {
                 try await ensureModuleLoaded(module)
-                guard validateContext() else { return ([], nil) }
+                guard validateContext() else {
+                    return ([], nil)
+                }
                 guard let extractStreamUrl = context.objectForKeyedSubscript("extractStreamUrl") else {
                     return ([], nil)
                 }
@@ -540,7 +544,8 @@ extension JSController {
 
         // Handle Promise if returned
         if result.hasProperty("then") {
-            // Placeholder for Promise handling if needed in future
+            // This is a Promise, we need to handle it asynchronously
+            return handlePromiseResult(result)
         }
 
         // Try to get string representation
@@ -549,6 +554,23 @@ extension JSController {
         }
 
         return parseStreamResult(resultString)
+    }
+    private func handlePromiseResult(_ promise: JSValue) -> ([StreamInfo], String?) {
+        // TODO: refactor to use async/await
+        let semaphore = DispatchSemaphore(value: 0)
+        var finalResult: ([StreamInfo], String?) = ([], nil)
+        let thenHandler: @convention(block) (JSValue, JSValue) -> Void = { resolvedValue, _ in
+            if let resultString = resolvedValue.toString(), !resultString.isEmpty {
+                finalResult = self.parseStreamResult(resultString)
+            }
+            semaphore.signal()
+        }
+        let catchHandler: @convention(block) (JSValue, JSValue) -> Void = { _, _ in
+            semaphore.signal()
+        }
+        promise.invokeMethod("then", withArguments: [JSValue(object: thenHandler, in: context)!, JSValue(object: catchHandler, in: context)!])
+        semaphore.wait()
+        return finalResult
     }
 
     private func parseStreamResult(_ resultString: String) -> ([StreamInfo], String?) {

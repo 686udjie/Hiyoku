@@ -5,6 +5,7 @@
 //  Created by 686udjie on 01/08/26.
 //
 
+import Foundation
 import SwiftUI
 import NukeUI
 
@@ -18,6 +19,9 @@ struct PlayerInfoView: View {
     @StateObject private var viewModel: ViewModel
 
     @AppStorage("Player.askForStreamResolution") private var askForStreamResolution = false
+    @AppStorage("Player.preferredResolutionWifi") private var preferredResolutionWifi = "auto"
+    @AppStorage("Player.preferredResolutionCellular") private var preferredResolutionCellular = "auto"
+    @AppStorage("Player.preferredAudioChannel") private var preferredAudioChannel = "SUB"
 
     @State private var showingCoverView = false
     @State private var descriptionExpanded = false
@@ -241,9 +245,59 @@ struct PlayerInfoView: View {
             showingStreamSelection = true
             return
         }
-        if let firstStream = streamInfos.first {
+
+        if let selectedStream = selectStream(streamInfos) {
+            await playSelectedStream(selectedStream, subtitleUrl: subtitleUrl, episode: episode)
+        } else if let firstStream = streamInfos.first {
             await playSelectedStream(firstStream, subtitleUrl: subtitleUrl, episode: episode)
         }
+    }
+
+    private func selectStream(_ streams: [StreamInfo]) -> StreamInfo? {
+        guard !streams.isEmpty else { return nil }
+        guard !askForStreamResolution else { return streams.first }
+
+        let audioFiltered = filterByAudioPreference(streams)
+        let resolutionPreference = getResolutionPreference()
+        guard resolutionPreference.lowercased() != "auto" else {
+            return audioFiltered.first
+        }
+        return selectBestResolution(from: audioFiltered, target: resolutionPreference) ?? audioFiltered.first
+    }
+    private func filterByAudioPreference(_ streams: [StreamInfo]) -> [StreamInfo] {
+        let filtered = streams.filter { $0.title.lowercased().contains(preferredAudioChannel.lowercased()) }
+        return filtered.isEmpty ? streams : filtered
+    }
+    private func getResolutionPreference() -> String {
+        switch Reachability.getConnectionType() {
+        case .wifi: return preferredResolutionWifi
+        case .cellular: return preferredResolutionCellular
+        case .none: return "auto"
+        }
+    }
+    private func selectBestResolution(from streams: [StreamInfo], target: String) -> StreamInfo? {
+        guard let targetResolution = parseResolution(target) else { return nil }
+        let candidates = streams.compactMap { stream -> (stream: StreamInfo, resolution: Int)? in
+            parseResolution(stream.title).map { (stream, $0) }
+        }
+        guard !candidates.isEmpty else { return nil }
+        return candidates.min { lhs, rhs in
+            let lDiff = abs(lhs.resolution - targetResolution)
+            let rDiff = abs(rhs.resolution - targetResolution)
+            return lDiff != rDiff ? lDiff < rDiff : lhs.resolution > rhs.resolution
+        }?.stream
+    }
+    private func parseResolution(_ text: String) -> Int? {
+        let lower = text.lowercased()
+        if lower.contains("4k") {
+            return 2160
+        }
+        let pattern = "(\\d{3,4})p"
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else { return nil }
+        let range = NSRange(lower.startIndex..<lower.endIndex, in: lower)
+        guard let match = regex.firstMatch(in: lower, options: [], range: range) else { return nil }
+        guard match.numberOfRanges >= 2, let valueRange = Range(match.range(at: 1), in: lower) else { return nil }
+        return Int(lower[valueRange])
     }
 
     @MainActor
