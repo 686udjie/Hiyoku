@@ -135,40 +135,16 @@ public class InterfaceOrientationCoordinator: ObservableObject {
     }
 
     convenience init(allowOverridingDefaultOrientations: Bool = true) {
-        let orientationsFromInfoPlist = Bundle.main.infoDictionary?["UISupportedInterfaceOrientations"] as? [String] ?? []
-
-        var defaultOrientations: UIInterfaceOrientationMask = orientationsFromInfoPlist.reduce(into: []) { partialResult, orientation in
-            switch orientation {
-                case "UIInterfaceOrientationPortrait":
-                    partialResult.insert(.portrait)
-                case "UIInterfaceOrientationLandscapeLeft":
-                    partialResult.insert(.landscapeLeft)
-                case "UIInterfaceOrientationLandscapeRight":
-                    partialResult.insert(.landscapeRight)
-                case "UIInterfaceOrientationPortraitUpsideDown":
-                    partialResult.insert(.portraitUpsideDown)
-                default:
-                    assertionFailure("Unknown value '\(orientation)' for Info.plist entry UISupportedInterfaceOrientations")
-            }
-        }
-
-        // we needed to disable this in the Info.plist to make it work on ipad, so just add it back here
+        var defaultOrientations: UIInterfaceOrientationMask = .portrait
+        // upside-down for ipad
         if UIDevice.current.userInterfaceIdiom == .pad {
             defaultOrientations.insert(.portraitUpsideDown)
         }
 
-        if defaultOrientations.isEmpty {
-            print("Default orientations could not be loaded from Info.plist, defaulting to '.all'")
-            self.init(
-                defaultOrientations: .all,
-                allowOverridingDefaultOrientations: allowOverridingDefaultOrientations
-            )
-        } else {
-            self.init(
-                defaultOrientations: defaultOrientations,
-                allowOverridingDefaultOrientations: allowOverridingDefaultOrientations
-            )
-        }
+        self.init(
+            defaultOrientations: defaultOrientations,
+            allowOverridingDefaultOrientations: allowOverridingDefaultOrientations
+        )
     }
 
     func register(orientations: UIInterfaceOrientationMask, id: UUID) {

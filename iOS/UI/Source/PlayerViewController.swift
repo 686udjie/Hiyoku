@@ -323,10 +323,7 @@ class PlayerViewController: UIViewController, UIGestureRecognizerDelegate {
         if UserDefaults.standard.bool(forKey: "Player.forceLandscape") {
             orientationId = UUID()
             InterfaceOrientationCoordinator.shared.register(orientations: .landscape, id: orientationId!)
-            UIView.animate(withDuration: 0.3) {
-                UIDevice.current.setValue(UIInterfaceOrientation.landscapeRight.rawValue, forKey: "orientation")
-                UIViewController.attemptRotationToDeviceOrientation()
-            }
+            UIViewController.attemptRotationToDeviceOrientation()
         }
     }
     override var preferredStatusBarStyle: UIStatusBarStyle {
