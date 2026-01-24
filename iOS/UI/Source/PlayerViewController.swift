@@ -28,8 +28,20 @@ class PlayerViewController: UIViewController, UIGestureRecognizerDelegate {
     // Data
     var allEpisodes: [PlayerEpisode] = []
     var currentEpisode: PlayerEpisode?
-    // Orientation tracking
+    private enum RotationState {
+        case none, entering, exiting
+    }
+    private var rotationState: RotationState = .none
     private var orientationId: UUID?
+    private var pendingStartTime: Double?
+    private var isFileLoaded = false
+    // Black overlay for landscape rotation
+    private lazy var transitionOverlay: UIView = {
+        let view = UIView()
+        view.backgroundColor = .black
+        view.alpha = 0
+        return view
+    }()
 
     // MPV Properties
     private var mpv: OpaquePointer?
@@ -284,7 +296,7 @@ class PlayerViewController: UIViewController, UIGestureRecognizerDelegate {
 
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
-        pause()
+        stopPlayer()
         autoHideTimer?.invalidate()
         // Unregister landscape orientation constraint
         if let orientationId = orientationId {
@@ -317,23 +329,43 @@ class PlayerViewController: UIViewController, UIGestureRecognizerDelegate {
         }
         NotificationCenter.default.addObserver(self, selector: #selector(subtitleSettingsDidChange), name: .subtitleSettingsDidChange, object: nil)
     }
-    // Player always appears in dark mode
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         overrideUserInterfaceStyle = .dark
-        setNeedsStatusBarAppearanceUpdate()
-        // constraint if force landscape is enabled
-        if UserDefaults.standard.bool(forKey: "Player.forceLandscape") {
-            orientationId = UUID()
-            InterfaceOrientationCoordinator.shared.register(orientations: .landscape, id: orientationId!)
-            UIViewController.attemptRotationToDeviceOrientation()
+        rotationState = .entering
+        startRotationTransition()
+        orientationId = UUID()
+        InterfaceOrientationCoordinator.shared.register(orientations: .landscape, id: orientationId!)
+        UIViewController.attemptRotationToDeviceOrientation()
+        // If landscape transition immediately
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self, self.view.bounds.width > self.view.bounds.height else { return }
+            self.endRotationTransition()
         }
     }
     override var preferredStatusBarStyle: UIStatusBarStyle {
         .lightContent
     }
+    override var prefersStatusBarHidden: Bool {
+        rotationState != .none
+    }
+    override var prefersHomeIndicatorAutoHidden: Bool {
+        true
+    }
+    override var preferredStatusBarUpdateAnimation: UIStatusBarAnimation {
+        .fade
+    }
     override var supportedInterfaceOrientations: UIInterfaceOrientationMask {
-        UserDefaults.standard.bool(forKey: "Player.forceLandscape") ? .landscape : .all
+        .landscape
+    }
+    override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
+        super.viewWillTransition(to: size, with: coordinator)
+        guard rotationState != .none else { return }
+        coordinator.animate(alongsideTransition: { _ in
+            self.transitionOverlay.frame = CGRect(origin: .zero, size: size)
+        }, completion: { _ in
+            self.endRotationTransition()
+        })
     }
 }
 
@@ -870,9 +902,55 @@ extension PlayerViewController {
     @objc private func previousTapped() {
         onPreviousEpisode?()
     }
+    private func startRotationTransition() {
+        transitionOverlay.frame = view.bounds
+        transitionOverlay.alpha = 1
+        view.addSubview(transitionOverlay)
+        videoContainer.alpha = 0
+        setNeedsStatusBarAppearanceUpdate()
+        setNeedsUpdateOfHomeIndicatorAutoHidden()
+    }
+    private func endRotationTransition() {
+        switch rotationState {
+        case .entering:
+            UIView.animate(withDuration: 0.3, delay: 0, options: .curveEaseOut, animations: {
+                self.transitionOverlay.alpha = 0
+                self.videoContainer.alpha = 1
+            }, completion: { _ in
+                self.transitionOverlay.removeFromSuperview()
+                self.rotationState = .none
+                self.setNeedsStatusBarAppearanceUpdate()
+                self.setNeedsUpdateOfHomeIndicatorAutoHidden()
+                if self.isFileLoaded {
+                    self.setProperty("pause", "no")
+                }
+            })
+        case .exiting:
+            UIView.animate(withDuration: 0.25, animations: {
+                self.view.alpha = 0
+            }, completion: { _ in
+                self.dismiss(animated: false)
+                self.rotationState = .none
+            })
+        case .none:
+            break
+        }
+    }
 
     @objc private func closeTapped() {
-        dismiss(animated: true)
+        saveProgress()
+        rotationState = .exiting
+        startRotationTransition()
+        if let orientationId = orientationId {
+            InterfaceOrientationCoordinator.shared.unregister(orientationsWithID: orientationId)
+            self.orientationId = nil
+        }
+        UIViewController.attemptRotationToDeviceOrientation()
+        // Fallback for (ik this is doodoo code)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+            guard let self = self, self.rotationState == .exiting else { return }
+            self.endRotationTransition()
+        }
     }
 
     private func formatTime(_ seconds: Double) -> String {
@@ -1134,6 +1212,7 @@ extension PlayerViewController {
         setOption("vo", "libmpv")
         setOption("hwdec", "videotoolbox")
         setOption("keep-open", "yes")
+        setOption("hr-seek", "yes")
 
         let status = mpv_initialize(handle)
         guard status >= 0 else {
@@ -1293,18 +1372,17 @@ extension PlayerViewController {
         Task {
             // check for history before playing
             let startTime = await getSavedProgress()
-            await MainActor.run {
+            await MainActor.run { [weak self] in
+                guard let self = self else { return }
+                self.pendingStartTime = (startTime != nil && startTime! > 5) ? startTime : nil
+                self.setProperty("pause", "yes")
                 let cmd = ["loadfile", urlToPlay, "replace"]
                 withCStringArray(cmd) { ptr in
                     _ = mpv_command(handle, ptr)
                 }
                 self.isRunning = true
-                self.isPaused = false
-                if let start = startTime, start > 5 {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        self.setProperty("time-pos", String(start))
-                    }
-                }
+                self.isPaused = true
+                self.isFileLoaded = false
             }
         }
     }
@@ -1313,9 +1391,11 @@ extension PlayerViewController {
         let episodeId = current.url
         let moduleId = module.id.uuidString
         return await CoreDataManager.shared.container.performBackgroundTask { context in
-            if let result = PlayerViewController.fetchHistoryObject(context: context, episodeId: episodeId, moduleId: moduleId),
-               let progressVal = result.value(forKey: "progress") as? Int16 {
-                return Double(progressVal)
+            if let result = PlayerViewController.fetchHistoryObject(context: context, episodeId: episodeId, moduleId: moduleId) {
+                // Use doubleValue to be safe with different integer types in Core Data
+                if let progressNum = result.value(forKey: "progress") as? NSNumber {
+                    return progressNum.doubleValue
+                }
             }
             return nil
         }
@@ -1344,8 +1424,8 @@ extension PlayerViewController {
                 historyObject.setValue(epTitle, forKey: "episodeTitle")
                 historyObject.setValue(sourceUrl, forKey: "sourceUrl")
                 historyObject.setValue(moduleId, forKey: "moduleId")
-                historyObject.setValue(Int16(currentPos), forKey: "progress")
-                historyObject.setValue(Int16(totalDur), forKey: "total")
+                historyObject.setValue(Int32(currentPos), forKey: "progress")
+                historyObject.setValue(Int32(totalDur), forKey: "total")
                 historyObject.setValue(Date(), forKey: "dateWatched")
                 try? context.save()
             }
@@ -1409,6 +1489,22 @@ extension PlayerViewController {
     }
 
     private func handleEvent(_ event: mpv_event) {
+        if event.event_id == MPV_EVENT_FILE_LOADED {
+            isFileLoaded = true
+            if let start = pendingStartTime {
+                let cmd = ["seek", String(start), "absolute+exact"]
+                withCStringArray(cmd) { ptr in
+                    mpv_command(mpv, ptr)
+                }
+                pendingStartTime = nil
+            }
+            // Only start if rotation transition is done
+            if rotationState == .none {
+                setProperty("pause", "no")
+            }
+            return
+        }
+
         guard event.event_id == MPV_EVENT_PROPERTY_CHANGE else { return }
         let prop = event.data!.assumingMemoryBound(to: mpv_event_property.self).pointee
         let name = String(cString: prop.name)

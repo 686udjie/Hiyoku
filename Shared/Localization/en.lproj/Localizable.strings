@@ -77,7 +77,6 @@
 "TEXT_COLOR" = "Text Color";
 "BACKGROUND_ENABLED" = "Background";
 "SUBTITLE_DELAY" = "Delay (sec)";
-"FORCE_LANDSCAPE" = "Force Landscape Mode";
 "TWO_FINGER_TAP_TO_PAUSE" = "Two-Finger Tap to Pause";
 "DOUBLE_TAP_SKIP_DURATION" = "Skip Length";
 "STREAM_SELECTION_MENU" = "Stream Selection Menu";

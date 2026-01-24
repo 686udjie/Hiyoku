@@ -519,11 +519,6 @@ extension Settings {
     static let playerSettings: [Setting] = [
         .init(value: .group(.init(items: [
             .init(
-                key: "Player.forceLandscape",
-                title: NSLocalizedString("FORCE_LANDSCAPE"),
-                value: .toggle(.init())
-            ),
-            .init(
                 key: "Player.twoFingerTapToPause",
                 title: NSLocalizedString("TWO_FINGER_TAP_TO_PAUSE"),
                 value: .toggle(.init())
