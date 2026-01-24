@@ -120,7 +120,7 @@ class PlayerLibraryViewController: BaseViewController {
         // Configure navigation bar to match LibraryViewController
         title = NSLocalizedString("PLAYER")
         navigationController?.navigationBar.prefersLargeTitles = true
-        navigationItem.hidesSearchBarWhenScrolling = false
+        navigationItem.hidesSearchBarWhenScrolling = true
 
         // Create NavigationCoordinator with the navigation controller
         path.rootViewController = self.navigationController

@@ -68,6 +68,7 @@
 "PLAYER_LIBRARY" = "Player Library";
 "PLAYER_EMPTY" = "Player Empty";
 "PLAYER_ADD_CONTENT" = "Add content from the browse tab";
+"PLAYER_PROGRESS" = "Progress";
 
 // Player settings
 "PLAYER_SETTINGS" = "Player Settings";

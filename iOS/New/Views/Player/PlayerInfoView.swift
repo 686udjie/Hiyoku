@@ -61,19 +61,27 @@ struct PlayerInfoView: View {
             .fullScreenCover(isPresented: $showingCoverView) {
                 PlayerCoverPageView(posterUrl: viewModel.posterUrl, title: viewModel.title)
             }
-            .fullScreenCover(item: $playerSession) { session in
-                if let module = viewModel.module {
-                    PlayerSessionWrapper(
-                        session: session,
-                        module: module,
-                        episodes: viewModel.sortedEpisodes,
-                        title: viewModel.title,
-                        currentStreamUrl: $currentStreamUrl,
-                        currentStreamHeaders: $currentStreamHeaders,
-                        namespace: transitionNamespace
-                    )
+            .fullScreenCover(
+                item: $playerSession,
+                onDismiss: {
+                    Task {
+                        await viewModel.fetchHistory()
+                    }
+                },
+                content: { session in
+                    if let module = viewModel.module {
+                        PlayerSessionWrapper(
+                            session: session,
+                            module: module,
+                            episodes: viewModel.sortedEpisodes,
+                            title: viewModel.title,
+                            currentStreamUrl: $currentStreamUrl,
+                            currentStreamHeaders: $currentStreamHeaders,
+                            namespace: transitionNamespace
+                        )
+                    }
                 }
-            }
+            )
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     bookmarkButton
@@ -214,7 +222,8 @@ struct PlayerInfoView: View {
 
     @ViewBuilder
     private func viewForEpisode(_ episode: PlayerEpisode, index: Int) -> some View {
-        EpisodeCellView(episode: episode) {
+        let history = viewModel.episodeProgress[episode.url]
+        EpisodeCellView(episode: episode, history: history) {
             Task {
                 await playEpisode(episode)
             }
@@ -327,6 +336,7 @@ struct PlayerInfoView: View {
 
 private struct EpisodeCellView: View, Equatable {
     let episode: PlayerEpisode
+    let history: PlayerInfoView.InlineEpisodeHistory?
     var onPressed: (() -> Void)?
 
     var body: some View {
@@ -339,11 +349,29 @@ private struct EpisodeCellView: View, Equatable {
                         .font(.system(.callout).weight(.semibold))
                         .foregroundStyle(.primary)
 
-                    if !episode.title.isEmpty {
-                        Text(episode.title)
+                    let title = episode.title
+                    let isRedundantTitle = title == "Episode \(episode.number)" || title == "Episode \(episode.number)" || title.isEmpty
+                    if !isRedundantTitle {
+                        Text(title)
                             .font(.system(.subheadline))
                             .foregroundStyle(.secondary)
                             .lineLimit(2)
+                    }
+                    HStack(spacing: 4) {
+                        if let date = episode.dateUploaded {
+                            Text(date, format: .dateTime.year().month().day())
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Text("•")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                        if let history = history {
+                            let progressText = formatDuration(TimeInterval(history.progress))
+                            Text("\(String(localized: "PLAYER_PROGRESS")) • \(progressText)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
                 }
 
@@ -357,13 +385,22 @@ private struct EpisodeCellView: View, Equatable {
             }
             .padding(.vertical, 12)
             .padding(.horizontal, 20)
+            .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .tint(.primary)
     }
+    private func formatDuration(_ duration: TimeInterval) -> String {
+        let hours = Int(duration) / 3600
+        let minutes = Int(duration) / 60 % 60
+        let seconds = Int(duration) % 60
+        return String(format: "%d:%02d:%02d", hours, minutes, seconds)
+    }
 
     static nonisolated func == (lhs: EpisodeCellView, rhs: EpisodeCellView) -> Bool {
-        lhs.episode == rhs.episode
+        lhs.episode == rhs.episode &&
+        lhs.history?.progress == rhs.history?.progress &&
+        lhs.history?.total == rhs.history?.total
     }
 }
 

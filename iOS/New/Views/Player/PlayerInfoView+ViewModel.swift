@@ -7,8 +7,14 @@
 
 import Combine
 import SwiftUI
+import CoreData
 
 extension PlayerInfoView {
+    struct InlineEpisodeHistory: Equatable {
+        let progress: Int
+        let total: Int?
+    }
+
     @MainActor
     class ViewModel: ObservableObject {
         private let libraryManager = PlayerLibraryManager.shared
@@ -23,6 +29,7 @@ extension PlayerInfoView {
         @Published private(set) var sortedEpisodes: [PlayerEpisode] = []
         @Published var isLoadingEpisodes = false
         @Published var isBookmarked = false
+        @Published var episodeProgress: [String: InlineEpisodeHistory] = [:]
 
         private var cancellables = Set<AnyCancellable>()
 
@@ -159,6 +166,34 @@ extension PlayerInfoView {
             let episodes = await JSController.shared.fetchPlayerEpisodes(contentUrl: normalizedUrl, module: module)
             self.episodes = episodes
             self.isLoadingEpisodes = false
+            await fetchHistory()
+        }
+        func fetchHistory() async {
+            guard let module = module else { return }
+            let map: [String: InlineEpisodeHistory] = await CoreDataManager.shared.container.performBackgroundTask { context in
+                var results: [String: InlineEpisodeHistory] = [:]
+                let fetchRequest = NSFetchRequest<NSManagedObject>(entityName: "PlayerHistory")
+                fetchRequest.predicate = NSPredicate(format: "moduleId == %@", module.id.uuidString)
+                do {
+                    let historyObjects = try context.fetch(fetchRequest)
+                    for obj in historyObjects {
+                        if let episodeId = obj.value(forKey: "episodeId") as? String,
+                           let progress = obj.value(forKey: "progress") as? Int16 {
+                            let total = obj.value(forKey: "total") as? Int16
+                            results[episodeId] = InlineEpisodeHistory(
+                                progress: Int(progress),
+                                total: total.map(Int.init)
+                            )
+                        }
+                    }
+                } catch {
+                    print("Error fetching history in ViewModel: \(error)")
+                }
+                return results
+            }
+            await MainActor.run {
+                self.episodeProgress = map
+            }
         }
 
         private func searchForPlayerUrl(title: String, module: ScrapingModule) async -> String? {

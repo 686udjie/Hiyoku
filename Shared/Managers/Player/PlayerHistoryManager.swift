@@ -6,30 +6,54 @@
 //
 
 import CoreData
+import Foundation
 
-final class PlayerHistoryManager: Sendable {
-    static let shared = PlayerHistoryManager()
+final public class PlayerHistoryManager: Sendable {
+    public static let shared = PlayerHistoryManager()
 }
 
 extension PlayerHistoryManager {
 
-    struct PlayerWatchingSession {
+    public struct PlayerWatchingSession {
         let startDate: Date
         let endDate: Date
         let watchedDuration: TimeInterval // in seconds
     }
 
-    struct EpisodeHistoryData {
-        let playerTitle: String
-        let episodeId: String
-        let episodeNumber: Int
-        let episodeTitle: String?
-        let sourceUrl: String
-        let moduleId: String
-        let progress: Int
-        let total: Int?
-        let watchedDuration: TimeInterval
-        let date: Date
+    public struct EpisodeHistoryData {
+        public let playerTitle: String
+        public let episodeId: String
+        public let episodeNumber: Int
+        public let episodeTitle: String?
+        public let sourceUrl: String
+        public let moduleId: String
+        public let progress: Int
+        public let total: Int?
+        public let watchedDuration: TimeInterval
+        public let date: Date
+        public init(
+            playerTitle: String,
+            episodeId: String,
+            episodeNumber: Int,
+            episodeTitle: String?,
+            sourceUrl: String,
+            moduleId: String,
+            progress: Int,
+            total: Int?,
+            watchedDuration: TimeInterval,
+            date: Date
+        ) {
+            self.playerTitle = playerTitle
+            self.episodeId = episodeId
+            self.episodeNumber = episodeNumber
+            self.episodeTitle = episodeTitle
+            self.sourceUrl = sourceUrl
+            self.moduleId = moduleId
+            self.progress = progress
+            self.total = total
+            self.watchedDuration = watchedDuration
+            self.date = date
+        }
     }
 
     func addEpisodeHistory(_ data: EpisodeHistoryData) async {
@@ -292,6 +316,45 @@ extension PlayerHistoryManager {
                 }
             } catch {
                 return []
+            }
+        }
+    }
+
+    func getHistory(episodeId: String, moduleId: String) async -> PlayerHistoryItem? {
+        await CoreDataManager.shared.container.performBackgroundTask { context in
+            let fetchRequest: NSFetchRequest<PlayerHistoryObject> = PlayerHistoryObject.fetchRequest()
+            fetchRequest.predicate = NSPredicate(
+                format: "episodeId == %@ AND moduleId == %@",
+                episodeId,
+                moduleId
+            )
+            fetchRequest.fetchLimit = 1
+
+            do {
+                let results = try context.fetch(fetchRequest)
+                guard let historyObject = results.first,
+                      let playerTitle = historyObject.playerTitle,
+                      let episodeId = historyObject.episodeId,
+                      let sourceUrl = historyObject.sourceUrl,
+                      let moduleId = historyObject.moduleId,
+                      let dateWatched = historyObject.dateWatched else {
+                    return nil
+                }
+
+                return PlayerHistoryItem(
+                    playerTitle: playerTitle,
+                    episodeId: episodeId,
+                    episodeNumber: Int(historyObject.episodeNumber),
+                    episodeTitle: historyObject.episodeTitle,
+                    sourceUrl: sourceUrl,
+                    moduleId: moduleId,
+                    progress: Int(historyObject.progress),
+                    total: historyObject.total.map(Int.init),
+                    watchedDuration: TimeInterval(historyObject.watchedDuration),
+                    dateWatched: dateWatched
+                )
+            } catch {
+                return nil
             }
         }
     }

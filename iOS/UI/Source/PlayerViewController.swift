@@ -6,6 +6,7 @@
 //
 
 import UIKit
+import CoreData
 import AVFoundation
 import Libmpv
 import SwiftUI
@@ -47,6 +48,8 @@ class PlayerViewController: UIViewController, UIGestureRecognizerDelegate {
     private var isPaused = true
     private var duration: Double = 0
     private var position: Double = 0
+    private var lastSavedTime: TimeInterval = 0
+    private var lastSavedPosition: Double = 0
 
     private let bgraFormatCString: [CChar] = Array("bgra\0".utf8CString)
     private var dimensionsArray = [Int32](repeating: 0, count: 2)
@@ -908,6 +911,7 @@ extension PlayerViewController {
 
     func pause() {
         setProperty("pause", "yes")
+        saveProgress()
     }
 
     func togglePause() {
@@ -1283,19 +1287,80 @@ extension PlayerViewController {
     }
 
     private func startMpvPlayback() {
-        guard let handle = mpv else {
-            return
-        }
+        guard let handle = mpv else { return }
         updateHTTPHeaders()
-        guard let urlToPlay = resolvedUrl else {
-            return
+        guard let urlToPlay = resolvedUrl else { return }
+        Task {
+            // check for history before playing
+            let startTime = await getSavedProgress()
+            await MainActor.run {
+                let cmd = ["loadfile", urlToPlay, "replace"]
+                withCStringArray(cmd) { ptr in
+                    _ = mpv_command(handle, ptr)
+                }
+                self.isRunning = true
+                self.isPaused = false
+                if let start = startTime, start > 5 {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                        self.setProperty("time-pos", String(start))
+                    }
+                }
+            }
         }
-        let cmd = ["loadfile", urlToPlay, "replace"]
-        withCStringArray(cmd) { ptr in
-            _ = mpv_command(handle, ptr)
+    }
+    private func getSavedProgress() async -> Double? {
+        guard let current = currentEpisode else { return nil }
+        let episodeId = current.url
+        let moduleId = module.id.uuidString
+        return await CoreDataManager.shared.container.performBackgroundTask { context in
+            if let result = PlayerViewController.fetchHistoryObject(context: context, episodeId: episodeId, moduleId: moduleId),
+               let progressVal = result.value(forKey: "progress") as? Int16 {
+                return Double(progressVal)
+            }
+            return nil
         }
-        isRunning = true
-        isPaused = false
+    }
+    private func saveProgress() {
+        guard let current = currentEpisode, position > 0 else { return }
+        let episodeId = current.url
+        let moduleId = module.id.uuidString
+        let currentPos = Int(position)
+        let totalDur = Int(duration)
+        let title = self.videoTitle
+        let episodeNum = current.number
+        let epTitle = current.title
+        let sourceUrl = current.url
+        Task {
+            await CoreDataManager.shared.container.performBackgroundTask { context in
+                let historyObject: NSManagedObject
+                if let existing = PlayerViewController.fetchHistoryObject(context: context, episodeId: episodeId, moduleId: moduleId) {
+                    historyObject = existing
+                } else {
+                    historyObject = NSEntityDescription.insertNewObject(forEntityName: "PlayerHistory", into: context)
+                }
+                historyObject.setValue(title, forKey: "playerTitle")
+                historyObject.setValue(episodeId, forKey: "episodeId")
+                historyObject.setValue(Int16(episodeNum), forKey: "episodeNumber")
+                historyObject.setValue(epTitle, forKey: "episodeTitle")
+                historyObject.setValue(sourceUrl, forKey: "sourceUrl")
+                historyObject.setValue(moduleId, forKey: "moduleId")
+                historyObject.setValue(Int16(currentPos), forKey: "progress")
+                historyObject.setValue(Int16(totalDur), forKey: "total")
+                historyObject.setValue(Date(), forKey: "dateWatched")
+                try? context.save()
+            }
+        }
+    }
+
+    private nonisolated static func fetchHistoryObject(context: NSManagedObjectContext, episodeId: String, moduleId: String) -> NSManagedObject? {
+        let fetchRequest = NSFetchRequest<NSManagedObject>(entityName: "PlayerHistory")
+        fetchRequest.predicate = NSPredicate(
+            format: "episodeId == %@ AND moduleId == %@",
+            episodeId,
+            moduleId
+        )
+        fetchRequest.fetchLimit = 1
+        return try? context.fetch(fetchRequest).first
     }
 
     private func setOption(_ name: String, _ value: String) {
@@ -1378,7 +1443,15 @@ extension PlayerViewController {
     }
 
     private func handleDoubleProperty(_ name: String, _ value: Double) {
-        if name == "time-pos" { position = value } else if name == "duration" { duration = value }
+        if name == "time-pos" {
+            position = value
+            // Periodically save progress (every 15 seconds)
+            let now = Date().timeIntervalSince1970
+            if now - lastSavedTime > 15 {
+                lastSavedTime = now
+                saveProgress()
+            }
+        } else if name == "duration" { duration = value }
 
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
@@ -1462,6 +1535,7 @@ extension PlayerViewController {
 
     func stopPlayer() {
         if mpv == nil && !isRunning { return }
+        saveProgress()
         isRunning = false
         let layer = displayLayer
         DispatchQueue.main.async {
