@@ -78,15 +78,6 @@ enum Settings {
         ]))),
         .init(value: .group(.init(items: [
             .init(
-                key: "About",
-                title: NSLocalizedString("ABOUT"),
-                value: .page(.init(
-                    items: [],
-                    inlineTitle: true,
-                    icon: .system(name: "info.circle.fill", color: "gray", inset: 6)
-                ))
-            ),
-            .init(
                 key: "Insights",
                 title: NSLocalizedString("INSIGHTS"),
                 value: .page(.init(

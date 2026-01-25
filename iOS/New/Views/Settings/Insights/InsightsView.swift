@@ -8,20 +8,26 @@
 import SwiftUI
 
 struct InsightsView: View {
-    @State private var data: InsightsData = .init()
+    @State private var kind: InsightsData.Kind = .reader
+    @State private var readerData: InsightsData = .init(kind: .reader)
+    @State private var playerData: InsightsData = .init(kind: .player)
     @State private var statsGridHeight: CGFloat = .zero
     @State private var shouldAnimateGridHeightChange = false
 
-    init(data: InsightsData? = nil) {
-        _data = State(initialValue: data ?? .init())
-    }
-
     var body: some View {
+        let data = kind == .reader ? readerData : playerData
         ZStack {
             Color(uiColor: .systemGroupedBackground)
                 .ignoresSafeArea()
             ScrollView {
                 VStack(spacing: 18) {
+                    Picker("", selection: $kind) {
+                        Text(NSLocalizedString("READER")).tag(InsightsData.Kind.reader)
+                        Text(NSLocalizedString("PLAYER")).tag(InsightsData.Kind.player)
+                    }
+                    .pickerStyle(.segmented)
+                    .padding(.horizontal, 4)
+
                     VStack(alignment: .leading, spacing: 5) {
                         Text(NSLocalizedString("STREAKS"))
                             .font(.system(size: 15).weight(.semibold))
@@ -124,8 +130,8 @@ struct InsightsView: View {
                             .padding(.leading, 4)
 
                         StatsGridView(
-                            chartLabel: NSLocalizedString("CHAPTER_PLURAL"),
-                            chartSingularLabel: NSLocalizedString("CHAPTER_SINGULAR"),
+                            chartLabel: kind == .reader ? NSLocalizedString("CHAPTER_PLURAL") : NSLocalizedString("EPISODE_PLURAL"),
+                            chartSingularLabel: kind == .reader ? NSLocalizedString("CHAPTER_SINGULAR") : NSLocalizedString("EPISODE_SINGULAR"),
                             chartData: data.chartData,
                             items: data.statsData,
                             height: $statsGridHeight
@@ -144,17 +150,23 @@ struct InsightsView: View {
                 }
             }
         }
+        .onChangeWrapper(of: kind) { _, _ in
+            shouldAnimateGridHeightChange = false
+        }
         .navigationTitle(NSLocalizedString("INSIGHTS"))
         .task {
-            guard data.currentStreak == 0 else { return }
-            data = await .get()
+            async let reader = InsightsData.get(kind: .reader)
+            async let player = InsightsData.get(kind: .player)
+            let (r, p) = await (reader, player)
+            readerData = r
+            playerData = p
         }
     }
 }
 
 #Preview {
     PlatformNavigationStack {
-        InsightsView(data: .demoData)
+        InsightsView()
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {

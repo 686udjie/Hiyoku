@@ -479,6 +479,10 @@
 "SERIES_SINGULAR" = "Series";
 "HOUR_PLURAL" = "Hours";
 "HOUR_SINGULAR" = "Hour";
+"EPISODE_PLURAL" = "Episodes";
+"EPISODE_SINGULAR" = "Episode";
+"READER" = "Reader";
+"PLAYER" = "Player";
 "ALL_TIME" = "All-time";
 "THIS_MONTH" = "This Month";
 "THIS_YEAR" = "This Year";
