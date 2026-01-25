@@ -69,6 +69,7 @@
 "PLAYER_EMPTY" = "Player Empty";
 "PLAYER_ADD_CONTENT" = "Add content from the browse tab";
 "PLAYER_PROGRESS" = "Progress";
+"PLAYER_HISTORY" = "Player History";
 
 // Player settings
 "PLAYER_SETTINGS" = "Player Settings";
@@ -79,6 +80,7 @@
 "SUBTITLE_DELAY" = "Delay (sec)";
 "TWO_FINGER_TAP_TO_PAUSE" = "Two-Finger Tap to Pause";
 "DOUBLE_TAP_SKIP_DURATION" = "Skip Length";
+"MARK_AS_WATCHED_THRESHOLD" = "Mark as Watched";
 "STREAM_SELECTION_MENU" = "Stream Selection Menu";
 "PREFERRED_AUDIO_CHANNEL" = "Preferred Audio Channel";
 "PREFERRED_RESOLUTION_WIFI" = "Preferred Resolution (Wi-Fi)";

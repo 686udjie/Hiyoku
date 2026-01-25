@@ -527,6 +527,14 @@ extension Settings {
                 key: "Player.doubleTapSkipDuration",
                 title: NSLocalizedString("DOUBLE_TAP_SKIP_DURATION"),
                 value: .stepper(.init(minimumValue: 5, maximumValue: 60, stepValue: 5))
+            ),
+            .init(
+                key: "Player.historyThreshold",
+                title: NSLocalizedString("MARK_AS_WATCHED_THRESHOLD"),
+                value: .select(.init(
+                    values: ["60", "70", "80", "90", "100"],
+                    titles: ["60%", "70%", "80%", "90%", "100%"]
+                ))
             )
         ]))),
         .init(

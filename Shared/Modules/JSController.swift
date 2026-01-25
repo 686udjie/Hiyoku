@@ -297,7 +297,7 @@ extension JSController {
                 // Setup network fetch functions for this module
                 context.setupNetworkFetch()
                 context.setupNetworkFetchSimple()
-                print("[JSController] Searching for show page URL using content: \(contentUrl)")
+
                 // Extract title from content URL for search
                 let searchKeyword: String
                 if contentUrl.contains("://") {
@@ -314,20 +314,18 @@ extension JSController {
                         .first ?? contentUrl
                 }
 
-                print("[JSController] Searching with keyword: \(searchKeyword)")
-
                 // Use search results to get the href URL
                 let searchResults = await fetchJsSearchResults(keyword: searchKeyword, module: module)
 
                 if let firstResult = searchResults.first {
-                    print("[JSController] Found show page URL from search: \(firstResult.href)")
+
                     return firstResult.href
                 } else {
-                    print("[JSController] No search results found for: \(searchKeyword)")
+
                     return nil
                 }
             } catch {
-                print("[JSController] Error fetching show page URL: \(error)")
+
                 return nil
             }
         }

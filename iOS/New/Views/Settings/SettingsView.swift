@@ -284,6 +284,8 @@ extension SettingsView {
             DownloadsView().environmentObject(path)
         } else if key == "History" {
             HistoryView().environmentObject(path)
+        } else if key == "PlayerHistory" {
+            HistoryView(initialKind: .player).environmentObject(path)
         }
     }
 

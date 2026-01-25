@@ -41,7 +41,6 @@ extension View {
 }
 
 private struct CustomSearchBar: UIViewControllerRepresentable {
-    var searchController: UISearchController = .init(searchResultsController: nil)
 
     @Environment(\.autocorrectionDisabled) var autocorrectionDisabled
 
@@ -99,21 +98,19 @@ private struct CustomSearchBar: UIViewControllerRepresentable {
     }
 
     func makeUIViewController(context: Context) -> NavSearchBarWrapper {
-        searchController.hidesNavigationBarDuringPresentation = true
-        searchController.searchBar.delegate = context.coordinator
-        searchController.searchResultsUpdater = context.coordinator
-        searchController.searchBar.autocorrectionType = autocorrectionDisabled ? .no : .yes
-        searchController.navigationItem.hidesSearchBarWhenScrolling = hidesSearchBarWhenScrolling
-        if let bookmarkIcon {
-            searchController.searchBar.showsBookmarkButton = true
-            searchController.searchBar.setImage(bookmarkIcon, for: .bookmark, state: .normal)
-        }
-
-        return NavSearchBarWrapper(
-            searchController: searchController,
+        let controller = NavSearchBarWrapper(
             hidesSearchBarWhenScrolling: hidesSearchBarWhenScrolling,
             stacked: stacked
         )
+        controller.searchController.searchBar.delegate = context.coordinator
+        controller.searchController.searchResultsUpdater = context.coordinator
+        controller.searchController.searchBar.autocorrectionType = autocorrectionDisabled ? .no : .yes
+        controller.searchController.hidesNavigationBarDuringPresentation = hidesNavigationBarDuringPresentation
+        if let bookmarkIcon {
+            controller.searchController.searchBar.showsBookmarkButton = true
+            controller.searchController.searchBar.setImage(bookmarkIcon, for: .bookmark, state: .normal)
+        }
+        return controller
     }
 
     func updateUIViewController(_ controller: NavSearchBarWrapper, context: Context) {
@@ -146,13 +143,12 @@ private struct CustomSearchBar: UIViewControllerRepresentable {
     }
 
     class NavSearchBarWrapper: UIViewController {
-        var searchController: UISearchController
+        lazy var searchController: UISearchController = .init(searchResultsController: nil)
         let hidesSearchBarWhenScrolling: Bool
         let stacked: Bool
         var shouldShow = false
 
-        init(searchController: UISearchController, hidesSearchBarWhenScrolling: Bool, stacked: Bool) {
-            self.searchController = searchController
+        init(hidesSearchBarWhenScrolling: Bool, stacked: Bool) {
             self.hidesSearchBarWhenScrolling = hidesSearchBarWhenScrolling
             self.stacked = stacked
             super.init(nibName: nil, bundle: nil)

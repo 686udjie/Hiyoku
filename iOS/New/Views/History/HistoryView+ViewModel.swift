@@ -8,6 +8,7 @@
 import AidokuRunner
 import Combine
 import SwiftUI
+import UIKit
 
 struct MangaKey: Hashable {
     let sourceId: String
@@ -21,6 +22,43 @@ extension HistoryView {
         @Published var mangaCache: [String: AidokuRunner.Manga] = [:]
         @Published var chapterCache: [String: AidokuRunner.Chapter] = [:]
 
+        struct PlayerHistorySection: Hashable {
+            let daysAgo: Int
+            var entries: [PlayerHistoryManager.PlayerHistoryItem]
+
+            func hash(into hasher: inout Hasher) {
+                hasher.combine(daysAgo)
+                hasher.combine(entries.count)
+                for item in entries {
+                    hasher.combine(item.id)
+                }
+            }
+
+            static func == (lhs: PlayerHistorySection, rhs: PlayerHistorySection) -> Bool {
+                lhs.daysAgo == rhs.daysAgo && lhs.entries.count == rhs.entries.count && zip(lhs.entries, rhs.entries).allSatisfy { $0.id == $1.id }
+            }
+        }
+
+        @Published var playerFilteredHistory: [Int: PlayerHistorySection] = [:]
+        @Published var playerPosterCache: [String: String] = [:]
+
+        // Unified timeline entries
+        struct UnifiedEntry: Identifiable, Equatable {
+            let id: String
+            let daysAgo: Int
+            let date: Date
+            let readerEntry: HistoryEntry?
+            let playerEntry: PlayerHistoryManager.PlayerHistoryItem?
+            let additionalCount: Int // Number of collapsed entries
+
+            static func == (lhs: UnifiedEntry, rhs: UnifiedEntry) -> Bool {
+                lhs.id == rhs.id
+            }
+        }
+
+        @Published var unifiedEntries: [UnifiedEntry] = []
+        @Published var collapsedGroups: [String: [UnifiedEntry]] = [:] // Store full groups for expansion
+
         enum LoadingState {
             case idle  // more available to laod
             case loading  // currently loading more
@@ -32,6 +70,8 @@ extension HistoryView {
         private var offset = 0
         private var historyData: [Int: [HistoryEntry]] = [:]
         private var loadTask: Task<Bool, Never>?
+
+        private var playerHistoryData: [Int: [PlayerHistoryManager.PlayerHistoryItem]] = [:]
 
         private var searchQuery: String = ""
         private var searchTask: Task<Void, Never>?
@@ -53,6 +93,7 @@ extension HistoryView {
 extension HistoryView.ViewModel {
     private func setUpNotifications() {
         NotificationCenter.default.publisher(for: .updateHistory)
+            .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 // reset all cached history entries
                 guard let self else { return }
@@ -60,10 +101,30 @@ extension HistoryView.ViewModel {
                 self.historyData = [:]
                 self.offset = 0
                 self.loadingState = .idle
+
+                self.playerFilteredHistory = [:]
+                self.playerHistoryData = [:]
+            }
+            .store(in: &cancellables)
+
+        NotificationCenter.default.publisher(for: .playerHistoryUpdated)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                guard let self else { return }
+                Task { await self.loadPlayerHistory() }
+            }
+            .store(in: &cancellables)
+
+        NotificationCenter.default.publisher(for: .playerHistoryRemoved)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                guard let self else { return }
+                Task { await self.loadPlayerHistory() }
             }
             .store(in: &cancellables)
 
         NotificationCenter.default.publisher(for: .historyAdded)
+            .receive(on: DispatchQueue.main)
             .sink { [weak self] output in
                 // fetch new history entries
                 guard
@@ -87,6 +148,7 @@ extension HistoryView.ViewModel {
             .store(in: &cancellables)
 
         NotificationCenter.default.publisher(for: .historyRemoved)
+            .receive(on: DispatchQueue.main)
             .sink { [weak self] output in
                 // remove history entries
                 guard let self else { return }
@@ -102,6 +164,7 @@ extension HistoryView.ViewModel {
             .store(in: &cancellables)
 
         NotificationCenter.default.publisher(for: .historySet)
+            .receive(on: DispatchQueue.main)
             .sink { [weak self] output in
                 // remove existing history entry and add new one
                 guard
@@ -194,19 +257,209 @@ extension HistoryView.ViewModel {
             }
             guard !Task.isCancelled else { return }
             searchQuery = query
-            refilterHistory()
+            await refilterHistory()
+            await refilterPlayerHistory()
         }
     }
 
     // refilter all of the existing cached history entries
-    private func refilterHistory() {
-        for (index, existingSection) in filteredHistory {
-            let newSection = HistorySection(
-                daysAgo: existingSection.daysAgo,
-                entries: filterDay(entries: historyData[existingSection.daysAgo] ?? [])
-            )
-            filteredHistory[index] = newSection
+    private func refilterHistory() async {
+        await rebuildUnifiedEntries()
+    }
+
+    private func refilterPlayerHistory() async {
+        await rebuildUnifiedEntries()
+    }
+
+    private func rebuildUnifiedEntries() async {
+        var grouped: [String: [UnifiedEntry]] = [:]
+
+        // process group entries
+        let processEntries: (
+            [Int: [Any]],
+            (Any) -> String,
+            (Any) -> String,
+            (Any) -> Date,
+            (Any) -> String,
+            (Any, Int) -> UnifiedEntry
+        ) -> Void = { data, _, keyProvider, _, titleProvider, entryCreator in
+            for (daysAgo, entries) in data {
+                for entry in entries {
+                    if !self.searchQuery.isEmpty {
+                        let query = self.searchQuery.lowercased()
+                        if !titleProvider(entry).lowercased().contains(query) { continue }
+                    }
+
+                    let unified = entryCreator(entry, daysAgo)
+                    let groupKey = keyProvider(entry)
+                    grouped[groupKey, default: []].append(unified)
+                }
+            }
         }
+
+        // Add reader entries
+        processEntries(
+            historyData,
+            { entry in
+                guard let e = entry as? HistoryEntry else { return "" }
+                return "reader-\(e.sourceKey)-\(e.mangaKey)-\(e.chapterKey)"
+            },
+            { entry in
+                guard let e = entry as? HistoryEntry else { return "" }
+                return "reader-\(e.sourceKey)-\(e.mangaKey)"
+            },
+            { entry in (entry as? HistoryEntry)?.date ?? Date.distantPast },
+            { entry in
+                guard let e = entry as? HistoryEntry else { return "" }
+                return self.mangaCache[e.mangaCacheKey]?.title ?? ""
+            },
+            { entry, daysAgo in
+                guard let e = entry as? HistoryEntry else {
+                    return UnifiedEntry(id: "", daysAgo: daysAgo, date: Date.distantPast, readerEntry: nil, playerEntry: nil, additionalCount: 0)
+                }
+                return UnifiedEntry(
+                    id: "reader-\(e.sourceKey)-\(e.mangaKey)-\(e.chapterKey)",
+                    daysAgo: daysAgo,
+                    date: e.date,
+                    readerEntry: e,
+                    playerEntry: nil,
+                    additionalCount: 0
+                )
+            }
+        )
+
+        // Add player entries
+        processEntries(
+            playerHistoryData,
+            { item in
+                guard let i = item as? PlayerHistoryManager.PlayerHistoryItem else { return "" }
+                return "player-\(i.moduleId)-\(i.playerTitle)-\(i.episodeId)"
+            },
+            { item in
+                guard let i = item as? PlayerHistoryManager.PlayerHistoryItem else { return "" }
+                return "player-\(i.moduleId)-\(i.playerTitle)"
+            },
+            { item in (item as? PlayerHistoryManager.PlayerHistoryItem)?.dateWatched ?? Date.distantPast },
+            { item in (item as? PlayerHistoryManager.PlayerHistoryItem)?.playerTitle ?? "" },
+            { item, daysAgo in
+                guard let i = item as? PlayerHistoryManager.PlayerHistoryItem else {
+                    return UnifiedEntry(id: "", daysAgo: daysAgo, date: Date.distantPast, readerEntry: nil, playerEntry: nil, additionalCount: 0)
+                }
+                return UnifiedEntry(
+                    id: "player-\(i.moduleId)-\(i.playerTitle)-\(i.episodeId)",
+                    daysAgo: daysAgo,
+                    date: i.dateWatched,
+                    readerEntry: nil,
+                    playerEntry: i,
+                    additionalCount: 0
+                )
+            }
+        )
+
+        // Collapse groups and sort
+        var collapsed: [UnifiedEntry] = []
+        var newCollapsedGroups: [String: [UnifiedEntry]] = [:]
+
+        for key in grouped.keys.sorted(by: { grouped[$0]?.first?.date ?? Date.distantPast > grouped[$1]?.first?.date ?? Date.distantPast }) {
+            let entries = grouped[key]?.sorted { $0.date > $1.date } ?? []
+            guard let first = entries.first else { continue }
+
+            if entries.count > 1 {
+                let collapsedEntry = UnifiedEntry(
+                    id: key,
+                    daysAgo: first.daysAgo,
+                    date: first.date,
+                    readerEntry: first.readerEntry,
+                    playerEntry: first.playerEntry,
+                    additionalCount: entries.count - 1
+                )
+                collapsed.append(collapsedEntry)
+                newCollapsedGroups[key] = entries
+            } else {
+                collapsed.append(first)
+            }
+        }
+
+        collapsed.sort { $0.date > $1.date }
+
+        self.unifiedEntries = collapsed
+        self.collapsedGroups = newCollapsedGroups
+    }
+}
+
+// MARK: Player History
+extension HistoryView.ViewModel {
+    func loadPlayerHistory() async {
+        let items = await PlayerHistoryManager.shared.getAllHistory()
+
+        var modifiedDays = Set<Int>()
+        var newHistoryData: [Int: [PlayerHistoryManager.PlayerHistoryItem]] = [:]
+
+        for item in items {
+            let watchedDate = item.dateWatched
+            let endOfDay = Date.endOfDay()
+            let isInFuture = watchedDate > endOfDay
+            let endDate = if isInFuture {
+                Date.startOfDay()
+            } else {
+                endOfDay
+            }
+            let days = Calendar.autoupdatingCurrent.dateComponents(
+                Set([Calendar.Component.day]),
+                from: watchedDate,
+                to: endDate
+            ).day ?? 0
+
+            var arr = newHistoryData[days] ?? []
+            arr.append(item)
+            newHistoryData[days] = arr
+            modifiedDays.insert(days)
+        }
+
+        for day in modifiedDays {
+            newHistoryData[day] = newHistoryData[day]?.sorted { $0.dateWatched > $1.dateWatched }
+        }
+
+        playerHistoryData = newHistoryData
+
+        var posterCache: [String: String] = [:]
+        for libItem in PlayerLibraryManager.shared.items {
+            let key = "\(libItem.moduleId.uuidString)|\(libItem.title)"
+            posterCache[key] = libItem.imageUrl
+        }
+        playerPosterCache = posterCache
+
+        // Rebuild unified timeline
+        await rebuildUnifiedEntries()
+    }
+
+    func removePlayerHistory(item: PlayerHistoryManager.PlayerHistoryItem) async {
+        await PlayerHistoryManager.shared.removeHistory(episodeId: item.episodeId, moduleId: item.moduleId)
+        await loadPlayerHistory()
+    }
+
+    func clearPlayerHistory() async {
+        await PlayerHistoryManager.shared.clearHistory()
+        playerHistoryData = [:]
+        playerFilteredHistory = [:]
+        await rebuildUnifiedEntries()
+    }
+
+    func makePlayerInfoViewController(
+        for item: PlayerHistoryManager.PlayerHistoryItem,
+        path: NavigationCoordinator
+    ) -> UIViewController? {
+        guard let moduleUUID = UUID(uuidString: item.moduleId) else { return nil }
+        guard let bookmark = PlayerLibraryManager.shared.items.first(where: { $0.moduleId == moduleUUID && $0.title == item.playerTitle }) else {
+            return nil
+        }
+        return PlayerInfoViewController(bookmark: bookmark, path: path)
+    }
+
+    private func filterPlayerDay(entries: [PlayerHistoryManager.PlayerHistoryItem]) -> [PlayerHistoryManager.PlayerHistoryItem] {
+        guard !searchQuery.isEmpty else { return entries }
+        let query = searchQuery.lowercased()
+        return entries.filter { $0.playerTitle.lowercased().contains(query) }
     }
 }
 
@@ -236,6 +489,7 @@ extension HistoryView.ViewModel {
                 CoreDataManager.shared.clearHistory(context: context)
                 try? context.save()
             }
+            await clearPlayerHistory()
             filteredHistory = [:]
             historyData = [:]
             offset = 0
@@ -469,6 +723,7 @@ extension HistoryView.ViewModel {
 
         await setHistoryData(newHistoryData)
         await setFilteredHistory(newFilteredHistory)
+        await rebuildUnifiedEntries()
 
         return historyObj.count
     }

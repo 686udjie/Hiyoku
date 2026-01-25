@@ -13,6 +13,7 @@ extension CoreDataManager {
         moduleId: String,
         context: NSManagedObjectContext? = nil
     ) -> PlayerHistoryObject? {
+
         let context = context ?? container.viewContext
 
         let fetchRequest: NSFetchRequest<PlayerHistoryObject> = PlayerHistoryObject.fetchRequest()
@@ -61,6 +62,13 @@ extension CoreDataManager {
     ) -> PlayerHistoryObject {
         let context = context ?? container.viewContext
         let existingHistory = getPlayerHistory(episodeId: data.episodeId, moduleId: data.moduleId, context: context)
+
+        if existingHistory != nil {
+
+        } else {
+
+        }
+
         let historyObject = existingHistory ?? PlayerHistoryObject(context: context)
         historyObject.playerTitle = data.playerTitle
         historyObject.episodeId = data.episodeId
@@ -69,7 +77,9 @@ extension CoreDataManager {
         historyObject.sourceUrl = data.sourceUrl
         historyObject.moduleId = data.moduleId
         historyObject.progress = Int16(data.progress)
-        historyObject.total = data.total.map(Int16.init)
+        if let total = data.total {
+            historyObject.total = Int16(total)
+        }
         historyObject.watchedDuration = Int32(data.watchedDuration)
         historyObject.dateWatched = data.date
 
@@ -91,7 +101,9 @@ extension CoreDataManager {
         }
 
         historyObject.progress = Int16(progress)
-        historyObject.total = total.map(Int16.init)
+        if let total {
+            historyObject.total = Int16(total)
+        }
         historyObject.watchedDuration += Int32(watchedDuration)
         historyObject.dateWatched = Date()
 

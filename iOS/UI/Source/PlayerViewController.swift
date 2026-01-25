@@ -1401,7 +1401,9 @@ extension PlayerViewController {
         }
     }
     private func saveProgress() {
-        guard let current = currentEpisode, position > 0 else { return }
+        guard let current = currentEpisode, position > 0, duration > 0 else {
+            return
+        }
         let episodeId = current.url
         let moduleId = module.id.uuidString
         let currentPos = Int(position)
@@ -1410,25 +1412,21 @@ extension PlayerViewController {
         let episodeNum = current.number
         let epTitle = current.title
         let sourceUrl = current.url
+        let data = PlayerHistoryManager.EpisodeHistoryData(
+            playerTitle: title,
+            episodeId: episodeId,
+            episodeNumber: Double(episodeNum),
+            episodeTitle: epTitle,
+            sourceUrl: sourceUrl,
+            moduleId: moduleId,
+            progress: currentPos,
+            total: totalDur,
+            watchedDuration: 0,
+            date: Date()
+        )
+
         Task {
-            await CoreDataManager.shared.container.performBackgroundTask { context in
-                let historyObject: NSManagedObject
-                if let existing = PlayerViewController.fetchHistoryObject(context: context, episodeId: episodeId, moduleId: moduleId) {
-                    historyObject = existing
-                } else {
-                    historyObject = NSEntityDescription.insertNewObject(forEntityName: "PlayerHistory", into: context)
-                }
-                historyObject.setValue(title, forKey: "playerTitle")
-                historyObject.setValue(episodeId, forKey: "episodeId")
-                historyObject.setValue(Int16(episodeNum), forKey: "episodeNumber")
-                historyObject.setValue(epTitle, forKey: "episodeTitle")
-                historyObject.setValue(sourceUrl, forKey: "sourceUrl")
-                historyObject.setValue(moduleId, forKey: "moduleId")
-                historyObject.setValue(Int32(currentPos), forKey: "progress")
-                historyObject.setValue(Int32(totalDur), forKey: "total")
-                historyObject.setValue(Date(), forKey: "dateWatched")
-                try? context.save()
-            }
+            await PlayerHistoryManager.shared.setProgress(data: data)
         }
     }
 

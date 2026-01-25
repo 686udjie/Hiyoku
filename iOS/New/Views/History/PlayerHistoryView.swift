@@ -7,6 +7,8 @@
 
 import SwiftUI
 
+typealias PlayerHistoryItem = PlayerHistoryManager.PlayerHistoryItem
+
 struct PlayerHistoryView: View {
     @StateObject private var viewModel = ViewModel()
     @State private var showingClearAlert = false
@@ -167,18 +169,10 @@ extension PlayerHistoryView {
         }
 
         func clearAllHistory() async {
-            // This would need to be implemented in PlayerHistoryManager
-            // For now, we'll remove items one by one
-            let itemsToRemove = historyItems
             withAnimation {
                 historyItems = []
             }
-            for item in itemsToRemove {
-                await PlayerHistoryManager.shared.removeHistory(
-                    episodeId: item.episodeId,
-                    moduleId: item.moduleId
-                )
-            }
+            await PlayerHistoryManager.shared.clearHistory()
             await loadHistory()
         }
     }

@@ -292,39 +292,19 @@ extension SettingView {
 extension SettingView {
     @ViewBuilder
     func selectView(value: SelectSetting) -> some View {
-        if setting.key == "SubtitleSettings.foregroundColor" {
-            HStack {
-                Text(setting.title)
-                    .lineLimit(1)
-                Spacer()
-                Menu {
-                    ForEach(value.values.indices, id: \.self) { offset in
-                        let item = value.values[offset]
-                        Button {
-                            stringListBinding = [item]
-                        } label: {
-                            let title = value.titles?[safe: offset] ?? item
-                            if stringListBinding.contains(item) {
-                                Label(title, systemImage: "checkmark")
-                            } else {
-                                Text(title)
-                            }
-                        }
-                    }
-                } label: {
-                    if let item = stringListBinding.first {
-                        let title = value.values
-                            .firstIndex { $0 == item }
-                            .flatMap { value.titles?[safe: $0] }
-                        Text(title ?? item)
-                            .foregroundStyle(Color.secondaryLabel)
-                            .lineLimit(1)
-                    } else {
-                        Text("Select")
-                            .foregroundStyle(Color.secondaryLabel)
-                    }
+        if setting.key == "SubtitleSettings.foregroundColor" || setting.key == "Player.historyThreshold" {
+            let selectionBinding = Binding(
+                get: { stringListBinding.first ?? "" },
+                set: { stringListBinding = [$0] }
+            )
+            Picker(setting.title, selection: selectionBinding) {
+                ForEach(value.values.indices, id: \.self) { offset in
+                    let item = value.values[offset]
+                    let title = value.titles?[safe: offset] ?? item
+                    Text(title).tag(item)
                 }
             }
+            .pickerStyle(.menu)
             .foregroundStyle(.primary)
             .disabled(disabled)
             .opacity({
