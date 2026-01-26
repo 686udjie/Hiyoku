@@ -70,6 +70,13 @@
 "PLAYER_ADD_CONTENT" = "Add content from the browse tab";
 "PLAYER_PROGRESS" = "Progress";
 "PLAYER_HISTORY" = "Player History";
+"SELECT_EPISODES" = "Select Episodes";
+"WATCHED" = "Watched";
+"UNWATCHED" = "Unwatched";
+"MARK_WATCHED" = "Mark as Watched";
+"MARK_UNWATCHED" = "Mark as Unwatched";
+"1_EPISODE" = "1 Episode";
+"%d_EPISODES" = "%d Episodes";
 
 // Player settings
 "PLAYER_SETTINGS" = "Player Settings";

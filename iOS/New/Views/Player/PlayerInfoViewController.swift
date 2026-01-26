@@ -8,7 +8,7 @@
 import UIKit
 import SwiftUI
 
-class PlayerInfoViewController: UIViewController {
+class PlayerInfoViewController: UIHostingController<PlayerInfoView> {
     let bookmark: PlayerLibraryItem?
     let searchItem: SearchItem?
     let module: ScrapingModule?
@@ -24,7 +24,13 @@ class PlayerInfoViewController: UIViewController {
         self.searchItem = searchItem
         self.module = module
         self.path = path
-        super.init(nibName: nil, bundle: nil)
+
+        super.init(rootView: PlayerInfoView(
+            bookmark: bookmark,
+            searchItem: searchItem,
+            module: module,
+            path: path
+        ))
 
         // Set navigation properties immediately like MangaViewController does
         let title = bookmark?.title ?? searchItem?.title ?? "Unknown Player"
@@ -35,18 +41,5 @@ class PlayerInfoViewController: UIViewController {
 
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
-    }
-
-    override func viewDidLoad() {
-        super.viewDidLoad()
-
-        let playerInfoView = PlayerInfoView(
-            bookmark: bookmark,
-            searchItem: searchItem,
-            module: module,
-            path: path
-        )
-
-        addFullScreenChild(playerInfoView)
     }
 }

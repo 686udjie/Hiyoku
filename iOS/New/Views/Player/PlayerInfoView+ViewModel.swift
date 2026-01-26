@@ -31,6 +31,10 @@ extension PlayerInfoView {
         @Published var isBookmarked = false
         @Published var episodeProgress: [String: InlineEpisodeHistory] = [:]
 
+        // Edit Mode
+        @Published var editMode = EditMode.inactive
+        @Published var selectedEpisodes = Set<String>()
+
         private var cancellables = Set<AnyCancellable>()
 
         // Cached computed properties to avoid expensive lookups during rendering
@@ -227,6 +231,45 @@ extension PlayerInfoView {
                 libraryManager.toggleInLibrary(for: tempSearchItem, module: module)
                 isBookmarked = libraryManager.isInLibrary(tempSearchItem, module: module)
             }
+        }
+
+        func markWatched(episodes: [PlayerEpisode]) async {
+            guard let module else { return }
+            let moduleId = module.id.uuidString
+
+            for episode in episodes {
+                let historyData = PlayerHistoryManager.EpisodeHistoryData(
+                    playerTitle: title,
+                    episodeId: episode.url,
+                    episodeNumber: Double(episode.number),
+                    episodeTitle: episode.title,
+                    sourceUrl: episode.url,
+                    moduleId: moduleId,
+                    progress: 100,
+                    total: 100,
+                    watchedDuration: 0,
+                    date: Date()
+                )
+                await PlayerHistoryManager.shared.setProgress(data: historyData)
+            }
+            await fetchHistory()
+        }
+
+        func markUnwatched(episodes: [PlayerEpisode]) async {
+            guard let module else { return }
+            let moduleId = module.id.uuidString
+            for episode in episodes {
+                await PlayerHistoryManager.shared.removeHistory(episodeId: episode.url, moduleId: moduleId)
+            }
+            await fetchHistory()
+        }
+
+        func selectAll() {
+            selectedEpisodes = Set(episodes.map { $0.url })
+        }
+
+        func deselectAll() {
+            selectedEpisodes.removeAll()
         }
 
         private func recomputeSortedEpisodes() {

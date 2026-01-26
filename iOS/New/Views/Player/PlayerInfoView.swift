@@ -57,18 +57,50 @@ struct PlayerInfoView: View {
     }
 
     var body: some View {
+        if #available(iOS 26.0, *) {
+            mainContent
+                .toolbar {
+                    toolbarContentBase
+                    if viewModel.editMode == .active {
+                        ToolbarItem(placement: .bottomBar) {
+                            toolbarMarkMenu
+                        }
+                        ToolbarSpacer(.flexible, placement: .bottomBar)
+                        ToolbarItem(placement: .bottomBar) {
+                            toolbarDownloadButton
+                        }
+                    }
+                }
+        } else {
+            mainContent
+                .toolbar {
+                    toolbarContentBase
+                    ToolbarItemGroup(placement: .bottomBar) {
+                        if viewModel.editMode == .active {
+                            HStack {
+                                toolbarMarkMenu
+                                Spacer()
+                                toolbarDownloadButton
+                            }
+                        }
+                    }
+                }
+        }
+    }
+
+    private var mainContent: some View {
         configuredList
             .fullScreenCover(isPresented: $showingCoverView) {
                 PlayerCoverPageView(posterUrl: viewModel.posterUrl, title: viewModel.title)
             }
-            .fullScreenCover(
-                item: $playerSession,
-                onDismiss: {
-                    Task {
-                        await viewModel.fetchHistory()
-                    }
-                },
-                content: { session in
+            .environment(\.editMode, $viewModel.editMode)
+            .fullScreenCover(item: $playerSession,
+                             onDismiss: {
+                                 Task {
+                                     await viewModel.fetchHistory()
+                                 }
+                             },
+                             content: { session in
                     if let module = viewModel.module {
                         PlayerSessionWrapper(
                             session: session,
@@ -82,9 +114,29 @@ struct PlayerInfoView: View {
                     }
                 }
             )
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    bookmarkButton
+            .navigationBarBackButtonHidden(viewModel.editMode == .active)
+            .onChange(of: viewModel.editMode) { mode in
+                let controller = path.rootViewController as? UINavigationController ?? path.rootViewController?.navigationController
+                guard let navigationController = controller else { return }
+                if mode == .active {
+                    navigationController.setDismissGesturesEnabled(false)
+                    UIView.animate(withDuration: 0.3) {
+                        navigationController.isToolbarHidden = false
+                        navigationController.toolbar.alpha = 1
+                        if #available(iOS 26.0, *) {
+                            navigationController.tabBarController?.isTabBarHidden = true
+                        }
+                    }
+                } else {
+                    navigationController.setDismissGesturesEnabled(true)
+                    UIView.animate(withDuration: 0.3) {
+                        navigationController.toolbar.alpha = 0
+                        if #available(iOS 26.0, *) {
+                            navigationController.tabBarController?.isTabBarHidden = false
+                        }
+                    } completion: { _ in
+                        navigationController.isToolbarHidden = true
+                    }
                 }
             }
             .alert("Error", isPresented: errorBinding) {
@@ -94,7 +146,6 @@ struct PlayerInfoView: View {
                     Text(errorMessage)
                 }
             }
-
             .confirmationDialog("Select Resolution", isPresented: $showingStreamSelection, titleVisibility: .visible) {
                  ForEach(availableStreams, id: \.url) { stream in
                      Button(stream.title) {
@@ -112,8 +163,35 @@ struct PlayerInfoView: View {
             }
     }
 
+    @ToolbarContentBuilder
+    private var toolbarContentBase: some ToolbarContent {
+        ToolbarItem(placement: .navigationBarTrailing) {
+             PlayerRightNavbarButton(viewModel: viewModel, editMode: $viewModel.editMode)
+        }
+
+        ToolbarItem(placement: .topBarLeading) {
+            if viewModel.editMode == .active {
+                let allSelected = viewModel.selectedEpisodes.count == viewModel.episodes.count
+                Button {
+                    if allSelected {
+                        viewModel.deselectAll()
+                    } else {
+                        viewModel.selectAll()
+                    }
+                } label: {
+                    if allSelected {
+                        Text(String(localized: "DESELECT_ALL"))
+                    } else {
+                        Text(String(localized: "SELECT_ALL"))
+                    }
+                }
+                .disabled(viewModel.episodes.isEmpty)
+            }
+        }
+    }
+
     private var configuredList: some View {
-        List {
+        List(selection: $viewModel.selectedEpisodes) {
             headerView
 
             if viewModel.isLoadingEpisodes {
@@ -211,27 +289,129 @@ struct PlayerInfoView: View {
         .listRowInsets(.zero)
     }
 
-    private var bookmarkButton: some View {
-        Button {
-            viewModel.toggleBookmark()
-        } label: {
-            Image(systemName: viewModel.isBookmarked ? "bookmark.fill" : "bookmark")
-                .foregroundColor(viewModel.isBookmarked ? .yellow : .primary)
+    private var toolbarMarkMenu: some View {
+        Menu(String(localized: "MARK")) {
+            let title = if viewModel.selectedEpisodes.count == 1 {
+                String(localized: "1_EPISODE")
+            } else {
+                String(format: String(localized: "%d_EPISODES"), viewModel.selectedEpisodes.count)
+            }
+            Section(title) {
+                Button {
+                    let markEpisodes = viewModel.selectedEpisodes.compactMap { id in
+                        viewModel.episodes.first(where: { $0.url == id })
+                    }
+                    Task {
+                        await viewModel.markUnwatched(episodes: markEpisodes)
+                    }
+                    withAnimation {
+                        viewModel.editMode = .inactive
+                    }
+                } label: {
+                    Label(String(localized: "UNWATCHED"), systemImage: "eye.slash")
+                }
+                Button {
+                    let markEpisodes = viewModel.selectedEpisodes.compactMap { id in
+                        viewModel.episodes.first(where: { $0.url == id })
+                    }
+                    Task {
+                        await viewModel.markWatched(episodes: markEpisodes)
+                    }
+                    withAnimation {
+                        viewModel.editMode = .inactive
+                    }
+                } label: {
+                    Label(String(localized: "WATCHED"), systemImage: "eye")
+                }
+            }
         }
+        .disabled(viewModel.selectedEpisodes.isEmpty)
+    }
+
+    private var toolbarDownloadButton: some View {
+        Button(String(localized: "DOWNLOAD")) {
+            // Placeholder for download functionality
+            withAnimation {
+                viewModel.editMode = .inactive
+            }
+        }
+        .disabled(viewModel.selectedEpisodes.isEmpty)
     }
 
     @ViewBuilder
     private func viewForEpisode(_ episode: PlayerEpisode, index: Int) -> some View {
         let history = viewModel.episodeProgress[episode.url]
-        EpisodeCellView(episode: episode, history: history) {
+        let read = history?.progress == history?.total && history?.total != nil && history?.total != 0
+        EpisodeCellView(
+            episode: episode,
+            history: history,
+            read: read,
+            isEditing: viewModel.editMode == .active
+        ) {
+            handleEpisodeTap(episode)
+        }
+        .equatable()
+        .contextMenu {
+            contextMenuContent(for: episode, at: index, isRead: read)
+        }
+        .listRowInsets(.zero)
+        .tag(episode.url)
+        .matchedTransitionSourcePlease(id: episode, in: transitionNamespace)
+    }
+
+    private func handleEpisodeTap(_ episode: PlayerEpisode) {
+        if viewModel.editMode == .active {
+            if viewModel.selectedEpisodes.contains(episode.url) {
+                viewModel.selectedEpisodes.remove(episode.url)
+            } else {
+                viewModel.selectedEpisodes.insert(episode.url)
+            }
+        } else {
             Task {
                 await playEpisode(episode)
             }
         }
-        .equatable()
-        .listRowInsets(.zero)
-        .listRowBackground(Color.clear)
-        .matchedTransitionSourcePlease(id: episode, in: transitionNamespace)
+    }
+
+    @ViewBuilder
+    private func contextMenuContent(for episode: PlayerEpisode, at index: Int, isRead: Bool) -> some View {
+        if viewModel.editMode == .inactive {
+            Section {
+                if isRead {
+                    Button {
+                        Task { await viewModel.markUnwatched(episodes: [episode]) }
+                    } label: {
+                        Label(String(localized: "MARK_UNWATCHED"), systemImage: "eye.slash")
+                    }
+                } else {
+                    Button {
+                        Task { await viewModel.markWatched(episodes: [episode]) }
+                    } label: {
+                        Label(String(localized: "MARK_WATCHED"), systemImage: "eye")
+                    }
+                }
+                if index < viewModel.sortedEpisodes.count - 1 {
+                    markPreviousMenu(startingAt: index)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func markPreviousMenu(startingAt index: Int) -> some View {
+        Menu(String(localized: "MARK_PREVIOUS")) {
+            let previousEpisodes = Array(viewModel.sortedEpisodes[index + 1..<viewModel.sortedEpisodes.count])
+            Button {
+                Task { await viewModel.markWatched(episodes: previousEpisodes) }
+            } label: {
+                Label(String(localized: "WATCHED"), systemImage: "eye")
+            }
+            Button {
+                Task { await viewModel.markUnwatched(episodes: previousEpisodes) }
+            } label: {
+                Label(String(localized: "UNWATCHED"), systemImage: "eye.slash")
+            }
+        }
     }
     @MainActor
     private func playEpisode(_ episode: PlayerEpisode) async {
@@ -337,58 +517,66 @@ struct PlayerInfoView: View {
 private struct EpisodeCellView: View, Equatable {
     let episode: PlayerEpisode
     let history: PlayerInfoView.InlineEpisodeHistory?
+    let read: Bool
+    var isEditing: Bool = false
     var onPressed: (() -> Void)?
 
     var body: some View {
-        Button {
-            onPressed?()
-        } label: {
-            HStack(alignment: .firstTextBaseline, spacing: 12) {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Episode \(episode.number)")
-                        .font(.system(.callout).weight(.semibold))
-                        .foregroundStyle(.primary)
+        let content = HStack(alignment: .firstTextBaseline, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Episode \(episode.number)")
+                    .font(.system(.callout).weight(.semibold))
+                    .foregroundStyle(read ? .secondary : .primary)
 
-                    let title = episode.title
-                    let isRedundantTitle = title == "Episode \(episode.number)" || title == "Episode \(episode.number)" || title.isEmpty
-                    if !isRedundantTitle {
-                        Text(title)
-                            .font(.system(.subheadline))
-                            .foregroundStyle(.secondary)
-                            .lineLimit(2)
-                    }
-                    HStack(spacing: 4) {
-                        if let date = episode.dateUploaded {
-                            Text(date, format: .dateTime.year().month().day())
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Text("•")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        if let history = history {
-                            let progressText = formatDuration(TimeInterval(history.progress))
-                            Text("\(String(localized: "PLAYER_PROGRESS")) • \(progressText)")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                }
-
-                Spacer()
-
-                if let scanlator = episode.scanlator {
-                    Text(scanlator)
-                        .font(.system(.caption))
+                let title = episode.title
+                let isRedundantTitle = title.isEmpty || title == "Episode \(episode.number)"
+                if !isRedundantTitle {
+                    Text(title)
+                        .font(.system(.subheadline))
                         .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+                HStack(spacing: 4) {
+                    if let date = episode.dateUploaded {
+                        Text(date, format: .dateTime.year().month().day())
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text("•")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    if let history = history, !read {
+                        let progressText = formatDuration(TimeInterval(history.progress))
+                        Text("\(String(localized: "PLAYER_PROGRESS")) • \(progressText)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
-            .padding(.vertical, 12)
-            .padding(.horizontal, 20)
-            .contentShape(Rectangle())
+
+            Spacer()
+
+            if let scanlator = episode.scanlator {
+                Text(scanlator)
+                    .font(.system(.caption))
+                    .foregroundStyle(.secondary)
+            }
         }
-        .buttonStyle(.plain)
-        .tint(.primary)
+        .padding(.vertical, 12)
+        .padding(.horizontal, 20)
+        .contentShape(Rectangle())
+
+        if isEditing {
+            content
+        } else {
+            Button {
+                onPressed?()
+            } label: {
+                content
+            }
+            .buttonStyle(.plain)
+            .tint(.primary)
+        }
     }
     private func formatDuration(_ duration: TimeInterval) -> String {
         let hours = Int(duration) / 3600
@@ -400,7 +588,9 @@ private struct EpisodeCellView: View, Equatable {
     static nonisolated func == (lhs: EpisodeCellView, rhs: EpisodeCellView) -> Bool {
         lhs.episode == rhs.episode &&
         lhs.history?.progress == rhs.history?.progress &&
-        lhs.history?.total == rhs.history?.total
+        lhs.history?.total == rhs.history?.total &&
+        lhs.read == rhs.read &&
+        lhs.isEditing == rhs.isEditing
     }
 }
 
@@ -441,5 +631,63 @@ struct PlayerSessionWrapper: View {
         session.episode = episode
         currentStreamUrl = nil
         currentStreamHeaders = nil
+    }
+}
+
+private struct PlayerRightNavbarButton: View, Equatable {
+    @ObservedObject var viewModel: PlayerInfoView.ViewModel
+    @Binding var editMode: EditMode
+    let isBookmarked: Bool
+    let isEditing: Bool
+
+    init(viewModel: PlayerInfoView.ViewModel, editMode: Binding<EditMode>) {
+        self.viewModel = viewModel
+        self._editMode = editMode
+        self.isBookmarked = viewModel.isBookmarked
+        self.isEditing = editMode.wrappedValue == .active
+    }
+
+    var body: some View {
+        if editMode == .inactive {
+            Menu {
+                Menu(String(localized: "MARK_ALL")) {
+                    Button {
+                        Task {
+                            await viewModel.markWatched(episodes: viewModel.episodes)
+                        }
+                    } label: {
+                        Label(String(localized: "WATCHED"), systemImage: "eye")
+                    }
+                    Button {
+                        Task {
+                            await viewModel.markUnwatched(episodes: viewModel.episodes)
+                        }
+                    } label: {
+                        Label(String(localized: "UNWATCHED"), systemImage: "eye.slash")
+                    }
+                }
+                Button {
+                    withAnimation {
+                        editMode = .active
+                    }
+                } label: {
+                    Label(String(localized: "SELECT_EPISODES"), systemImage: "checkmark.circle")
+                }
+
+            } label: {
+                MoreIcon()
+            }
+        } else {
+            DoneButton {
+                withAnimation {
+                    editMode = .inactive
+                }
+            }
+        }
+    }
+
+    static nonisolated func == (lhs: PlayerRightNavbarButton, rhs: PlayerRightNavbarButton) -> Bool {
+        lhs.isBookmarked == rhs.isBookmarked
+            && lhs.isEditing == rhs.isEditing
     }
 }
