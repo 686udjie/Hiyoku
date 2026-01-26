@@ -33,10 +33,12 @@ struct ModulesView: View {
         .navigationTitle(NSLocalizedString("PLAYER_SOURCES"))
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    showAlert()
-                } label: {
-                    Image(systemName: "plus")
+                HStack {
+                    Button {
+                        showAlert()
+                    } label: {
+                        Image(systemName: "plus")
+                    }
                 }
             }
         }
@@ -117,6 +119,24 @@ struct ModulesView: View {
                     .foregroundStyle(.tertiary)
                     .lineLimit(1)
             }
+
+            Spacer()
+
+            if let update = module.updateMetadata {
+                Button {
+                    updateModule(module)
+                } label: {
+                    VStack(spacing: 2) {
+                        Image(systemName: "arrow.down.circle.fill")
+                            .font(.title3)
+                        Text(update.version)
+                            .font(.caption2)
+                            .fontWeight(.bold)
+                    }
+                    .foregroundStyle(.accent)
+                }
+                .buttonStyle(.plain)
+            }
         }
         .contextMenu {
             Button {
@@ -173,6 +193,35 @@ struct ModulesView: View {
             loading = true
             do {
                 _ = try await ModuleManager.shared.addModule(metadataUrl: url)
+                await MainActor.run {
+                    modules = ModuleManager.shared.modules
+                    loading = false
+                }
+            } catch {
+                await MainActor.run {
+                    loading = false
+                    showAddModuleFailAlert = true
+                }
+            }
+        }
+    }
+
+    func checkForUpdates() {
+        Task {
+            loading = true
+            await ModuleManager.shared.checkForUpdates()
+            await MainActor.run {
+                modules = ModuleManager.shared.modules
+                loading = false
+            }
+        }
+    }
+
+    func updateModule(_ module: ScrapingModule) {
+        Task {
+            loading = true
+            do {
+                try await ModuleManager.shared.updateModule(module)
                 await MainActor.run {
                     modules = ModuleManager.shared.modules
                     loading = false

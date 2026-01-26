@@ -20,6 +20,7 @@ struct SourceInfo2: Hashable {
     var contentRating: SourceContentRating
 
     var externalInfo: ExternalSourceInfo?
+    var isPlayerSource: Bool = false
 
     var isMultiLanguage: Bool {
         languages.isEmpty || languages.count > 1 || languages.first == "multi"

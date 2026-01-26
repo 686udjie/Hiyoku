@@ -137,6 +137,7 @@ class BrowseViewController: BaseTableViewController, DebouncedSearchable {
             guard let self = self else { return }
             Task { @MainActor in
                 self.viewModel.loadInstalledSources()
+                self.viewModel.loadUpdates()
                 if let query = self.navigationItem.searchController?.searchBar.text, !query.isEmpty {
                     self.viewModel.search(query: query)
                 }
@@ -147,6 +148,7 @@ class BrowseViewController: BaseTableViewController, DebouncedSearchable {
             guard let self = self else { return }
             Task { @MainActor in
                 self.viewModel.loadInstalledSources()
+                self.viewModel.loadUpdates()
                 if let query = self.navigationItem.searchController?.searchBar.text, !query.isEmpty {
                     self.viewModel.search(query: query)
                 }
@@ -157,6 +159,7 @@ class BrowseViewController: BaseTableViewController, DebouncedSearchable {
             guard let self = self else { return }
             Task { @MainActor in
                 self.viewModel.loadInstalledSources()
+                self.viewModel.loadUpdates()
                 if let query = self.navigationItem.searchController?.searchBar.text, !query.isEmpty {
                     self.viewModel.search(query: query)
                 }
@@ -254,6 +257,7 @@ extension BrowseViewController {
 
     @objc func refreshSourceLists(_ refreshControl: UIRefreshControl? = nil) {
         Task {
+            ModuleManager.shared.loadModules()
             await viewModel.loadExternalSources(reload: true)
             self.viewModel.loadUpdates()
             updateExternalSources()
@@ -547,8 +551,10 @@ extension BrowseViewController {
             if info.externalInfo != nil {
                 if section == .external {
                     cell.buttonTitle = NSLocalizedString("BUTTON_GET")
+                    cell.setButtonStyle(isUpdate: false)
                 } else if section == .updates {
                     cell.buttonTitle = NSLocalizedString("BUTTON_UPDATE")
+                    cell.setButtonStyle(isUpdate: true)
                 }
                 cell.selectionStyle = .none
                 cell.accessoryType = .none

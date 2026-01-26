@@ -153,13 +153,7 @@ class SourceTableViewCell: UITableViewCell {
         let languageText = info.isMultiLanguage
             ? NSLocalizedString("MULTI_LANGUAGE")
             : Locale.current.localizedString(forIdentifier: info.languages[0]) ?? info.languages[0]
-
-        let isPlayerSource = if let module = ModuleManager.shared.modules.first(where: { $0.id.uuidString == info.sourceId }) {
-            module.isPlayerModule
-        } else {
-            false
-        }
-        let sourceTypeTag = isPlayerSource ? "Player" : "Reader"
+        let sourceTypeTag = info.isPlayerSource ? "Player" : "Reader"
         subtitleLabel.text = "\(languageText) • \(sourceTypeTag)"
 
         getButton.isHidden = info.externalInfo == nil
@@ -217,14 +211,36 @@ class SourceTableViewCell: UITableViewCell {
     }
 
     @objc func getPressed() {
-        guard
-            let externalInfo = info?.externalInfo,
-            let url = externalInfo.fileURL
-        else { return }
+        guard let info = info, let externalInfo = info.externalInfo else { return }
+
         getButton.buttonState = .downloading
         Task {
-            let installedSource = await SourceManager.shared.importSource(from: url)
-            getButton.buttonState = installedSource == nil ? .fail : .get
+            if info.isPlayerSource {
+                if let module = ModuleManager.shared.modules.first(where: { $0.id.uuidString == info.sourceId }) {
+                    do {
+                        try await ModuleManager.shared.updateModule(module)
+                        getButton.buttonState = .get
+                    } catch {
+                        getButton.buttonState = .fail
+                    }
+                } else {
+                    getButton.buttonState = .fail
+                }
+            } else if let url = externalInfo.fileURL {
+                let installedSource = await SourceManager.shared.importSource(from: url)
+                getButton.buttonState = installedSource == nil ? .fail : .get
+            } else {
+                getButton.buttonState = .fail
+            }
+        }
+    }
+    func setButtonStyle(isUpdate: Bool) {
+        if isUpdate {
+            getButton.color = .systemRed.withAlphaComponent(0.1)
+            getButton.textColor = .systemRed
+        } else {
+            getButton.color = .tertiarySystemFill
+            getButton.textColor = .systemBlue
         }
     }
 }

@@ -30,18 +30,9 @@ class BrowseViewModel {
     }
 
     private func getPlayerSources() -> [SourceInfo2] {
-        // Reload modules dynamically to ensure we have the latest list
-        ModuleManager.shared.loadModules()
         // Show only active player modules (not novel modules) - display as many as possible
-        return ModuleManager.shared.modules.filter { $0.isPlayerModule && $0.isActive }.map { module in
-            SourceInfo2(
-                sourceId: module.id.uuidString,
-                iconUrl: URL(string: module.metadata.iconUrl),
-                name: module.metadata.sourceName,
-                languages: [module.metadata.language],
-                version: Int(module.metadata.version.components(separatedBy: ".").first ?? "1") ?? 1,
-                contentRating: .safe
-            )
+        ModuleManager.shared.modules.filter { $0.isPlayerModule && $0.isActive }.map { module in
+            module.toSourceInfo()
         }
     }
 
@@ -170,6 +161,12 @@ class BrowseViewModel {
             return nil
         }
 
+        // Add player module updates
+        let moduleUpdates = ModuleManager.shared.modules.compactMap { module -> SourceInfo2? in
+            guard let update = module.updateMetadata else { return nil }
+            return module.toSourceInfo(withMetadata: update)
+        }
+        updatesSources.append(contentsOf: moduleUpdates)
     }
 
     // filter sources by search query

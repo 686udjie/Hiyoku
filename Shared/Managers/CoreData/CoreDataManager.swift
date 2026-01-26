@@ -53,6 +53,7 @@ final class CoreDataManager {
         let container = NSPersistentCloudKitContainer(name: "Aidoku")
 
         let storeDirectory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+        try? FileManager.default.createDirectory(at: storeDirectory, withIntermediateDirectories: true)
 
         let cloudDescription = NSPersistentStoreDescription(url: storeDirectory.appendingPathComponent("Aidoku.sqlite"))
         cloudDescription.configuration = "Cloud"
@@ -221,44 +222,38 @@ extension CoreDataManager {
         }
     }
 
-    /// Stupid but idk how to make it work so i check for duplications
     private func createDeduplicationRequest(for object: NSManagedObject) -> NSFetchRequest<NSFetchRequestResult>? {
         guard let entityName = object.entity.name else { return nil }
         let request = NSFetchRequest<NSFetchRequestResult>(entityName: entityName)
-        switch object {
-        case let manga as MangaObject:
-            request.predicate = NSPredicate(format: "sourceId == %@ AND id == %@", manga.sourceId, manga.id)
-            return request
-        case let category as CategoryObject:
-            request.predicate = NSPredicate(format: "title == %@", category.title ?? "")
-            return request
-        case let chapter as ChapterObject:
-            request.predicate = NSPredicate(
-                format: "sourceId == %@ AND mangaId == %@ AND id == %@",
-                chapter.sourceId, chapter.mangaId, chapter.id
-            )
-            return request
-        case let history as HistoryObject:
-            request.predicate = NSPredicate(
-                format: "sourceId == %@ AND mangaId == %@ AND chapterId == %@",
-                history.sourceId, history.mangaId, history.chapterId
-            )
-            return request
-        case let libraryManga as LibraryMangaObject:
-            request.predicate = NSPredicate(
-                format: "manga.sourceId == %@ AND manga.id == %@",
-                libraryManga.manga?.sourceId ?? "", libraryManga.manga?.id ?? ""
-            )
-            return request
-        case let track as TrackObject:
-            request.predicate = NSPredicate(
-                format: "id == %@ AND trackerId == %@",
-                track.id ?? "", track.trackerId ?? ""
-            )
-            return request
-        default:
-            return nil
-        }
+        let predicate: NSPredicate? = {
+            switch object {
+            case let manga as MangaObject:
+                return NSPredicate(format: "sourceId == %@ AND id == %@", manga.sourceId, manga.id)
+            case let category as CategoryObject:
+                return NSPredicate(format: "title == %@", category.title ?? "")
+            case let chapter as ChapterObject:
+                return NSPredicate(
+                    format: "sourceId == %@ AND mangaId == %@ AND id == %@",
+                    chapter.sourceId, chapter.mangaId, chapter.id
+                )
+            case let history as HistoryObject:
+                return NSPredicate(
+                    format: "sourceId == %@ AND mangaId == %@ AND chapterId == %@",
+                    history.sourceId, history.mangaId, history.chapterId
+                )
+            case let libraryManga as LibraryMangaObject:
+                let sourceId = libraryManga.manga?.sourceId ?? ""
+                let id = libraryManga.manga?.id ?? ""
+                return NSPredicate(format: "manga.sourceId == %@ AND manga.id == %@", sourceId, id)
+            case let track as TrackObject:
+                return NSPredicate(format: "id == %@ AND trackerId == %@", track.id ?? "", track.trackerId ?? "")
+            default:
+                return nil
+            }
+        }()
+        guard let predicate = predicate else { return nil }
+        request.predicate = predicate
+        return request
     }
 
     func deduplicate(objectId: NSManagedObjectID, context: NSManagedObjectContext) {

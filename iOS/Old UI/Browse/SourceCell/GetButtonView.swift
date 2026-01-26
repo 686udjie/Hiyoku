@@ -49,6 +49,18 @@ class GetButtonView: UIView {
 
     var sidePadding: CGFloat = 16
 
+    var color: UIColor = .tertiarySystemFill {
+        didSet {
+            backgroundView.backgroundColor = color
+        }
+    }
+
+    var textColor: UIColor = .systemBlue {
+        didSet {
+            button.setTitleColor(textColor, for: .normal)
+        }
+    }
+
     let backgroundView = UIView()
     let activityIndicator = UIActivityIndicatorView()
     let button = UIButton()
@@ -58,7 +70,7 @@ class GetButtonView: UIView {
         super.init(frame: frame)
 
         backgroundView.clipsToBounds = true
-        backgroundView.backgroundColor = .tertiarySystemFill
+        backgroundView.backgroundColor = color
         backgroundView.translatesAutoresizingMaskIntoConstraints = false
         addSubview(backgroundView)
 
@@ -68,7 +80,7 @@ class GetButtonView: UIView {
         addSubview(activityIndicator)
 
         button.setTitle(title, for: .normal)
-        button.setTitleColor(tintColor, for: .normal)
+        button.setTitleColor(textColor, for: .normal)
 
         button.titleLabel?.font = .systemFont(ofSize: 15, weight: .bold)
 
