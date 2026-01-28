@@ -117,7 +117,7 @@ struct PlayerHistoryRowView: View {
                 // Progress bar
                 ProgressView(value: item.progressPercentage)
                     .frame(width: 60)
-                    .progressViewStyle(LinearProgressViewStyle(tint: .blue))
+                    .progressViewStyle(LinearProgressViewStyle(tint: .accentColor))
 
                 Text("\(Int(item.progressPercentage * 100))%")
                     .font(.caption)

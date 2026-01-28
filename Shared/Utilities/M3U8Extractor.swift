@@ -105,7 +105,7 @@ class M3U8Extractor {
             }
         }
 
-        return M3U8Playlist(
+        let playlist = M3U8Playlist(
             version: version,
             targetDuration: targetDuration,
             mediaSequence: mediaSequence,
@@ -113,6 +113,7 @@ class M3U8Extractor {
             isLive: isLive,
             endList: endList
         )
+        return playlist
     }
 
     /// Downloads and parses M3U8 playlist from URL
@@ -153,10 +154,10 @@ class M3U8Extractor {
     /// Creates a playable PlayerItem from M3U8 URL
     func createPlayerItem(from m3u8Url: String, headers: [String: String] = [:]) async throws -> AVPlayerItem {
         // Use provided headers or default headers for fetching the playlist
-        let fetchHeaders = headers.isEmpty ? [
+        let fetchHeaders = !headers.isEmpty ? headers : [
             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "Referer": m3u8Url
-        ] : headers
+        ]
 
         _ = try await fetchAndParseM3U8(url: m3u8Url, headers: fetchHeaders)
 
@@ -165,10 +166,10 @@ class M3U8Extractor {
         }
 
         // Use provided headers or default headers for AVPlayer
-        let finalHeaders = headers.isEmpty ? [
+        let finalHeaders = !headers.isEmpty ? headers : [
             "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "Referer": m3u8Url
-        ] : headers
+        ]
 
         // Use the correct key for HTTP headers in AVURLAsset
         let options: [String: Any] = ["AVURLAssetHTTPHeaderFieldsKey": finalHeaders]

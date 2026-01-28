@@ -106,13 +106,20 @@ class PlayerLibrarySearchViewModel: ObservableObject {
     }
 }
 
-class PlayerLibraryViewController: BaseViewController {
-
+class PlayerLibraryViewController: BaseObservingViewController {
     private let path = NavigationCoordinator(rootViewController: nil)
     private var searchController: UISearchController!
     private var playerView: PlayerView!
     private lazy var emptyStackView = EmptyPageStackView()
     private var libraryObserver: AnyCancellable?
+    private var downloadObservers = Set<AnyCancellable>()
+
+    private lazy var downloadBarButton = UIBarButtonItem(
+        image: UIImage(systemName: "square.and.arrow.down"),
+        style: .plain,
+        target: self,
+        action: #selector(openDownloadQueue)
+    )
 
     override func configure() {
         super.configure()
@@ -142,6 +149,12 @@ class PlayerLibraryViewController: BaseViewController {
         view.addSubview(hostingController.view)
         hostingController.didMove(toParent: self)
 
+        Task {
+            await SourceManager.shared.loadSources()
+            await DownloadManager.shared.loadQueueState()
+            updateNavbarItems()
+        }
+
         // Set up empty state view (add after SwiftUI view so it's on top)
         emptyStackView.isHidden = true
         emptyStackView.imageSystemName = "play.tv.fill"
@@ -159,6 +172,11 @@ class PlayerLibraryViewController: BaseViewController {
         updateEmptyState()
     }
 
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        updateNavbarItems()
+    }
+
     override func constrain() {
         super.constrain()
 
@@ -174,6 +192,80 @@ class PlayerLibraryViewController: BaseViewController {
         let isSearching = !playerView.searchText.isEmpty
         let isEmpty = PlayerLibraryManager.shared.items.isEmpty && !isSearching
         emptyStackView.isHidden = !isEmpty
+    }
+
+    override func observe() {
+        super.observe()
+
+        let checkNavbarDownloadButton: (Notification) -> Void = { [weak self] _ in
+            guard let self else { return }
+            Task { @MainActor in
+                let shouldShowButton = await DownloadManager.shared.hasQueuedDownloads(type: .video)
+                let index = self.navigationItem.rightBarButtonItems?.firstIndex(of: self.downloadBarButton)
+                if shouldShowButton && index == nil {
+                    // rightmost button (usually)
+                    let insertIndex = max(0, (self.navigationItem.rightBarButtonItems?.count ?? 1) - 1)
+                    self.navigationItem.rightBarButtonItems?.insert(
+                        self.downloadBarButton,
+                        at: insertIndex
+                    )
+                } else if !shouldShowButton, let index = index {
+                    self.navigationItem.rightBarButtonItems?.remove(at: index)
+                }
+            }
+        }
+        addObserver(forName: .downloadsQueued) { notification in
+            checkNavbarDownloadButton(notification)
+        }
+        addObserver(forName: .downloadFinished) { notification in
+            checkNavbarDownloadButton(notification)
+        }
+        addObserver(forName: .downloadCancelled) { notification in
+            checkNavbarDownloadButton(notification)
+        }
+        addObserver(forName: .downloadsCancelled) { notification in
+            checkNavbarDownloadButton(notification)
+        }
+        addObserver(forName: .downloadsPaused) { notification in
+            checkNavbarDownloadButton(notification)
+        }
+        addObserver(forName: .downloadsResumed) { notification in
+            checkNavbarDownloadButton(notification)
+        }
+    }
+
+    func updateNavbarItems() {
+        Task { @MainActor in
+            let hasDownloads = await DownloadManager.shared.hasQueuedDownloads(type: .video)
+            let currentItems = navigationItem.rightBarButtonItems ?? []
+            let containsButton = currentItems.contains(downloadBarButton)
+            if hasDownloads {
+                if !containsButton {
+                    let insertIndex = max(0, currentItems.count - 1)
+                    var newItems = currentItems
+                    newItems.insert(downloadBarButton, at: insertIndex)
+                    navigationItem.setRightBarButtonItems(newItems, animated: true)
+                }
+            } else {
+                if containsButton {
+                    let newItems = currentItems.filter { $0 != downloadBarButton }
+                    navigationItem.setRightBarButtonItems(newItems, animated: true)
+                }
+            }
+        }
+    }
+
+    @objc func openDownloadQueue() {
+        let viewController = UIHostingController(rootView: DownloadQueueView(type: .video))
+        viewController.navigationItem.largeTitleDisplayMode = .never
+        viewController.navigationItem.title = NSLocalizedString("DOWNLOAD_QUEUE")
+        if #available(iOS 26.0, *) {
+            viewController.preferredTransition = .zoom { _ in
+                self.downloadBarButton
+            }
+        }
+        viewController.modalPresentationStyle = .pageSheet
+        present(viewController, animated: true)
     }
 }
 

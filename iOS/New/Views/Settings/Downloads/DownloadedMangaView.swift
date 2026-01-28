@@ -38,17 +38,21 @@ struct DownloadedMangaView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
-                    if viewModel.manga.isInLibrary, let source = SourceManager.shared.source(for: viewModel.manga.sourceId) {
-                        Button {
+                    Button {
+                        if let source = SourceManager.shared.source(for: viewModel.manga.sourceId) {
                             openMangaView(source: source)
-                        } label: {
-                            Label(NSLocalizedString("VIEW_SERIES"), systemImage: "book")
                         }
+                    } label: {
+                        Label(NSLocalizedString("VIEW_SERIES"), systemImage: "book")
                     }
 
                     Button {
-                        if let url = DownloadManager.shared.getMangaDirectoryUrl(identifier: viewModel.manga.mangaIdentifier) {
-                            UIApplication.shared.open(url)
+                        Task {
+                            if let url = await DownloadManager.shared.getMangaDirectoryUrl(identifier: viewModel.manga.mangaIdentifier) {
+                                await MainActor.run {
+                                    UIApplication.shared.open(url)
+                                }
+                            }
                         }
                     } label: {
                         Label(NSLocalizedString("VIEW_FILES"), systemImage: "folder")

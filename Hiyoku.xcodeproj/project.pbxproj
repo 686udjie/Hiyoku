@@ -21,6 +21,11 @@
 		1424DE342F1D41710086BA0A /* VTTSubtitlesLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1424DE332F1D416F0086BA0A /* VTTSubtitlesLoader.swift */; };
 		142D150C2F23F58C00BAFC83 /* SkipDurationPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 142D150B2F23F58C00BAFC83 /* SkipDurationPickerView.swift */; };
 		148D0C932F1BB37A003588D7 /* PlaceholderGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 148D0C922F1BB37A003588D7 /* PlaceholderGridView.swift */; };
+		149AEABA2F28EC2C0040D68A /* DownloadedEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 149AEAB92F28EC2A0040D68A /* DownloadedEntry.swift */; };
+		149AEABC2F28EC560040D68A /* DownloadedVideoInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 149AEABB2F28EC540040D68A /* DownloadedVideoInfo.swift */; };
+		149AEAC22F28EEB90040D68A /* DownloadedPlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 149AEAC12F28EEB50040D68A /* DownloadedPlayerView.swift */; };
+		14AE83632F297A7A003A578D /* DownloadStatusTracker.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14AE83622F297A78003A578D /* DownloadStatusTracker.swift */; };
+		14AE83652F297D9D003A578D /* PlayerEpisode+Conversion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14AE83642F297D9A003A578D /* PlayerEpisode+Conversion.swift */; };
 		14BDAA9C2F269CD90052DF0C /* CoreDataManager+InsightsInternal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14BDAA9B2F269CD80052DF0C /* CoreDataManager+InsightsInternal.swift */; };
 		14BDAA9E2F269DD50052DF0C /* InsightsTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14BDAA9D2F269DD30052DF0C /* InsightsTypes.swift */; };
 		37F3E66D2850F62100A944E0 /* Collection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37F3E66C2850F62100A944E0 /* Collection.swift */; };
@@ -434,6 +439,11 @@
 		1424DE332F1D416F0086BA0A /* VTTSubtitlesLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VTTSubtitlesLoader.swift; sourceTree = "<group>"; };
 		142D150B2F23F58C00BAFC83 /* SkipDurationPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkipDurationPickerView.swift; sourceTree = "<group>"; };
 		148D0C922F1BB37A003588D7 /* PlaceholderGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaceholderGridView.swift; sourceTree = "<group>"; };
+		149AEAB92F28EC2A0040D68A /* DownloadedEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadedEntry.swift; sourceTree = "<group>"; };
+		149AEABB2F28EC540040D68A /* DownloadedVideoInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadedVideoInfo.swift; sourceTree = "<group>"; };
+		149AEAC12F28EEB50040D68A /* DownloadedPlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadedPlayerView.swift; sourceTree = "<group>"; };
+		14AE83622F297A78003A578D /* DownloadStatusTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadStatusTracker.swift; sourceTree = "<group>"; };
+		14AE83642F297D9A003A578D /* PlayerEpisode+Conversion.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "PlayerEpisode+Conversion.swift"; sourceTree = "<group>"; };
 		14BDAA9B2F269CD80052DF0C /* CoreDataManager+InsightsInternal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CoreDataManager+InsightsInternal.swift"; sourceTree = "<group>"; };
 		14BDAA9D2F269DD30052DF0C /* InsightsTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InsightsTypes.swift; sourceTree = "<group>"; };
 		1A2B3C4D5E6F7A8B9C0D1E2F /* Player.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = Player.swift; path = Player/Player.swift; sourceTree = "<group>"; };
@@ -1039,6 +1049,7 @@
 				44B9F1E32C5A7D8900A8B124 /* EpisodeSortOption.swift */,
 				8A70B02E55BCF101EB1D33CB /* SearchItem.swift */,
 				D6C1E6B7C4382161904AE451 /* PlayerEpisode.swift */,
+				14AE83642F297D9A003A578D /* PlayerEpisode+Conversion.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -1142,6 +1153,7 @@
 				FB7983A02E0074B80044BC71 /* PopupWebViewHandler.swift */,
 				FB4275182961203100131377 /* SemanticVersion.swift */,
 				FB14B1252DF4CFDC0067E4D4 /* UIKitShim.swift */,
+				M3U8EXTRACTOR_REF /* M3U8Extractor.swift */,
 				FB16E6272DF4D85600E09ED6 /* DebouncedSearch.swift */,
 			);
 			path = Utilities;
@@ -1230,7 +1242,6 @@
 				FB1B48B0277CF7880056D02C /* Old UI */,
 				FB1B4850277CE2300056D02C /* Info.plist */,
 				FB4EEBDE27A4F5AF005081A3 /* iOS.entitlements */,
-				UTILS_GROUP /* Utils */,
 			);
 			path = iOS;
 			sourceTree = "<group>";
@@ -1869,6 +1880,7 @@
 		FBB516482E2F057200749F4E /* Downloads */ = {
 			isa = PBXGroup;
 			children = (
+				149AEAC12F28EEB50040D68A /* DownloadedPlayerView.swift */,
 				723D3AFB2E0DC5C4003ED4CF /* DownloadsView.swift */,
 				FBB516492E2F231B00749F4E /* DownloadsView+ViewModel.swift */,
 				723D3AFC2E0DC5C4003ED4CF /* DownloadedMangaView.swift */,
@@ -1960,6 +1972,7 @@
 		FBE578FE2899840E00F9F1B5 /* Managers */ = {
 			isa = PBXGroup;
 			children = (
+				14AE83622F297A78003A578D /* DownloadStatusTracker.swift */,
 				1455C5202F25686400126BBA /* Player */,
 				FB0CAA6728A9B5AC0024561A /* Manga */,
 				FB0CAA4A28A2AD2E0024561A /* CoreData */,
@@ -1970,6 +1983,8 @@
 		FBE7813128308DCA0038C0E3 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				149AEABB2F28EC540040D68A /* DownloadedVideoInfo.swift */,
+				149AEAB92F28EC2A0040D68A /* DownloadedEntry.swift */,
 				723D3AF82E0DC5A5003ED4CF /* DownloadedMangaInfo.swift */,
 				FBE7812E28308DC60038C0E3 /* Download.swift */,
 			);
@@ -2063,14 +2078,6 @@
 				FBE78128282F481A0038C0E3 /* DownloadCache.swift */,
 			);
 			path = Downloads;
-			sourceTree = "<group>";
-		};
-		UTILS_GROUP /* Utils */ = {
-			isa = PBXGroup;
-			children = (
-				M3U8EXTRACTOR_REF /* M3U8Extractor.swift */,
-			);
-			path = Utils;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -2295,6 +2302,7 @@
 				FB97BFFA2EC7BD6000235F87 /* SearchContentView.swift in Sources */,
 				002C0AC22EC0F44D0071CE82 /* LAPolicy.swift in Sources */,
 				FBE578F928983F5700F9F1B5 /* UICollectionView+CellRegistration.swift in Sources */,
+				14AE83652F297D9D003A578D /* PlayerEpisode+Conversion.swift in Sources */,
 				FBED232527BC07690095D0C0 /* SourceInfoViewController.swift in Sources */,
 				FBED232727BDB69B0095D0C0 /* SettingSelectViewController.swift in Sources */,
 				FBE3E4972DD401B700EF8145 /* ReaderTextViewController.swift in Sources */,
@@ -2312,6 +2320,7 @@
 				FB2BE5E229527A6100FAD8A7 /* ZoomableScrollView.swift in Sources */,
 				FB1B4856277CE5560056D02C /* SceneDelegate.swift in Sources */,
 				FB0CAA6A28A9BB9C0024561A /* ReaderViewController.swift in Sources */,
+				14AE83632F297A7A003A578D /* DownloadStatusTracker.swift in Sources */,
 				FB17114329653B3E00AD523D /* AddToCategoryViewController.swift in Sources */,
 				FB0E1CCE288AE9B000B67BA9 /* AniListTracker.swift in Sources */,
 				FB716DFC283DA2D400F1BB5D /* Logger.swift in Sources */,
@@ -2442,6 +2451,7 @@
 				FB72502827CC06AA0037F1C9 /* SegmentTableViewCell.swift in Sources */,
 				FB3DDA0C2ECE60A30081232F /* SourceErrorView.swift in Sources */,
 				FB2BE5E329527A6E00FAD8A7 /* ReaderInfoPageView.swift in Sources */,
+				149AEAC22F28EEB90040D68A /* DownloadedPlayerView.swift in Sources */,
 				723D3AFD2E0DC5C4003ED4CF /* DownloadsView.swift in Sources */,
 				723D3AFE2E0DC5C4003ED4CF /* DownloadedMangaView.swift in Sources */,
 				FB67EE6327F3D2E300C468EA /* WasmAidoku.swift in Sources */,
@@ -2460,6 +2470,7 @@
 				FB6E34CC279E189300BFE54B /* GetButtonView.swift in Sources */,
 				FB792F762DC90C84001EC616 /* UserDefaultsObserver.swift in Sources */,
 				3C16530390D04B6A87F652BD /* UserDefaultsKeys.swift in Sources */,
+				149AEABC2F28EC560040D68A /* DownloadedVideoInfo.swift in Sources */,
 				FB7B7ED1278CE670001E6EAF /* SourceManager.swift in Sources */,
 				FBAED4092E3A6BCC00B81E74 /* HistoryView.swift in Sources */,
 				FB9C0A0A2F2B3C4D00E1A2B3 /* PlayerHistoryView.swift in Sources */,
@@ -2483,6 +2494,7 @@
 				FBD796682ED1333D00BD05F4 /* DoubleBadgeView.swift in Sources */,
 				FB67EE6027F3708400C468EA /* WasmImports.swift in Sources */,
 				FB034EA42EAC27600072EEEB /* MangaIdentifier.swift in Sources */,
+				149AEABA2F28EC2C0040D68A /* DownloadedEntry.swift in Sources */,
 				FB7F05F62DDCDC910036B116 /* HostingNode.swift in Sources */,
 				FB3DDA0A2ECE4D3A0081232F /* SourceSearchViewModel.swift in Sources */,
 				FB4B0ADD285C2C570066A13B /* TrackSearchItem.swift in Sources */,

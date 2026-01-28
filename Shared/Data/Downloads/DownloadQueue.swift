@@ -61,7 +61,6 @@ actor DownloadQueue {
                 try BGTaskScheduler.shared.submit(request)
                 return
             } catch {
-                LogManager.logger.error("Failed to start background downloading: \(error)")
             }
         }
 #endif
@@ -129,24 +128,34 @@ actor DownloadQueue {
             guard !(await cache.isChapterDownloaded(identifier: identifier)) else {
                 continue
             }
-            // create tmp directory so we know it's queued
-            cache.tmpDirectory(for: identifier).createDirectory()
-            let download = Download.from(manga: manga, chapter: chapter)
-            downloads.append(download)
-            if queue[manga.sourceKey] == nil {
-                queue[manga.sourceKey] = [download]
-            } else {
-                queue[manga.sourceKey]?.append(download)
-                await tasks[manga.sourceKey]?.add(download: download)
-            }
+            downloads.append(Download.from(manga: manga, chapter: chapter))
         }
-        totalDownloads += downloads.count
+        return await add(downloads: downloads, autoStart: autoStart)
+    }
+
+    @discardableResult
+    func add(downloads: [Download], autoStart: Bool = true) async -> [Download] {
+        var added: [Download] = []
+        for download in downloads {
+            let sourceKey = download.chapterIdentifier.sourceKey
+            // create tmp directory so we know it's queued
+            cache.tmpDirectory(for: download.chapterIdentifier).createDirectory()
+
+            if queue[sourceKey] == nil {
+                queue[sourceKey] = [download]
+            } else {
+                queue[sourceKey]?.append(download)
+                await tasks[sourceKey]?.add(download: download)
+            }
+            added.append(download)
+        }
+        totalDownloads += added.count
         bgTask?.progress.totalUnitCount = Int64(totalDownloads)
         if autoStart {
             await start()
         }
         saveQueueState()
-        return downloads
+        return added
     }
 
     func cancelDownload(for chapter: ChapterIdentifier) async {
@@ -229,8 +238,13 @@ actor DownloadQueue {
         }
     }
 
-    func hasQueuedDownloads() -> Bool {
-        !queue.isEmpty
+    func hasQueuedDownloads(type: DownloadType? = nil) -> Bool {
+        if let type = type {
+            return queue.values.contains { downloads in
+                downloads.contains { $0.type == type }
+            }
+        }
+        return !queue.isEmpty
     }
 
     func isRunning() async -> Bool {

@@ -52,8 +52,13 @@
 "NO_DOWNLOADS" = "No Downloads";
 "NO_DOWNLOADS_TEXT" = "Downloaded content will appear here.";
 "DOWNLOADED_CHAPTERS" = "Downloaded Chapters";
+"DOWNLOADED_VIDEOS" = "Downloaded Videos";
 "TOTAL_DOWNLOADS" = "Total Downloads";
 "%i_SERIES" = "%i series";
+"%i_ITEMS" = "%i items";
+"1_VIDEO" = "1 Video";
+"%i_VIDEOS" = "%i Videos";
+"%i_ITEMS_WILL_BE_REMOVED" = "%i items will be removed.";
 "IN_LIBRARY" = "In Library";
 "VIEW_SERIES" = "View Series";
 "VIEW_FILES" = "View Files";
@@ -349,6 +354,7 @@
 "NO_CHAPTERS" = "No Chapters";
 "NO_CHAPTERS_AVAILABLE" = "No Chapters Available";
 "NO_EPISODES" = "No Episodes";
+"EPISODE_X" = "Episode %d";
 "START_READING" = "Start Reading";
 "CONTINUE_READING" = "Continue Reading";
 "READ" = "Read";

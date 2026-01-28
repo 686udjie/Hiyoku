@@ -62,6 +62,7 @@ struct ChapterTableCell: View {
             } else if let progress {
                 DownloadProgressView(progress: progress)
                     .frame(width: 13, height: 13)
+                    .tint(.accentColor)
             } else if locked {
                 Image(systemName: "lock.fill")
                     .imageScale(.small)
@@ -89,7 +90,7 @@ private struct DownloadProgressView: UIViewRepresentable {
         let progressView = CircularProgressView(frame: CGRect(x: 0, y: 0, width: 13, height: 13))
         progressView.radius = 13 / 2
         progressView.trackColor = .quaternaryLabel
-        progressView.progressColor = progressView.tintColor
+        progressView.progressColor = UIColor(Color.accentColor)
         return progressView
     }
 

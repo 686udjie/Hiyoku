@@ -6,6 +6,7 @@
 //
 
 import AidokuRunner
+import AVFoundation
 import Foundation
 import Nuke
 import UniformTypeIdentifiers
@@ -157,13 +158,17 @@ extension DownloadTask {
         }
 
         // attempt to download first chapter in the queue
-        if
-            let download = downloads.first,
+        if let download = downloads.first {
             let source = SourceManager.shared.source(for: download.chapterIdentifier.sourceKey)
-        {
+            if source == nil && download.type != .video {
+                downloads.removeFirst()
+                await next()
+                return
+            }
+
             // if chapter already downloaded, skip
             let directory = cache.directory(for: download.chapterIdentifier)
-            guard !directory.exists && !directory.appendingPathExtension("cbz").exists else {
+            if directory.exists || directory.appendingPathExtension("cbz").exists {
                 downloads.removeFirst()
                 await delegate?.downloadFinished(download: download)
                 return await next()
@@ -177,12 +182,12 @@ extension DownloadTask {
             }
 
             Task {
-                await self.download(from: source)
+                if download.type == .video {
+                    await self.downloadVideo()
+                } else if let source = source {
+                    await self.download(from: source)
+                }
             }
-        } else {
-            // source not found, skip this download
-            downloads.removeFirst()
-            await next()
         }
     }
 
@@ -239,7 +244,6 @@ extension DownloadTask {
                     }
                 } catch {
                     failedPages += 1
-                    LogManager.logger.error("Error writing page data: \(error)")
                 }
             }
 
@@ -276,11 +280,7 @@ extension DownloadTask {
                             return
                         }
                         if let data, let path {
-                            do {
-                                try data.write(to: path)
-                            } catch {
-                                LogManager.logger.error("Error writing downloaded image: \(error)")
-                            }
+                            try? data.write(to: path)
                         }
                         await self.incrementProgress(for: download.chapterIdentifier, failed: data == nil)
                     }
@@ -295,11 +295,7 @@ extension DownloadTask {
                     return
                 }
                 if let data, let path {
-                    do {
-                        try data.write(to: path)
-                    } catch {
-                        LogManager.logger.error("Error writing downloaded image: \(error)")
-                    }
+                    try? data.write(to: path)
                 }
                 await self.incrementProgress(for: download.chapterIdentifier, failed: data == nil)
             }
@@ -360,14 +356,12 @@ extension DownloadTask {
                 resultData = newImage.pngData()
                 resultPath = page.targetPath.appendingPathExtension("png")
             } catch {
-                LogManager.logger.error("Error processing image: \(error)")
             }
         } else if let (data, res) = result {
             let fileExtention = self.guessFileExtension(response: res, defaultValue: "png")
             resultData = data
             resultPath = page.targetPath.appendingPathExtension(fileExtention)
         } else {
-            LogManager.logger.error("Error downloading image with url \(urlRequest)")
         }
 
         return (resultData, resultPath)
@@ -393,6 +387,21 @@ extension DownloadTask {
 
     private func handleChapterDownloadFinish(download: Download) async {
         let tmpDirectory = cache.tmpDirectory(for: download.chapterIdentifier)
+
+        if download.type == .video {
+            let isFailure = failedPages > 0
+            if isFailure {
+                tmpDirectory.removeItem()
+                await notifyDownloadCancelled(download: download)
+            } else {
+                await finalizeDownload(download: download, tmpDirectory: tmpDirectory)
+                await notifyDownloadFinished(download: download)
+            }
+
+            resetTaskProgress()
+            await next()
+            return
+        }
 
         if failedPages == pages.count {
             // the entire chapter failed to download, skip adding to cache and cancel
@@ -449,6 +458,273 @@ extension DownloadTask {
         currentPage = 0
         failedPages = 0
         await next()
+    }
+
+    private func finalizeDownload(download: Download, tmpDirectory: URL) async {
+        do {
+            await DownloadManager.shared.saveChapterMetadata(manga: download.manga, chapter: download.chapter, to: tmpDirectory)
+
+            let directory = if download.type == .video {
+                getFinalDirectory(for: download)
+            } else {
+                cache.directory(for: download.chapterIdentifier)
+            }
+            directory.deletingLastPathComponent().createDirectory()
+
+            try FileManager.default.moveItem(at: tmpDirectory, to: directory)
+
+            if download.type == .manga && UserDefaults.standard.bool(forKey: "Downloads.compress") {
+                let archiveURL = directory.appendingPathExtension("cbz")
+                try FileManager.default.zipItem(at: directory, to: archiveURL, shouldKeepParent: false)
+                directory.removeItem()
+            }
+
+            await saveCoverIfMissing(download: download, seriesDirectory: directory.deletingLastPathComponent())
+            await cache.add(chapter: download.chapterIdentifier, url: directory)
+        } catch {
+            LogManager.logger.error("Failed to finalize download: \(error)")
+        }
+    }
+
+    private func getFinalDirectory(for download: Download) -> URL {
+        let source = SourceManager.shared.source(for: download.chapterIdentifier.sourceKey)
+        let sourceName = download.sourceName ?? source?.name ?? download.chapterIdentifier.sourceKey
+        let seriesTitle = download.manga.title
+
+        if download.type == .video {
+            let episodeNumber = download.chapter.chapterNumber.map { String(format: "%g", $0) } ?? "0"
+            return cache.readableDirectory(
+                for: download.chapterIdentifier,
+                sourceName: sourceName,
+                seriesTitle: seriesTitle,
+                episodeName: "Episode \(episodeNumber)"
+            )
+        } else {
+            let chapterName = download.chapter.title
+            return cache.readableDirectory(
+                for: download.chapterIdentifier,
+                sourceName: sourceName,
+                seriesTitle: seriesTitle,
+                episodeName: chapterName
+            )
+        }
+    }
+
+    private func saveCoverIfMissing(download: Download, seriesDirectory: URL) async {
+        let coverPath = seriesDirectory.appendingPathComponent("cover.png")
+        guard !coverPath.exists else { return }
+
+        let coverUrlString = download.type == .video ? download.posterUrl : download.manga.cover
+        guard let coverUrl = coverUrlString.flatMap({ URL(string: $0) }) else { return }
+
+        let source = SourceManager.shared.source(for: download.chapterIdentifier.sourceKey)
+        let request = await source?.getModifiedImageRequest(url: coverUrl, context: nil) ?? URLRequest(url: coverUrl)
+
+        if let (data, _) = try? await URLSession.shared.data(for: request) {
+            seriesDirectory.createDirectory()
+            try? data.write(to: coverPath)
+        }
+    }
+
+    private func notifyDownloadFinished(download: Download) async {
+        if let index = downloads.firstIndex(where: { $0 == download }) {
+            downloads[index].status = .finished
+            downloads.remove(at: index)
+            await delegate?.downloadFinished(download: download)
+        }
+    }
+
+    private func notifyDownloadCancelled(download: Download) async {
+        if let index = downloads.firstIndex(where: { $0 == download }) {
+            downloads[index].status = .cancelled
+            downloads.remove(at: index)
+            await delegate?.downloadCancelled(download: download)
+        }
+    }
+
+    private func resetTaskProgress() {
+        pages = []
+        currentPage = 0
+        failedPages = 0
+    }
+
+    private func downloadVideo() async {
+        guard running && !downloads.isEmpty else { return }
+        let download = downloads[0]
+        downloads[0].status = .downloading
+
+        guard let videoUrl = download.videoUrl else {
+            await handleChapterDownloadFinish(download: download)
+            return
+        }
+
+        let (resolvedUrl, resolvedHeaders) = await resolveVideoUrl(videoUrl, download: download)
+        guard !resolvedUrl.isEmpty else {
+            failedPages = 1
+            await handleChapterDownloadFinish(download: download)
+            return
+        }
+
+        let tmpDirectory = cache.tmpDirectory(for: download.chapterIdentifier)
+        tmpDirectory.createDirectory()
+
+        do {
+            let extractor = M3U8Extractor.shared
+            let streamUrl = try await extractor.resolveBestStreamUrl(url: resolvedUrl, headers: resolvedHeaders)
+            let playlist = try await extractor.fetchAndParseM3U8(url: streamUrl, headers: resolvedHeaders)
+            let segments = playlist.segments
+
+            guard !segments.isEmpty else {
+                await handleChapterDownloadFinish(download: download)
+                return
+            }
+
+            downloads[0].total = segments.count
+            await delegate?.downloadProgressChanged(download: downloads[0])
+
+            let segmentDirectory = tmpDirectory.appendingPathComponent("segments")
+            segmentDirectory.createDirectory()
+
+            try await downloadSegmentsParallel(segments, directory: segmentDirectory, headers: resolvedHeaders, download: download)
+
+            let episodeNumber = download.chapter.chapterNumber.map { String(format: "%g", $0) } ?? "0"
+            let finalVideoFile = tmpDirectory.appendingPathComponent("Episode \(episodeNumber)").appendingPathExtension("mp4")
+            try await mergeSegments(at: segmentDirectory, to: finalVideoFile)
+
+            segmentDirectory.removeItem()
+            await handleChapterDownloadFinish(download: download)
+        } catch {
+            failedPages = 1
+            await handleChapterDownloadFinish(download: download)
+        }
+    }
+
+    private func resolveVideoUrl(_ videoUrl: String, download: Download) async -> (String, [String: String]) {
+        var resolvedUrl = videoUrl
+        var resolvedHeaders = download.headers ?? [:]
+
+        if !resolvedUrl.lowercased().hasPrefix("http") {
+            let sourceKey = download.chapterIdentifier.sourceKey
+            let module = await MainActor.run { ModuleManager.shared.modules.first { $0.id.uuidString == sourceKey } }
+
+            if let module = module {
+                let (streams, _) = await JSController.shared.fetchPlayerStreams(episodeId: resolvedUrl, module: module)
+                if let first = streams.first {
+                    resolvedUrl = first.url
+                    resolvedHeaders = first.headers
+                } else {
+                    return ("", [:])
+                }
+            } else {
+                return ("", [:])
+            }
+        }
+        return (resolvedUrl, resolvedHeaders)
+    }
+
+    private func downloadSegmentsParallel(
+        _ segments: [M3U8Extractor.M3U8Segment],
+        directory: URL,
+        headers: [String: String],
+        download: Download
+    ) async throws {
+        let maxConcurrent = Self.maxConcurrentPageTasks
+
+        for chunk in Array(segments.enumerated()).chunked(into: maxConcurrent) {
+            guard running && downloads.first == download else { return }
+
+            await withTaskGroup(of: Void.self) { group in
+                for (index, segment) in chunk {
+                    group.addTask {
+                        guard let segmentUrl = URL(string: segment.url) else { return }
+                        let segmentFile = directory.appendingPathComponent(String(format: "%05d.ts", index))
+
+                        if !segmentFile.exists {
+                            var request = URLRequest(url: segmentUrl)
+                            if headers.isEmpty {
+                                let userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " +
+                                               "AppleWebKit/537.36 (KHTML, like Gecko) " +
+                                               "Chrome/120.0.0.0 Safari/537.36"
+                                request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
+                                request.setValue(segmentUrl.absoluteString, forHTTPHeaderField: "Referer")
+                            } else {
+                                for (key, value) in headers {
+                                    request.setValue(value, forHTTPHeaderField: key)
+                                }
+                            }
+                            do {
+                                let (data, _) = try await URLSession.shared.data(for: request)
+                                try data.write(to: segmentFile)
+                            } catch {
+                                LogManager.logger.error("Failed to download segment \(index): \(error)")
+                            }
+                        }
+                    }
+                }
+            }
+
+            let lastIndex = chunk.last?.0 ?? 0
+            currentPage = lastIndex + 1
+            downloads[0].progress = currentPage
+            await delegate?.downloadProgressChanged(download: downloads[0])
+        }
+    }
+
+    private func mergeSegments(at directory: URL, to destination: URL) async throws {
+        let segmentFiles = directory.contents
+            .filter { $0.pathExtension == "ts" }
+            .sorted { $0.lastPathComponent < $1.lastPathComponent }
+
+        guard !segmentFiles.isEmpty else {
+            throw NSError(domain: "DownloadTask", code: -2, userInfo: [NSLocalizedDescriptionKey: "No segments found to merge"])
+        }
+
+        let concatenatedTsFile = directory.appendingPathComponent("concatenated.ts")
+        if concatenatedTsFile.exists {
+            concatenatedTsFile.removeItem()
+        }
+
+        FileManager.default.createFile(atPath: concatenatedTsFile.path, contents: nil, attributes: nil)
+        let fileHandle = try FileHandle(forWritingTo: concatenatedTsFile)
+        for file in segmentFiles {
+            let data = try Data(contentsOf: file)
+            fileHandle.write(data)
+        }
+        try fileHandle.close()
+
+        let asset = AVURLAsset(url: concatenatedTsFile)
+
+        do {
+            let tracks = try await asset.load(.tracks)
+            guard !tracks.isEmpty else {
+                throw NSError(domain: "DownloadTask", code: -3, userInfo: [NSLocalizedDescriptionKey: "Concatenated file has no tracks"])
+            }
+
+            guard let exportSession = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetHighestQuality) else {
+                throw NSError(domain: "DownloadTask", code: -1, userInfo: [NSLocalizedDescriptionKey: "Failed to create AVAssetExportSession"])
+            }
+
+            if destination.exists {
+                destination.removeItem()
+            }
+
+            exportSession.outputURL = destination
+            exportSession.outputFileType = .mp4
+            exportSession.shouldOptimizeForNetworkUse = true
+
+            await exportSession.export()
+
+            if let error = exportSession.error {
+                throw error
+            }
+
+            concatenatedTsFile.removeItem()
+        } catch {
+            if destination.exists {
+                destination.removeItem()
+            }
+            try FileManager.default.moveItem(at: concatenatedTsFile, to: destination)
+        }
     }
 }
 

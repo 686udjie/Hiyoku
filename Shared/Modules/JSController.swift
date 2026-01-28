@@ -68,22 +68,17 @@ public class JSController: ObservableObject {
         let asyncChaptersHelper = """
         function extractChaptersWithCallback(href, callback) {
             try {
-                console.log('[JS] extractChaptersWithCallback called with href:', href);
                 var result = extractChapters(href);
                 if (result && typeof result.then === 'function') {
                     result.then(function(arr) {
-                        console.log('[JS] extractChaptersWithCallback Promise resolved, arr.length:', arr && arr.length);
                         callback(arr);
                     }).catch(function(e) {
-                        console.log('[JS] extractChaptersWithCallback Promise rejected:', e);
                         callback([]);
                     });
                 } else {
-                    console.log('[JS] extractChaptersWithCallback result is not a Promise:', result);
                     callback(result);
                 }
             } catch (_) {
-                console.log('[JS] extractChaptersWithCallback threw');
                 callback([]);
             }
         }
@@ -91,22 +86,17 @@ public class JSController: ObservableObject {
         let asyncEpisodesHelper = """
         function extractEpisodesWithCallback(href, callback) {
             try {
-                console.log('[JS] extractEpisodesWithCallback called with href:', href);
                 var result = extractEpisodes(href);
                 if (result && typeof result.then === 'function') {
                     result.then(function(arr) {
-                        console.log('[JS] extractEpisodesWithCallback Promise resolved, arr.length:', arr && arr.length);
                         callback(arr);
                     }).catch(function(e) {
-                        console.log('[JS] extractEpisodesWithCallback Promise rejected:', e);
                         callback([]);
                     });
                 } else {
-                    console.log('[JS] extractEpisodesWithCallback result is not a Promise:', result);
                     callback(result);
                 }
             } catch (_) {
-                console.log('[JS] extractEpisodesWithCallback threw');
                 callback([]);
             }
         }
@@ -530,20 +520,28 @@ extension JSController {
                 }
 
                 let result = extractStreamUrl.call(withArguments: [episodeId])
-                return parseStreamResultFromJSValue(result)
+                let streams = await parseStreamResultFromJSValue(result)
+                return streams
             } catch {
                 return ([], nil)
             }
         }
     }
 
-    private func parseStreamResultFromJSValue(_ result: JSValue?) -> ([StreamInfo], String?) {
-        guard let result = result else { return ([], nil) }
+    private func parseStreamResultFromJSValue(_ result: JSValue?) async -> ([StreamInfo], String?) {
+        guard let result = result else {
+            return ([], nil)
+        }
 
         // Handle Promise if returned
         if result.hasProperty("then") {
-            // This is a Promise, we need to handle it asynchronously
-            return handlePromiseResult(result)
+            guard let resolvedValue = await awaitPromiseResolution(result) else {
+                return ([], nil)
+            }
+            guard let resultString = resolvedValue.toString(), !resultString.isEmpty else {
+                return ([], nil)
+            }
+            return parseStreamResult(resultString)
         }
 
         // Try to get string representation
@@ -552,23 +550,6 @@ extension JSController {
         }
 
         return parseStreamResult(resultString)
-    }
-    private func handlePromiseResult(_ promise: JSValue) -> ([StreamInfo], String?) {
-        // TODO: refactor to use async/await
-        let semaphore = DispatchSemaphore(value: 0)
-        var finalResult: ([StreamInfo], String?) = ([], nil)
-        let thenHandler: @convention(block) (JSValue, JSValue) -> Void = { resolvedValue, _ in
-            if let resultString = resolvedValue.toString(), !resultString.isEmpty {
-                finalResult = self.parseStreamResult(resultString)
-            }
-            semaphore.signal()
-        }
-        let catchHandler: @convention(block) (JSValue, JSValue) -> Void = { _, _ in
-            semaphore.signal()
-        }
-        promise.invokeMethod("then", withArguments: [JSValue(object: thenHandler, in: context)!, JSValue(object: catchHandler, in: context)!])
-        semaphore.wait()
-        return finalResult
     }
 
     private func parseStreamResult(_ resultString: String) -> ([StreamInfo], String?) {

@@ -272,6 +272,7 @@ struct HistoryView: View {
             if viewModel.loadingState != .complete {
                 ProgressView()
                     .progressViewStyle(.circular)
+                    .tint(.accentColor)
                     .onReportScrollVisibilityChange(trigger: $triggerLoadMoreVisibleCheck) { visible in
                         Task {
                             await loadTask?.value

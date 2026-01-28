@@ -19,8 +19,14 @@ extension MangaView {
         @Published var otherDownloadedChapters: [AidokuRunner.Chapter] = []
 
         @Published var readingHistory: [String: (page: Int, date: Int)] = [:]
-        @Published var downloadProgress: [String: Float] = [:] // chapterId: progress
-        @Published var downloadStatus: [String: DownloadStatus] = [:] // chapterId: status
+        var downloadStatus: [String: DownloadStatus] {
+            downloadTracker.downloadStatus
+        }
+        var downloadProgress: [String: Float] {
+            downloadTracker.downloadProgress
+        }
+
+        @Published private var downloadTracker: DownloadStatusTracker
 
         @Published var bookmarked = false
 
@@ -57,10 +63,12 @@ extension MangaView {
         init(source: AidokuRunner.Source?, manga: AidokuRunner.Manga) {
             self.source = source
             self.manga = manga
+            self.downloadTracker = DownloadStatusTracker(sourceId: manga.sourceKey, mangaId: manga.key)
 
             let key = "Manga.chapterDisplayMode.\(manga.uniqueKey)"
             self.chapterTitleDisplayMode = .init(rawValue: UserDefaults.standard.integer(forKey: key)) ?? .default
 
+            setupDownloadTracker()
             setupNotifications()
         }
 
@@ -103,7 +111,9 @@ extension MangaView {
                         let newSource = SourceManager.shared.source(for: migration.to.sourceId)
                     else { return }
                     self.source = newSource
-                    manga = migration.to.toNew()
+                    self.source = newSource
+                    self.manga = migration.to.toNew()
+                    self.setupDownloadTracker()
                 }
                 .store(in: &cancellables)
 
@@ -181,58 +191,12 @@ extension MangaView {
                 }
                 .store(in: &cancellables)
 
-            // downloads
-            NotificationCenter.default.publisher(for: .downloadsQueued)
+            // other downloaded chapters maintenance
+            NotificationCenter.default.publisher(for: .downloadRemoved)
                 .sink { [weak self] output in
-                    guard let self, let downloads = output.object as? [Download] else { return }
-                    let chapters = downloads.compactMap {
-                        if $0.mangaIdentifier == self.manga.identifier {
-                            $0.chapter
-                        } else {
-                            nil
-                        }
-                    }
-                    for chapter in chapters {
-                        self.downloadStatus[chapter.key] = .queued
-                        self.downloadProgress[chapter.key] = 0
-                    }
+                    self?.handleDownloadRemoved(output)
                 }
                 .store(in: &cancellables)
-
-            NotificationCenter.default.publisher(for: .downloadProgressed)
-                .sink { [weak self] output in
-                    guard
-                        let self,
-                        let download = output.object as? Download,
-                        download.mangaIdentifier == self.manga.identifier
-                    else { return }
-                    self.downloadStatus[download.chapterIdentifier.chapterKey] = .downloading
-                    self.downloadProgress[download.chapterIdentifier.chapterKey] = Float(download.progress) / Float(download.total)
-                }
-                .store(in: &cancellables)
-
-            for name in [
-                Notification.Name.downloadFinished,
-                Notification.Name.downloadRemoved,
-                Notification.Name.downloadCancelled
-            ] {
-                NotificationCenter.default.publisher(for: name)
-                    .sink { [weak self] output in
-                        self?.removeDownload(output)
-                    }
-                    .store(in: &cancellables)
-            }
-
-            for name in [
-                Notification.Name.downloadsRemoved,
-                Notification.Name.downloadsCancelled
-            ] {
-                NotificationCenter.default.publisher(for: name)
-                    .sink { [weak self] output in
-                        self?.removeDownloads(output)
-                    }
-                    .store(in: &cancellables)
-            }
         }
     }
 }
@@ -270,30 +234,34 @@ extension MangaView.ViewModel {
 
     // fetches manga data, from coredata if in library or from source if not
     func fetchData() async {
-        let sourceKey = manga.sourceKey
         let mangaId = manga.key
-        let inLibrary = await CoreDataManager.shared.container.performBackgroundTask { @Sendable context in
-            CoreDataManager.shared.hasLibraryManga(sourceId: sourceKey, mangaId: mangaId, context: context)
-        }
-        if inLibrary {
-            // load data from db
-            let chapters = await CoreDataManager.shared.container.performBackgroundTask { @Sendable context in
-                CoreDataManager.shared.getChapters(
-                    sourceId: sourceKey,
-                    mangaId: mangaId,
-                    context: context
-                ).map {
-                    $0.toNewChapter()
-                }
+        let sourceKey = manga.sourceKey
+        // Always try to load from DB first
+        let dbChapters: [AidokuRunner.Chapter] = await CoreDataManager.shared.container.performBackgroundTask { @Sendable context in
+            CoreDataManager.shared.getChapters(
+                sourceId: sourceKey,
+                mangaId: mangaId,
+                context: context
+            ).map {
+                $0.toNewChapter()
             }
+        }
 
+        if !dbChapters.isEmpty {
             var newManga = self.manga
-            newManga.chapters = chapters
+            newManga.chapters = dbChapters
             withAnimation {
                 self.manga = newManga
                 self.chapters = filteredChapters()
             }
-        } else if let source {
+        }
+
+        let inLibrary = await CoreDataManager.shared.container.performBackgroundTask { @Sendable context in
+            CoreDataManager.shared.hasLibraryManga(sourceId: sourceKey, mangaId: mangaId, context: context)
+        }
+
+        // If not in library, try to update from source
+        if !inLibrary, let source {
             // load new data from source
             await source.partialMangaPublisher?.sink { @Sendable newManga in
                 Task { @MainActor in
@@ -309,15 +277,36 @@ extension MangaView.ViewModel {
                     needsDetails: true,
                     needsChapters: true
                 )
+
+                // Cache fetched data to Core Data
+                if newManga.chapters != nil {
+                    let mangaToSave = self.manga
+                    await CoreDataManager.shared.container.performBackgroundTask { @Sendable context in
+                        _ = CoreDataManager.shared.getOrCreateManga(mangaToSave, sourceId: sourceKey, context: context)
+                        if let chapters = mangaToSave.chapters {
+                            CoreDataManager.shared.setChapters(
+                                chapters,
+                                sourceId: sourceKey,
+                                mangaId: mangaId,
+                                context: context
+                            )
+                        }
+                        try? context.save()
+                    }
+                }
+
                 withAnimation {
                     manga = newManga
                     chapters = filteredChapters()
                 }
             } catch {
-                withAnimation {
-                    self.manga.chapters = []
-                    self.chapters = []
-                    self.error = error
+                // only show error if we have no chapters
+                if self.chapters.isEmpty {
+                    withAnimation {
+                        self.manga.chapters = []
+                        self.chapters = []
+                        self.error = error
+                    }
                 }
             }
             await source.partialMangaPublisher?.removeSink()
@@ -410,30 +399,33 @@ extension MangaView.ViewModel {
                 needsChapters: true
             )
 
-            // update manga in db
-            if inLibrary {
-                await CoreDataManager.shared.container.performBackgroundTask { [chapterLangFilter, chapterScanlatorFilter] context in
-                    guard
-                        let libraryObject = CoreDataManager.shared.getLibraryManga(
+            let now = Date()
+            // always update manga in db
+            await CoreDataManager.shared.container.performBackgroundTask { [chapterLangFilter, chapterScanlatorFilter] context in
+                // ensure manga object exists and update it
+                let mangaObject = CoreDataManager.shared.getOrCreateManga(
+                    newManga,
+                    sourceId: sourceKey,
+                    context: context
+                )
+                mangaObject.load(from: newManga)
+
+                if let chapters = newManga.chapters {
+                    let newChapters = CoreDataManager.shared.setChapters(
+                        chapters,
+                        sourceId: sourceKey,
+                        mangaId: mangaKey,
+                        context: context
+                    )
+
+                    // specific updates if in library
+                    if inLibrary,
+                       let libraryObject = CoreDataManager.shared.getLibraryManga(
                             sourceId: sourceKey,
                             mangaId: mangaKey,
                             context: context
-                        ),
-                        let mangaObject = libraryObject.manga
-                    else {
-                        return
-                    }
-
-                    // update details
-                    mangaObject.load(from: newManga)
-
-                    if let chapters = newManga.chapters {
-                        let newChapters = CoreDataManager.shared.setChapters(
-                            chapters,
-                            sourceId: sourceKey,
-                            mangaId: mangaKey,
-                            context: context
-                        )
+                       )
+                    {
                         // add manga updates
                         for chapter in newChapters
                         where
@@ -448,22 +440,19 @@ extension MangaView.ViewModel {
                             )
                         }
                         libraryObject.lastChapter = chapters.compactMap { $0.dateUploaded }.max()
-                        libraryObject.lastUpdatedChapters = Date.now
-                    }
+                        libraryObject.lastUpdated = now
 
-                    let now = Date.now
-                    libraryObject.lastUpdated = now
-
-                    if !UserDefaults.standard.bool(forKey: UserDefaultsKey.General.incognitoMode) {
-                        libraryObject.lastOpened = now.addingTimeInterval(1) // ensure item isn't re-pinned, since it's already open
+                        if !UserDefaults.standard.bool(forKey: UserDefaultsKey.General.incognitoMode) {
+                            libraryObject.lastOpened = now.addingTimeInterval(1) // ensure item isn't re-pinned, since it's already open
+                        }
                     }
 
                     try? context.save()
                 }
+            }
 
-                if newManga.chapters != nil {
-                    await markOpened()
-                }
+            if inLibrary && newManga.chapters != nil {
+                await markOpened()
             }
 
             NotificationCenter.default.post(name: .updateManga, object: newManga.identifier)
@@ -489,13 +478,9 @@ extension MangaView.ViewModel {
     }
 
     private func loadDownloadStatus() async {
-        for chapter in chapters {
-            downloadStatus[chapter.key] = DownloadManager.shared.getDownloadStatus(
-                for: .init(sourceKey: manga.sourceKey, mangaKey: manga.key, chapterKey: chapter.key)
-            )
-        }
-        for chapter in otherDownloadedChapters {
-            downloadStatus[chapter.key] = .finished
+        await MainActor.run {
+             let allChapters = chapters + otherDownloadedChapters
+             downloadTracker.loadStatus(for: allChapters.map { $0.key })
         }
     }
 
@@ -517,6 +502,38 @@ extension MangaView.ViewModel {
             sourceId: manga.sourceKey,
             mangaId: manga.key
         )
+    }
+
+    private func setupDownloadTracker() {
+        if downloadTracker.sourceId != manga.sourceKey || downloadTracker.mangaId != manga.key {
+            self.downloadTracker = DownloadStatusTracker(sourceId: manga.sourceKey, mangaId: manga.key)
+        }
+
+        // Connect tracker to view model updates
+        // We need to re-subscribe whenever downloadTracker changes, but simply assigning to @Published downloadTracker 
+        // won't automatically clean up old subscriptions if we did it manually. 
+        // However, since we are in the ViewModel and downloadTracker is @Published,
+        // we can set up the subscription to the property itself (binding to the new value).
+        // BUT, earlier code was subscribing to `downloadTracker.objectWillChange`.
+        // If we replace `downloadTracker`, the old subscription might detach or persist depending on how it was done.
+        // The original init code did: 
+        // downloadTracker.objectWillChange.sink { ... }.store(in: &cancellables)
+        // If we replace the object, the old sink is still attached to the OLD object (which is now deallocated?),
+        // but we need a sink on the NEW object.
+
+        // Actually, simpler: just observe $downloadTracker (publisher of the property) OR the `downloadTracker` object manually.
+        // Since `downloadTracker` is @Published, we can just sink on `$downloadTracker`.
+        // Wait, `downloadTracker` is a `DownloadStatusTracker`, which is likely an `ObservableObject`.
+        // If we want the ViewModel to objectWillChange when tracker changes, we need to observe the tracker.
+
+        // Let's clear any existing tracker subscription if we are being rigorous, 
+        // but easier is to just ensure we subscribe to the new one.
+
+        downloadTracker.objectWillChange
+            .sink { [weak self] _ in
+                self?.objectWillChange.send()
+            }
+            .store(in: &cancellables)
     }
 }
 
@@ -569,41 +586,6 @@ extension MangaView.ViewModel {
         if bookmarked {
             Task {
                 await saveFilters()
-            }
-        }
-    }
-
-    private func removeDownload(_ notification: Notification) {
-        var chapter: ChapterIdentifier?
-        if let identifier = notification.object as? ChapterIdentifier {
-            chapter = identifier
-        } else if let download = notification.object as? Download {
-            chapter = download.chapterIdentifier
-        }
-        if let chapter {
-            downloadProgress.removeValue(forKey: chapter.chapterKey)
-            downloadStatus[chapter.chapterKey] = DownloadManager.shared.getDownloadStatus(for: chapter)
-            if let chapterIndex = otherDownloadedChapters.firstIndex(where: { $0.key == chapter.chapterKey }) {
-                withAnimation {
-                    _ = otherDownloadedChapters.remove(at: chapterIndex)
-                }
-            }
-        }
-    }
-
-    private func removeDownloads(_ notification: Notification) {
-        if let chapters = notification.object as? [ChapterIdentifier] {
-            for chapter in chapters {
-                downloadProgress.removeValue(forKey: chapter.chapterKey)
-                downloadStatus[chapter.chapterKey] = DownloadStatus.none
-            }
-        } else if
-            let manga = notification.object as? MangaIdentifier,
-            manga == self.manga.identifier
-        { // all chapters
-            downloadProgress = [:]
-            for chapter in self.manga.chapters ?? chapters {
-                downloadStatus[chapter.key] = DownloadStatus.none
             }
         }
     }
@@ -748,5 +730,20 @@ extension MangaView.ViewModel {
         manga.langFilter = chapterLangFilter
         manga.scanlatorFilter = chapterScanlatorFilter
         await CoreDataManager.shared.updateMangaDetails(manga: manga)
+    }
+
+    private func handleDownloadRemoved(_ notification: Notification) {
+        var chapterKey: String?
+        if let identifier = notification.object as? ChapterIdentifier {
+            chapterKey = identifier.chapterKey
+        } else if let download = notification.object as? Download {
+            chapterKey = download.chapterIdentifier.chapterKey
+        }
+
+        if let chapterKey, let index = otherDownloadedChapters.firstIndex(where: { $0.key == chapterKey }) {
+            withAnimation {
+                _ = otherDownloadedChapters.remove(at: index)
+            }
+        }
     }
 }

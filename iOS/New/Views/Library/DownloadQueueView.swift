@@ -8,11 +8,16 @@
 import SwiftUI
 
 struct DownloadQueueView: View {
+    var type: DownloadType?
     @State private var queue: [(sourceId: String, downloads: [Download])] = []
     @State private var progress: [ChapterIdentifier: (progress: Int, total: Int)] = [:]
     @State private var isPaused = false
 
     @Environment(\.dismiss) private var dismiss
+
+    init(type: DownloadType? = nil) {
+        self.type = type
+    }
 
     var body: some View {
         PlatformNavigationStack {
@@ -34,30 +39,23 @@ struct DownloadQueueView: View {
                                 }
                             }
                             .buttonStyle(.borderless)
+                            .tint(.accentColor)
                         }
                         .padding(padding)
-                        .background(
-                            Color(uiColor: .init(dynamicProvider: { collection in
-                                if collection.userInterfaceStyle == .dark {
-                                    .init(red: 0.20, green: 0.12, blue: 0.15, alpha: 1)
-                                } else {
-                                    .init(red: 0.95, green: 0.87, blue: 0.91, alpha: 1)
-                                }
-                            }))
-                            .opacity(0.8)
-                        )
+                        .background(Color.accentColor.opacity(0.15))
                         .listRowInsets(.zero)
                         .listRowSpacing(0)
                     }
                 }
 
                 ForEach(queue, id: \.sourceId) { section in
+                    let info = getSourceInfo(section.sourceId)
                     Section {
                         ForEach(section.downloads) { download in
                             HStack {
                                 MangaCoverView(
                                     source: nil,
-                                    coverImage: download.manga.cover ?? "",
+                                    coverImage: (download.type == .video ? download.posterUrl : download.manga.cover) ?? "",
                                     width: 56,
                                     height: 56 * 3/2,
                                     downsampleWidth: 56
@@ -67,7 +65,7 @@ struct DownloadQueueView: View {
                                 VStack(alignment: .leading) {
                                     Text(download.manga.title)
                                         .lineLimit(3)
-                                    Text(download.chapter.formattedTitle())
+                                    Text(download.type == .video ? download.chapter.title ?? "Episode" : download.chapter.formattedTitle())
                                         .foregroundStyle(.secondary)
                                         .font(.callout)
                                         .lineLimit(1)
@@ -79,6 +77,7 @@ struct DownloadQueueView: View {
                                     }
                                     ProgressView(value: value)
                                         .progressViewStyle(.linear)
+                                        .tint(.accentColor)
                                     if let progress {
                                         Text(String(format: NSLocalizedString("%i_OF_%i"), progress.progress, progress.total))
                                             .foregroundStyle(.secondary)
@@ -87,7 +86,7 @@ struct DownloadQueueView: View {
                                 }
                             }
                             .swipeActions(edge: .trailing) {
-                                Button {
+                                Button(role: .destructive) {
                                     remove(download: download)
                                     Task {
                                         await DownloadManager.shared.cancelDownload(for: download.chapterIdentifier)
@@ -95,20 +94,20 @@ struct DownloadQueueView: View {
                                 } label: {
                                     Label(NSLocalizedString("CANCEL"), systemImage: "xmark")
                                 }
-                                .tint(.accentColor)
                             }
                         }
                     } header: {
-                        HStack {
-                            let source = SourceManager.shared.source(for: section.sourceId)
+                        HStack(spacing: 8) {
                             SourceIconView(
                                 sourceId: section.sourceId,
-                                imageUrl: source?.imageUrl,
-                                iconSize: 29
+                                imageUrl: info.icon,
+                                iconSize: 20
                             )
-                            .scaleEffect(0.75)
-                            Text(source?.name ?? section.sourceId)
+                            Text(info.name)
+                                .font(.subheadline)
+                                .fontWeight(.medium)
                         }
+                        .padding(.vertical, 4)
                     }
                 }
             }
@@ -164,7 +163,7 @@ struct DownloadQueueView: View {
             }
             .task {
                 isPaused = await DownloadManager.shared.isQueuePaused()
-                let globalQueue = await DownloadManager.shared.getDownloadQueue()
+                let globalQueue = await DownloadManager.shared.getDownloadQueue(type: type)
                 var queue: [(String, [Download])] = []
                 for queueObject in globalQueue where !queueObject.value.isEmpty {
                     queue.append((queueObject.key, queueObject.value))
@@ -188,7 +187,8 @@ struct DownloadQueueView: View {
             }
             .onReceive(NotificationCenter.default.publisher(for: .downloadsQueued)) { output in
                 guard let downloads = output.object as? [Download] else { return }
-                for download in downloads {
+                let filteredDownloads = type != nil ? downloads.filter { $0.type == type } : downloads
+                for download in filteredDownloads {
                     let index = queue.firstIndex(where: { $0.sourceId == download.chapterIdentifier.sourceKey })
                     var downloads = index != nil ? self.queue[index!].downloads : []
                     downloads.append(download)
@@ -223,6 +223,16 @@ struct DownloadQueueView: View {
                     isPaused = false
                 }
             }
+        }
+    }
+
+    private func getSourceInfo(_ sourceId: String) -> (name: String, icon: URL?) {
+        if let source = SourceManager.shared.source(for: sourceId) {
+            return (source.name, source.imageUrl)
+        } else if let module = ModuleManager.shared.modules.first(where: { $0.id.uuidString == sourceId }) {
+            return (module.metadata.sourceName, URL(string: module.metadata.iconUrl))
+        } else {
+            return (NSLocalizedString(sourceId, comment: ""), nil)
         }
     }
 

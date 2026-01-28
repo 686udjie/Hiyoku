@@ -8,6 +8,7 @@
 import Foundation
 import SwiftUI
 import NukeUI
+import AidokuRunner
 
 class PlayerSession: ObservableObject, Identifiable {
     let id = UUID()
@@ -116,7 +117,8 @@ struct PlayerInfoView: View {
             )
             .navigationBarBackButtonHidden(viewModel.editMode == .active)
             .onChange(of: viewModel.editMode) { mode in
-                let controller = path.rootViewController as? UINavigationController ?? path.rootViewController?.navigationController
+                let controller = path.rootViewController as? UINavigationController ??
+                                 path.rootViewController?.navigationController
                 guard let navigationController = controller else { return }
                 if mode == .active {
                     navigationController.setDismissGesturesEnabled(false)
@@ -166,7 +168,9 @@ struct PlayerInfoView: View {
     @ToolbarContentBuilder
     private var toolbarContentBase: some ToolbarContent {
         ToolbarItem(placement: .navigationBarTrailing) {
-             PlayerRightNavbarButton(viewModel: viewModel, editMode: $viewModel.editMode)
+            HStack(spacing: 8) {
+                PlayerRightNavbarButton(viewModel: viewModel, editMode: $viewModel.editMode)
+            }
         }
 
         ToolbarItem(placement: .topBarLeading) {
@@ -329,23 +333,57 @@ struct PlayerInfoView: View {
     }
 
     private var toolbarDownloadButton: some View {
-        Button(String(localized: "DOWNLOAD")) {
-            // Placeholder for download functionality
-            withAnimation {
-                viewModel.editMode = .inactive
-            }
+        let allQueued = !viewModel.selectedEpisodes.isEmpty && !viewModel.selectedEpisodes.contains {
+            viewModel.downloadStatus[$0] != .queued
         }
-        .disabled(viewModel.selectedEpisodes.isEmpty)
-    }
+        let allDownloaded = !viewModel.selectedEpisodes.isEmpty && !viewModel.selectedEpisodes.contains {
+            viewModel.downloadStatus[$0] != .finished
+        }
 
+        if allQueued {
+            return AnyView(Button(String(localized: "CANCEL")) {
+                let episodes = viewModel.episodes.filter { viewModel.selectedEpisodes.contains($0.url) }
+                Task {
+                    await viewModel.cancelDownloads(for: episodes)
+                    withAnimation { viewModel.editMode = .inactive }
+                }
+            })
+        } else if allDownloaded {
+            return AnyView(Button(String(localized: "REMOVE")) {
+                let episodes = viewModel.episodes.filter { viewModel.selectedEpisodes.contains($0.url) }
+                Task {
+                    await viewModel.deleteEpisodes(episodes)
+                    withAnimation { viewModel.editMode = .inactive }
+                }
+            })
+        } else {
+            return AnyView(Button(String(localized: "DOWNLOAD")) {
+                Task {
+                    await viewModel.downloadSelectedEpisodes()
+                    withAnimation { viewModel.editMode = .inactive }
+                }
+            }
+            .disabled(viewModel.selectedEpisodes.isEmpty))
+        }
+    }
+}
+
+// MARK: - UI Components
+
+extension PlayerInfoView {
     @ViewBuilder
     private func viewForEpisode(_ episode: PlayerEpisode, index: Int) -> some View {
         let history = viewModel.episodeProgress[episode.url]
         let read = history?.progress == history?.total && history?.total != nil && history?.total != 0
+        let downloadStatus = viewModel.downloadStatus[episode.url, default: .none]
+        let downloadProgress = viewModel.downloadProgress[episode.url]
+
         EpisodeCellView(
             episode: episode,
             history: history,
             read: read,
+            downloadStatus: downloadStatus,
+            downloadProgress: downloadProgress,
             isEditing: viewModel.editMode == .active
         ) {
             handleEpisodeTap(episode)
@@ -372,11 +410,40 @@ struct PlayerInfoView: View {
             }
         }
     }
+}
 
+// MARK: - Context Menu
+
+extension PlayerInfoView {
     @ViewBuilder
-    private func contextMenuContent(for episode: PlayerEpisode, at index: Int, isRead: Bool) -> some View {
+    private func contextMenuContent(
+        for episode: PlayerEpisode,
+        at index: Int,
+        isRead: Bool
+    ) -> some View {
         if viewModel.editMode == .inactive {
             Section {
+                let status = viewModel.downloadStatus[episode.url, default: .none]
+                if status == .finished {
+                    Button(role: .destructive) {
+                        Task { await viewModel.deleteEpisodes([episode]) }
+                    } label: {
+                        Label(String(localized: "REMOVE_DOWNLOAD"), systemImage: "trash")
+                    }
+                } else if status == .downloading || status == .queued {
+                    Button(role: .destructive) {
+                        Task { await viewModel.cancelDownloads(for: [episode]) }
+                    } label: {
+                        Label(String(localized: "CANCEL_DOWNLOAD"), systemImage: "xmark")
+                    }
+                } else {
+                    Button {
+                        Task { await viewModel.downloadEpisode(episode) }
+                    } label: {
+                        Label(String(localized: "DOWNLOAD"), systemImage: "arrow.down.circle")
+                    }
+                }
+                Divider()
                 if isRead {
                     Button {
                         Task { await viewModel.markUnwatched(episodes: [episode]) }
@@ -396,7 +463,11 @@ struct PlayerInfoView: View {
             }
         }
     }
+}
 
+// MARK: - Previous Episodes Menu
+
+extension PlayerInfoView {
     @ViewBuilder
     private func markPreviousMenu(startingAt index: Int) -> some View {
         Menu(String(localized: "MARK_PREVIOUS")) {
@@ -413,14 +484,27 @@ struct PlayerInfoView: View {
             }
         }
     }
+}
+
+// MARK: - Episode Handling
+
+extension PlayerInfoView {
     @MainActor
     private func playEpisode(_ episode: PlayerEpisode) async {
         guard let module = viewModel.module, !episode.url.isEmpty else {
             errorMessage = "Episode ID is not available"
             return
         }
+        if let localUrl = await viewModel.getLocalEpisodeUrl(for: episode) {
+             let streamInfo = StreamInfo(title: "Downloaded", url: localUrl.absoluteString, headers: [:])
+             await playSelectedStream(streamInfo, subtitleUrl: nil, episode: episode)
+             return
+        }
 
-        let (streamInfos, subtitleUrl) = await JSController.shared.fetchPlayerStreams(episodeId: episode.url, module: module)
+        let (streamInfos, subtitleUrl) = await JSController.shared.fetchPlayerStreams(
+            episodeId: episode.url,
+            module: module
+        )
 
         guard !streamInfos.isEmpty else {
             errorMessage = "Unable to find video stream for this episode"
@@ -441,7 +525,11 @@ struct PlayerInfoView: View {
             await playSelectedStream(firstStream, subtitleUrl: subtitleUrl, episode: episode)
         }
     }
+}
 
+// MARK: - Stream Selection Helpers
+
+extension PlayerInfoView {
     private func selectStream(_ streams: [StreamInfo]) -> StreamInfo? {
         guard !streams.isEmpty else { return nil }
         guard !askForStreamResolution else { return streams.first }
@@ -454,7 +542,9 @@ struct PlayerInfoView: View {
         return selectBestResolution(from: audioFiltered, target: resolutionPreference) ?? audioFiltered.first
     }
     private func filterByAudioPreference(_ streams: [StreamInfo]) -> [StreamInfo] {
-        let filtered = streams.filter { $0.title.lowercased().contains(preferredAudioChannel.lowercased()) }
+        let filtered = streams.filter {
+            $0.title.lowercased().contains(preferredAudioChannel.lowercased())
+        }
         return filtered.isEmpty ? streams : filtered
     }
     private func getResolutionPreference() -> String {
@@ -488,9 +578,17 @@ struct PlayerInfoView: View {
         guard match.numberOfRanges >= 2, let valueRange = Range(match.range(at: 1), in: lower) else { return nil }
         return Int(lower[valueRange])
     }
+}
 
+// MARK: - Stream Playback
+
+extension PlayerInfoView {
     @MainActor
-    private func playSelectedStream(_ stream: StreamInfo, subtitleUrl: String?, episode: PlayerEpisode? = nil) async {
+    private func playSelectedStream(
+        _ stream: StreamInfo,
+        subtitleUrl: String?,
+        episode: PlayerEpisode? = nil
+    ) async {
         guard let episode = episode ?? selectedEpisodeForStream else { return }
 
         currentStreamUrl = stream.url
@@ -518,51 +616,74 @@ private struct EpisodeCellView: View, Equatable {
     let episode: PlayerEpisode
     let history: PlayerInfoView.InlineEpisodeHistory?
     let read: Bool
+    let downloadStatus: DownloadStatus
+    var downloadProgress: Float?
     var isEditing: Bool = false
     var onPressed: (() -> Void)?
 
+    var downloaded: Bool {
+        downloadStatus == .finished
+    }
+
+    var progress: Float? {
+        downloadProgress ?? (downloadStatus == .queued || downloadStatus == .downloading ? 0 : nil)
+    }
+
     var body: some View {
-        let content = HStack(alignment: .firstTextBaseline, spacing: 12) {
-            VStack(alignment: .leading, spacing: 4) {
+        let content = HStack(alignment: .center, spacing: 12) {
+            VStack(alignment: .leading, spacing: 8 / 3) {
                 Text("Episode \(episode.number)")
-                    .font(.system(.callout).weight(.semibold))
+                    .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(read ? .secondary : .primary)
+                    .lineLimit(1)
 
                 let title = episode.title
                 let isRedundantTitle = title.isEmpty || title == "Episode \(episode.number)"
                 if !isRedundantTitle {
                     Text(title)
-                        .font(.system(.subheadline))
+                        .font(.system(size: 14))
                         .foregroundStyle(.secondary)
-                        .lineLimit(2)
+                        .lineLimit(1)
                 }
                 HStack(spacing: 4) {
                     if let date = episode.dateUploaded {
                         Text(date, format: .dateTime.year().month().day())
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Text("•")
-                            .font(.caption)
+                            .font(.system(size: 12))
                             .foregroundStyle(.secondary)
                     }
                     if let history = history, !read {
+                        if episode.dateUploaded != nil {
+                            Text("•")
+                                .font(.system(size: 12))
+                                .foregroundStyle(.secondary)
+                        }
                         let progressText = formatDuration(TimeInterval(history.progress))
                         Text("\(String(localized: "PLAYER_PROGRESS")) • \(progressText)")
-                            .font(.caption)
+                            .font(.system(size: 12))
                             .foregroundStyle(.secondary)
                     }
                 }
             }
 
-            Spacer()
+            Spacer(minLength: 0)
+
+            if downloaded {
+                Image(systemName: "arrow.down.circle.fill")
+                    .imageScale(.small)
+                    .foregroundStyle(.tertiary)
+            } else if let progress {
+                DownloadProgressView(progress: progress)
+                    .frame(width: 13, height: 13)
+                    .tint(.accentColor)
+            }
 
             if let scanlator = episode.scanlator {
                 Text(scanlator)
-                    .font(.system(.caption))
+                    .font(.system(size: 12))
                     .foregroundStyle(.secondary)
             }
         }
-        .padding(.vertical, 12)
+        .padding(.vertical, 22 / 3)
         .padding(.horizontal, 20)
         .contentShape(Rectangle())
 
@@ -590,7 +711,25 @@ private struct EpisodeCellView: View, Equatable {
         lhs.history?.progress == rhs.history?.progress &&
         lhs.history?.total == rhs.history?.total &&
         lhs.read == rhs.read &&
+        lhs.downloadStatus == rhs.downloadStatus &&
+        lhs.downloadProgress == rhs.downloadProgress &&
         lhs.isEditing == rhs.isEditing
+    }
+}
+
+private struct DownloadProgressView: UIViewRepresentable {
+    var progress: Float
+
+    func makeUIView(context: Context) -> CircularProgressView {
+        let progressView = CircularProgressView(frame: CGRect(x: 0, y: 0, width: 13, height: 13))
+        progressView.radius = 13 / 2
+        progressView.trackColor = .quaternaryLabel
+        progressView.progressColor = UIColor(Color.accentColor)
+        return progressView
+    }
+
+    func updateUIView(_ uiView: CircularProgressView, context: Context) {
+        uiView.setProgress(value: progress, withAnimation: false)
     }
 }
 

@@ -12,7 +12,7 @@ import Foundation
 extension DownloadsView {
     @MainActor
     class ViewModel: ObservableObject {
-        @Published var downloadedManga: [DownloadedMangaInfo] = []
+        @Published var downloadedEntries: [any DownloadedEntry] = []
         @Published var isLoading = true
         @Published var totalSize: String = ""
         @Published var totalCount = 0
@@ -24,6 +24,12 @@ extension DownloadsView {
         private var lastUpdateId = UUID()
         private var updateDebouncer: Timer?
         private var cancellables = Set<AnyCancellable>()
+        struct SourceGroup {
+            let sourceId: String
+            let sourceName: String
+            let iconUrl: URL?
+            let entries: [any DownloadedEntry]
+        }
 
         init() {
             setupNotificationObservers()
@@ -32,12 +38,20 @@ extension DownloadsView {
 }
 
 extension DownloadsView.ViewModel {
-    // Group manga by source for sectioned display
-    var groupedManga: [(source: String, manga: [DownloadedMangaInfo])] {
-        let grouped = Dictionary(grouping: downloadedManga) { $0.sourceId }
+    // Group entries by source
+    var groupedEntries: [DownloadsView.ViewModel.SourceGroup] {
+        let grouped = Dictionary(grouping: downloadedEntries) { $0.sourceId }
         return grouped
             .sorted { $0.key < $1.key }
-            .map { (source: getSourceDisplayName($0.key), manga: $0.value) }
+            .map {
+                let info = getSourceInfo($0.key)
+                return SourceGroup(
+                    sourceId: $0.key,
+                    sourceName: info.name,
+                    iconUrl: info.icon,
+                    entries: $0.value
+                )
+            }
     }
 
     func loadDownloadedManga() async {
@@ -46,13 +60,18 @@ extension DownloadsView.ViewModel {
         }
 
         let manga = await DownloadManager.shared.getAllDownloadedManga()
+        let videos = await DownloadManager.shared.getAllDownloadedVideos()
         let formattedSize = await DownloadManager.shared.getFormattedTotalDownloadedSize()
         let shouldMigrate = await DownloadManager.shared.checkForOldMetadata()
 
+        var entries: [any DownloadedEntry] = []
+        entries.append(contentsOf: manga)
+        entries.append(contentsOf: videos)
+
         withAnimation(.easeInOut(duration: 0.3)) {
-            downloadedManga = manga
+            downloadedEntries = entries
             totalSize = formattedSize
-            totalCount = manga.count
+            totalCount = entries.count
             isLoading = false
             showingMigrateNotice = shouldMigrate
         }
@@ -70,6 +89,7 @@ extension DownloadsView.ViewModel {
 
         // Fetch new data in background
         let newManga = await DownloadManager.shared.getAllDownloadedManga()
+        let newVideos = await DownloadManager.shared.getAllDownloadedVideos()
         let newFormattedSize = await DownloadManager.shared.getFormattedTotalDownloadedSize()
 
         await MainActor.run {
@@ -79,37 +99,79 @@ extension DownloadsView.ViewModel {
             // Perform selective updates using intelligent diffing
             updateDataSelectively(
                 newManga: newManga,
+                newVideos: newVideos,
                 newTotalSize: newFormattedSize
             )
         }
     }
 
     /// Intelligently update only changed data to preserve navigation state
-    private func updateDataSelectively(newManga: [DownloadedMangaInfo], newTotalSize: String) {
-        let oldManga = downloadedManga
+    private func updateDataSelectively(
+        newManga: [DownloadedMangaInfo],
+        newVideos: [DownloadedVideoInfo],
+        newTotalSize: String
+    ) {
+        let oldEntries = downloadedEntries
+        var newEntries: [any DownloadedEntry] = []
+        newEntries.append(contentsOf: newManga)
+        newEntries.append(contentsOf: newVideos)
 
         // Update totals immediately as they don't affect navigation
         totalSize = newTotalSize
-        totalCount = newManga.count
+        totalCount = newEntries.count
 
-        // Only update manga list if there are actual changes
-        if !areMangaListsEqual(oldManga, newManga) {
-            // Use smooth animation for data changes
+        // Simplified equality check for unified list
+        if oldEntries.count != newEntries.count {
             withAnimation(.easeInOut(duration: 0.3)) {
-                downloadedManga = newManga
+                downloadedEntries = newEntries
+            }
+        } else {
+            // Check if contents are different (basic check by ID and properties)
+            // Since DownloadedEntry is not Equatable (it's a protocol), we do a manual check
+            var changed = false
+            for (old, new) in zip(oldEntries, newEntries) {
+                if old.id != new.id || old.totalSize != new.totalSize || old.unitCount != new.unitCount {
+                    changed = true
+                    break
+                }
+            }
+            if changed {
+                withAnimation(.easeInOut(duration: 0.3)) {
+                    downloadedEntries = newEntries
+                }
             }
         }
     }
 
     /// Compare manga lists efficiently to avoid unnecessary updates
-    private func areMangaListsEqual(_ lhs: [DownloadedMangaInfo], _ rhs: [DownloadedMangaInfo]) -> Bool {
+    private func areMangaListsEqual(
+        _ lhs: [DownloadedMangaInfo],
+        _ rhs: [DownloadedMangaInfo]
+    ) -> Bool {
         guard lhs.count == rhs.count else { return false }
 
         // Quick comparison by ID and key properties
         for (old, new) in zip(lhs, rhs) {
-            if old.id != new.id ||
+            if old.sourceId != new.sourceId ||
+               old.mangaId != new.mangaId ||
                old.totalSize != new.totalSize ||
                old.chapterCount != new.chapterCount ||
+               old.isInLibrary != new.isInLibrary {
+                return false
+            }
+        }
+        return true
+    }
+
+    /// Compare video lists efficiently
+    private func areVideoListsEqual(_ lhs: [DownloadedVideoInfo], _ rhs: [DownloadedVideoInfo]) -> Bool {
+        guard lhs.count == rhs.count else { return false }
+
+        for (old, new) in zip(lhs, rhs) {
+            if old.sourceId != new.sourceId ||
+               old.seriesId != new.seriesId ||
+               old.totalSize != new.totalSize ||
+               old.videoCount != new.videoCount ||
                old.isInLibrary != new.isInLibrary {
                 return false
             }
@@ -173,18 +235,20 @@ extension DownloadsView.ViewModel {
         }
     }
 
-    private func getSourceDisplayName(_ sourceId: String) -> String {
+    private func getSourceInfo(_ sourceId: String) -> (name: String, icon: URL?) {
         if let source = SourceManager.shared.source(for: sourceId) {
-            source.name
+            return (source.name, source.imageUrl)
+        } else if let module = ModuleManager.shared.modules.first(where: { $0.id.uuidString == sourceId }) {
+            return (module.metadata.sourceName, URL(string: module.metadata.iconUrl))
         } else {
-            sourceId
+            return (sourceId, nil)
         }
     }
 
-    func deleteAllChapters() {
-        // clear manga in ui
+    func deleteAll() {
+        // clear entries in ui
         withAnimation(.easeOut(duration: 0.3)) {
-            downloadedManga = []
+            downloadedEntries = []
         }
 
         Task {
@@ -192,13 +256,14 @@ extension DownloadsView.ViewModel {
         }
     }
 
-    func delete(manga: DownloadedMangaInfo) {
-        if let index = downloadedManga.firstIndex(of: manga) {
-            downloadedManga.remove(at: index)
+    func delete(entry: any DownloadedEntry) {
+        if let index = downloadedEntries.firstIndex(where: { $0.id == entry.id }) {
+            downloadedEntries.remove(at: index)
         }
 
         Task {
-            await DownloadManager.shared.deleteChapters(for: manga.mangaIdentifier)
+            let identifier = MangaIdentifier(sourceKey: entry.sourceId, mangaKey: entry.mangaId)
+            await DownloadManager.shared.deleteChapters(for: identifier)
         }
     }
 

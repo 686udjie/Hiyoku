@@ -36,6 +36,7 @@ struct TrackerSearchView: View {
             Group {
                 if loading {
                     ProgressView().progressViewStyle(.circular)
+                        .tint(.accentColor)
                 } else {
                     List {
                         ForEach(results, id: \.id) { item in
@@ -186,7 +187,7 @@ private struct TrackerSearchItemCell: View {
             Spacer()
             if item.tracked {
                 Circle()
-                    .fill(Color.blue.opacity(0.5))
+                    .fill(Color.accentColor.opacity(0.5))
                     .frame(width: 10, height: 10)
             }
             if selected {

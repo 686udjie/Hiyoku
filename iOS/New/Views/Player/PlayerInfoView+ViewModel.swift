@@ -8,6 +8,7 @@
 import Combine
 import SwiftUI
 import CoreData
+import AidokuRunner
 
 extension PlayerInfoView {
     struct InlineEpisodeHistory: Equatable {
@@ -34,6 +35,14 @@ extension PlayerInfoView {
         // Edit Mode
         @Published var editMode = EditMode.inactive
         @Published var selectedEpisodes = Set<String>()
+
+        @Published var downloadTracker: DownloadStatusTracker?
+        var downloadStatus: [String: DownloadStatus] {
+            downloadTracker?.downloadStatus ?? [:]
+        }
+        var downloadProgress: [String: Float] {
+            downloadTracker?.downloadProgress ?? [:]
+        }
 
         private var cancellables = Set<AnyCancellable>()
 
@@ -71,6 +80,12 @@ extension PlayerInfoView {
             }
             return nil
         }
+        var currentSourceId: String? {
+            module?.id.uuidString
+        }
+        var currentMangaId: String? {
+            contentUrl?.normalizedModuleHref()
+        }
 
         var bookmarkId: UUID? {
             if let bookmark = bookmark {
@@ -93,13 +108,17 @@ extension PlayerInfoView {
         init(bookmark: PlayerLibraryItem) {
             self.bookmark = bookmark
             self.isBookmarked = true
-            if let module = moduleManager.modules.first(where: { $0.id == bookmark.moduleId }) {
+            if let module = moduleManager.modules.first(where: {
+                $0.id == bookmark.moduleId
+            }) {
                 self.module = module
             }
 
         // Cache expensive computed properties
             self.title = bookmark.title
-            self.posterUrl = libraryManager.items.first(where: { $0.id == bookmark.id })?.imageUrl ?? bookmark.imageUrl
+            self.posterUrl = libraryManager.items.first(where: {
+                $0.id == bookmark.id
+            })?.imageUrl ?? bookmark.imageUrl
 
         setupBookmarkObserver()
             // Don't call recomputeSortedEpisodes() here since episodes is empty initially
@@ -124,6 +143,17 @@ extension PlayerInfoView {
                     self?.objectWillChange.send()
                 }
                 .store(in: &cancellables)
+            setupDownloadTracker()
+        }
+        private func setupDownloadTracker() {
+            guard let sourceId = currentSourceId, let mangaId = currentMangaId else { return }
+            if downloadTracker == nil || downloadTracker?.sourceId != sourceId || downloadTracker?.mangaId != mangaId {
+                let tracker = DownloadStatusTracker(sourceId: sourceId, mangaId: mangaId)
+                self.downloadTracker = tracker
+                tracker.objectWillChange.sink { [weak self] _ in
+                    self?.objectWillChange.send()
+                }.store(in: &cancellables)
+            }
         }
 
         func refresh() async {
@@ -162,46 +192,128 @@ extension PlayerInfoView {
                 isLoadingEpisodes = false
                 return
             }
+            let cachedEpisodes = await fetchCachedEpisodes()
+            if !cachedEpisodes.isEmpty {
+                self.episodes = cachedEpisodes
+            }
 
             await loadEpisodesFromUrl(playerUrl, module: module)
         }
+        private func fetchCachedEpisodes() async -> [PlayerEpisode] {
+            guard let sourceId = currentSourceId, let mangaId = currentMangaId else { return [] }
+            return await CoreDataManager.shared.container
+                .performBackgroundTask { @Sendable [weak self] context in
+                    guard self != nil else { return [] }
+                    return CoreDataManager.shared.getChapters(
+                        sourceId: sourceId,
+                        mangaId: mangaId,
+                        context: context
+                    ).map { chapterObject in
+                        chapterObject.toNewChapter().toPlayerEpisode()
+                    }
+                }
+        }
         private func loadEpisodesFromUrl(_ playerUrl: String, module: ScrapingModule) async {
             let normalizedUrl = playerUrl.normalizedModuleHref()
-            let episodes = await JSController.shared.fetchPlayerEpisodes(contentUrl: normalizedUrl, module: module)
-            self.episodes = episodes
+            let fetchedEpisodes = await JSController.shared.fetchPlayerEpisodes(
+                contentUrl: normalizedUrl,
+                module: module
+            )
+            if !fetchedEpisodes.isEmpty {
+                self.episodes = fetchedEpisodes
+                if let currentSourceId, let currentMangaId {
+                     await saveEpisodesToCache(fetchedEpisodes, sourceId: currentSourceId, mangaId: currentMangaId)
+                }
+            } else if self.episodes.isEmpty {
+                 self.episodes = []
+            }
             self.isLoadingEpisodes = false
             await fetchHistory()
+            await loadDownloadStatus()
+            await MainActor.run {
+                setupDownloadTracker()
+                downloadTracker?.loadStatus(for: self.episodes.map { $0.url })
+            }
+        }
+        private func saveEpisodesToCache(
+            _ episodes: [PlayerEpisode],
+            sourceId: String,
+            mangaId: String
+        ) async {
+            let chaptersToSave = episodes.map { $0.toChapter() }
+            await CoreDataManager.shared.container.performBackgroundTask { [weak self] context in
+                guard let self else { return }
+                _ = CoreDataManager.shared.getManga(
+                    sourceId: sourceId,
+                    mangaId: mangaId,
+                    context: context
+                ) ?? CoreDataManager.shared.createManga(
+                    AidokuRunner.Manga(
+                        sourceKey: sourceId,
+                        key: mangaId,
+                        title: self.title,
+                        cover: self.posterUrl,
+                        url: URL(string: mangaId)
+                    ),
+                    sourceId: sourceId,
+                    context: context
+                )
+                CoreDataManager.shared.setChapters(
+                    chaptersToSave,
+                    sourceId: sourceId,
+                    mangaId: mangaId,
+                    context: context
+                )
+                try? context.save()
+            }
+        }
+
+        private func loadDownloadStatus() async {
+             // in the future itll be managed by the tracker
+        }
+        func getLocalEpisodeUrl(for episode: PlayerEpisode) async -> URL? {
+            guard let sourceId = currentSourceId, let mangaId = currentMangaId else { return nil }
+            let chapterIdentifier = ChapterIdentifier(
+                sourceKey: sourceId,
+                mangaKey: mangaId,
+                chapterKey: episode.url
+            )
+            return await DownloadManager.shared.getDownloadedFileUrl(for: chapterIdentifier)
         }
         func fetchHistory() async {
             guard let module = module else { return }
-            let map: [String: InlineEpisodeHistory] = await CoreDataManager.shared.container.performBackgroundTask { context in
-                var results: [String: InlineEpisodeHistory] = [:]
-                let fetchRequest = NSFetchRequest<NSManagedObject>(entityName: "PlayerHistory")
-                fetchRequest.predicate = NSPredicate(format: "moduleId == %@", module.id.uuidString)
-                do {
-                    let historyObjects = try context.fetch(fetchRequest)
-                    for obj in historyObjects {
-                        if let episodeId = obj.value(forKey: "episodeId") as? String,
-                           let progress = obj.value(forKey: "progress") as? Int16 {
-                            let total = obj.value(forKey: "total") as? Int16
-                            results[episodeId] = InlineEpisodeHistory(
-                                progress: Int(progress),
-                                total: total.map(Int.init)
-                            )
+            let map: [String: InlineEpisodeHistory] = await CoreDataManager.shared.container
+                .performBackgroundTask { context in
+                    var results: [String: InlineEpisodeHistory] = [:]
+                    let fetchRequest = NSFetchRequest<NSManagedObject>(entityName: "PlayerHistory")
+                    fetchRequest.predicate = NSPredicate(format: "moduleId == %@", module.id.uuidString)
+                    do {
+                        let historyObjects = try context.fetch(fetchRequest)
+                        for obj in historyObjects {
+                            if let episodeId = obj.value(forKey: "episodeId") as? String,
+                               let progress = obj.value(forKey: "progress") as? Int16 {
+                                let total = obj.value(forKey: "total") as? Int16
+                                results[episodeId] = InlineEpisodeHistory(
+                                    progress: Int(progress),
+                                    total: total.map(Int.init)
+                                )
+                            }
                         }
+                    } catch {
+                        print("Error fetching history in ViewModel: \(error)")
                     }
-                } catch {
-                    print("Error fetching history in ViewModel: \(error)")
+                    return results
                 }
-                return results
-            }
             await MainActor.run {
                 self.episodeProgress = map
             }
         }
 
         private func searchForPlayerUrl(title: String, module: ScrapingModule) async -> String? {
-            let searchResults = await JSController.shared.fetchJsSearchResults(keyword: title, module: module)
+            let searchResults = await JSController.shared.fetchJsSearchResults(
+                keyword: title,
+                module: module
+            )
             let match = searchResults.first { item in
                 item.title.lowercased() == title.lowercased() ||
                 item.title.lowercased().contains(title.lowercased()) ||
@@ -227,7 +339,11 @@ extension PlayerInfoView {
                 libraryManager.toggleInLibrary(for: searchItem, module: module)
                 isBookmarked = libraryManager.isInLibrary(searchItem, module: module)
             } else if let bookmark = bookmark {
-                let tempSearchItem = SearchItem(title: bookmark.title, imageUrl: bookmark.imageUrl, href: bookmark.sourceUrl)
+                let tempSearchItem = SearchItem(
+                    title: bookmark.title,
+                    imageUrl: bookmark.imageUrl,
+                    href: bookmark.sourceUrl
+                )
                 libraryManager.toggleInLibrary(for: tempSearchItem, module: module)
                 isBookmarked = libraryManager.isInLibrary(tempSearchItem, module: module)
             }
@@ -270,6 +386,51 @@ extension PlayerInfoView {
 
         func deselectAll() {
             selectedEpisodes.removeAll()
+        }
+
+        func downloadSelectedEpisodes() async {
+            guard module != nil, !selectedEpisodes.isEmpty else { return }
+            let episodesToDownload = episodes.filter { selectedEpisodes.contains($0.url) }
+            await downloadEpisodes(episodesToDownload)
+        }
+
+        func downloadEpisode(_ episode: PlayerEpisode) async {
+            await downloadEpisodes([episode])
+        }
+
+        func cancelDownloads(for episodes: [PlayerEpisode]) async {
+            guard let sourceId = currentSourceId, let mangaId = currentMangaId else { return }
+            let identifiers = episodes.map {
+                ChapterIdentifier(sourceKey: sourceId, mangaKey: mangaId, chapterKey: $0.url)
+            }
+            await DownloadManager.shared.cancelDownloads(for: identifiers)
+        }
+
+        func deleteEpisodes(_ episodes: [PlayerEpisode]) async {
+            guard let sourceId = currentSourceId, let mangaId = currentMangaId else { return }
+            let identifiers = episodes.map {
+                ChapterIdentifier(sourceKey: sourceId, mangaKey: mangaId, chapterKey: $0.url)
+            }
+            await DownloadManager.shared.delete(chapters: identifiers)
+        }
+
+        private func downloadEpisodes(_ episodesToDownload: [PlayerEpisode]) async {
+            guard let module, !episodesToDownload.isEmpty else { return }
+            let seriesKey = (contentUrl ?? "")
+                .normalizedModuleHref()
+            // Filter out episodes that are already downloaded or in progress
+            let filtered = episodesToDownload.filter { episode in
+                let status = downloadStatus[episode.url] ?? .none
+                return status != .finished && status != .downloading && status != .queued
+            }
+            guard !filtered.isEmpty else { return }
+            await DownloadManager.shared.downloadVideo(
+                seriesTitle: title,
+                episodes: filtered,
+                sourceKey: module.id.uuidString,
+                seriesKey: seriesKey,
+                posterUrl: posterUrl
+            )
         }
 
         private func recomputeSortedEpisodes() {

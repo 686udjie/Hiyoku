@@ -26,7 +26,7 @@ struct DownloadedMangaInfo: Identifiable, Hashable {
 
     /// Computed property for display title (fallback to manga ID)
     var displayTitle: String {
-        title ?? mangaId
+        title ?? NSLocalizedString(mangaId, comment: "")
     }
 
     /// Computed property for formatted size string

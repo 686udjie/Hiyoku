@@ -21,53 +21,82 @@ class DownloadCache {
 
     // create cache from filesystem
     private func load() {
+        rootDirectory.subdirectories = [:]
+
         for sourceDirectory in DownloadManager.directory.contents where sourceDirectory.isDirectory {
-            rootDirectory.subdirectories[sourceDirectory.lastPathComponent] = Directory(url: sourceDirectory)
+            var mangaDirectoriesMap: [String: Directory] = [:]
+
             for mangaDirectory in sourceDirectory.contents where mangaDirectory.isDirectory {
                 var chapterDirectories: [String: Directory] = [:]
+
                 for chapterFileOrDirectory in mangaDirectory.contents {
                     let key = if chapterFileOrDirectory.pathExtension.isEmpty {
                         chapterFileOrDirectory.lastPathComponent
                     } else {
+                        // this handles .cbz or other files
                         chapterFileOrDirectory.deletingPathExtension().lastPathComponent
                     }
-                    chapterDirectories[key] = Directory(url: chapterFileOrDirectory)
+                    chapterDirectories[key.directoryName] = Directory(url: chapterFileOrDirectory)
                 }
-                rootDirectory
-                    .subdirectories[sourceDirectory.lastPathComponent]?
-                    .subdirectories[mangaDirectory.lastPathComponent] = Directory(
-                        url: mangaDirectory,
-                        subdirectories: chapterDirectories
-                    )
+
+                mangaDirectoriesMap[mangaDirectory.lastPathComponent.directoryName] = Directory(
+                    url: mangaDirectory,
+                    subdirectories: chapterDirectories
+                )
             }
+            rootDirectory.subdirectories[sourceDirectory.lastPathComponent.directoryName] = Directory(
+                url: sourceDirectory,
+                subdirectories: mangaDirectoriesMap
+            )
         }
         loaded = true
     }
 
-    // add chapter to directory cache
-    func add(chapter: ChapterIdentifier) {
-        let sourceDirectory = rootDirectory.subdirectories[chapter.sourceKey.directoryName]
-        let sourceDirectoryURL = DownloadManager.directory.appendingSafePathComponent(chapter.sourceKey)
-        if sourceDirectory == nil {
-            rootDirectory.subdirectories[chapter.sourceKey.directoryName] = Directory(
-                url: sourceDirectoryURL
-            )
+    private func getComicInfo(in directory: URL) -> ComicInfo? {
+        do {
+            if !directory.isDirectory && directory.pathExtension == "cbz" {
+                return ComicInfo.load(from: directory)
+            }
+
+            guard directory.isDirectory else { return nil }
+
+            let xmlURL = directory.appendingPathComponent("ComicInfo.xml")
+            if xmlURL.exists {
+                let data = try Data(contentsOf: xmlURL)
+                if
+                    let string = String(data: data, encoding: .utf8),
+                    let comicInfo = ComicInfo.load(xmlString: string)
+                {
+                    return comicInfo
+                }
+            }
+
+            return nil
+        } catch {
+            return nil
         }
-        if sourceDirectory?.subdirectories[chapter.mangaKey.directoryName] == nil {
-            rootDirectory
-                .subdirectories[chapter.sourceKey.directoryName]?
-                .subdirectories[chapter.mangaKey.directoryName] = Directory(
-                    url: sourceDirectoryURL.appendingSafePathComponent(chapter.mangaKey)
-                )
+    }
+
+    func add(chapter: ChapterIdentifier, url: URL? = nil) {
+        if !loaded { load() }
+
+        let sourceKey = chapter.sourceKey.directoryName
+        let mangaKey = chapter.mangaKey.directoryName
+        let chapterKey = chapter.chapterKey.directoryName
+
+        let finalUrl = url ?? directory(for: chapter)
+        let mangaUrl = finalUrl.deletingLastPathComponent()
+        let sourceUrl = mangaUrl.deletingLastPathComponent()
+
+        if rootDirectory.subdirectories[sourceKey] == nil {
+            rootDirectory.subdirectories[sourceKey] = Directory(url: sourceUrl)
         }
-        if sourceDirectory?.subdirectories[chapter.mangaKey.directoryName]?.subdirectories[chapter.chapterKey.directoryName] == nil {
-            rootDirectory
-                .subdirectories[chapter.sourceKey.directoryName]?
-                .subdirectories[chapter.mangaKey.directoryName]?
-                .subdirectories[chapter.chapterKey.directoryName] = Directory(
-                    url: directory(for: chapter)
-                )
+
+        if rootDirectory.subdirectories[sourceKey]?.subdirectories[mangaKey] == nil {
+            rootDirectory.subdirectories[sourceKey]?.subdirectories[mangaKey] = Directory(url: mangaUrl)
         }
+
+        rootDirectory.subdirectories[sourceKey]?.subdirectories[mangaKey]?.subdirectories[chapterKey] = Directory(url: finalUrl)
     }
 
     func remove(manga: MangaIdentifier) {
@@ -83,6 +112,7 @@ class DownloadCache {
 
     func removeAll() {
         DownloadManager.directory.removeItem()
+        load()
     }
 }
 
@@ -110,6 +140,30 @@ extension DownloadCache {
         }
         return mangaDirectory.subdirectories.contains { !$0.value.url.lastPathComponent.hasPrefix(".tmp") }
     }
+
+    // MARK: Cache-aware Directory Getters
+
+    func getSourceDirectory(sourceKey: String) -> URL {
+        if !loaded { load() }
+        let sk = sourceKey.directoryName
+        return rootDirectory.subdirectories[sk]?.url ?? directory(sourceKey: sourceKey)
+    }
+
+    func getMangaDirectory(for identifier: MangaIdentifier) -> URL {
+        if !loaded { load() }
+        let sk = identifier.sourceKey.directoryName
+        let mk = identifier.mangaKey.directoryName
+        return rootDirectory.subdirectories[sk]?.subdirectories[mk]?.url ?? directory(for: identifier)
+    }
+
+    func getDirectory(for identifier: ChapterIdentifier) -> URL {
+        if !loaded { load() }
+        let sk = identifier.sourceKey.directoryName
+        let mk = identifier.mangaKey.directoryName
+        let ck = identifier.chapterKey.directoryName
+
+        return rootDirectory.subdirectories[sk]?.subdirectories[mk]?.subdirectories[ck]?.url ?? directory(for: identifier)
+    }
 }
 
 // MARK: Directory Provider
@@ -136,6 +190,17 @@ extension DownloadCache {
         DownloadManager.directory
             .appendingSafePathComponent(chapter.sourceKey)
             .appendingSafePathComponent(chapter.mangaKey)
-            .appendingSafePathComponent(".tmp_\(chapter.chapterKey)")
+            .appendingSafePathComponent(".tmp_\(chapter.chapterKey.directoryName)")
+    }
+
+    nonisolated func readableDirectory(for chapter: ChapterIdentifier, sourceName: String?, seriesTitle: String?, episodeName: String?) -> URL {
+        let s = sourceName ?? chapter.sourceKey
+        let m = seriesTitle ?? chapter.mangaKey
+        let c = episodeName ?? chapter.chapterKey
+
+        return DownloadManager.directory
+            .appendingSafePathComponent(s)
+            .appendingSafePathComponent(m)
+            .appendingSafePathComponent(c)
     }
 }

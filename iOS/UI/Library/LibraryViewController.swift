@@ -243,7 +243,7 @@ class LibraryViewController: OldMangaCollectionViewController {
             guard let self else { return }
             Task { @MainActor in
                 guard !self.isEditing else { return }
-                let shouldShowButton = await DownloadManager.shared.hasQueuedDownloads()
+                let shouldShowButton = await DownloadManager.shared.hasQueuedDownloads(type: .manga)
                 let index = self.navigationItem.rightBarButtonItems?.firstIndex(of: self.downloadBarButton)
                 if shouldShowButton && index == nil {
                     // rightmost button
@@ -507,7 +507,7 @@ extension LibraryViewController {
             navigationItem.rightBarButtonItems = items
             navigationItem.leftBarButtonItem = nil
             Task { @MainActor in
-                if await DownloadManager.shared.hasQueuedDownloads() {
+                if await DownloadManager.shared.hasQueuedDownloads(type: .manga) {
                     let index = (navigationItem.rightBarButtonItems?.count ?? 1) - 1
                     guard !(navigationItem.rightBarButtonItems?.contains(downloadBarButton) ?? true) else { return }
                     navigationItem.rightBarButtonItems?.insert(
@@ -618,7 +618,7 @@ extension LibraryViewController {
     }
 
     @objc func openDownloadQueue() {
-        let viewController = UIHostingController(rootView: DownloadQueueView())
+        let viewController = UIHostingController(rootView: DownloadQueueView(type: .manga))
         viewController.navigationItem.largeTitleDisplayMode = .never
         viewController.navigationItem.title = NSLocalizedString("DOWNLOAD_QUEUE")
         if #available(iOS 26.0, *) {
