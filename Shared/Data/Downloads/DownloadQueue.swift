@@ -138,14 +138,29 @@ actor DownloadQueue {
         var added: [Download] = []
         for download in downloads {
             let sourceKey = download.chapterIdentifier.sourceKey
-            // create tmp directory so we know it's queued
-            cache.tmpDirectory(for: download.chapterIdentifier).createDirectory()
+            if download.type == .manga {
+                let mangaTitle = download.manga.title
+                let entryDirectory = DirectoryManager.shared.mangaEntryDirectory(
+                    sourceKey: sourceKey,
+                    mangaTitle: mangaTitle
+                )
+                Task {
+                    try? DirectoryManager.shared.createDirectory(at: entryDirectory)
+                }
+            }
 
             if queue[sourceKey] == nil {
                 queue[sourceKey] = [download]
             } else {
                 queue[sourceKey]?.append(download)
+            }
+            if tasks[sourceKey] != nil {
                 await tasks[sourceKey]?.add(download: download)
+            } else {
+                let task = DownloadTask(id: sourceKey, cache: cache, downloads: [download])
+                await task.setDelegate(delegate: self)
+                tasks[sourceKey] = task
+                await task.resume()
             }
             added.append(download)
         }
@@ -162,8 +177,13 @@ actor DownloadQueue {
         if let task = tasks[chapter.sourceKey] {
             await task.cancel(chapter: chapter)
         } else {
-            // no longer in queue but the tmp download directory still exists, so we should remove it
-            cache.tmpDirectory(for: chapter).removeItem()
+            if let download = queue[chapter.sourceKey]?.first(where: { $0.chapterIdentifier == chapter }) {
+                let mangaTitle = download.manga.title
+                await DirectoryManager.shared.cleanupMangaTempFolders(
+                    sourceKey: chapter.sourceKey,
+                    mangaTitle: mangaTitle
+                )
+            }
         }
         saveQueueState()
     }
@@ -176,7 +196,13 @@ actor DownloadQueue {
             if let task = tasks[chapter.sourceKey] {
                 await task.cancel(chapter: chapter)
             } else {
-                cache.tmpDirectory(for: chapter).removeItem()
+                if let download = queue[chapter.sourceKey]?.first(where: { $0.chapterIdentifier == chapter }) {
+                    let mangaTitle = download.manga.title
+                    await DirectoryManager.shared.cleanupMangaTempFolders(
+                        sourceKey: chapter.sourceKey,
+                        mangaTitle: mangaTitle
+                    )
+                }
             }
             if let queueItem = queue[chapter.sourceKey]?.firstIndex(where: {
                 $0.chapterIdentifier == chapter

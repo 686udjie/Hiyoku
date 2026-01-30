@@ -28,7 +28,7 @@ For detailed documentation, visit:
 # How to support the original creators (NOT me)
 
 - [Skitty's ko-fi](https://ko-fi.com/skittyblock)
-- Cranci doesn’t have any donation links at the time of writing, so you can sponsor him on [Github](https://github.com/cranci1)
+- Cranci's ltc (crypto):`LS6K2JbPHuB1SnWsm3tqYyK1CovmNcjqoi`
 
 # Disclaimer
 

@@ -127,11 +127,8 @@ actor DownloadManager {
     @MainActor
     func getDownloadStatus(for chapter: ChapterIdentifier) -> DownloadStatus {
         let downloaded = isChapterDownloaded(chapter: chapter)
-        let tmpExists = cache.tmpDirectory(for: chapter).exists
         if downloaded {
             return .finished
-        } else if tmpExists {
-            return .queued
         } else {
             return .none
         }
@@ -221,12 +218,17 @@ extension DownloadManager {
         } else {
             sourceKey
         }
+        guard let module = await MainActor.run(body: { ModuleManager.shared.modules.first { $0.id.uuidString == sourceKey } }) else {
+            return
+        }
 
         var downloads: [Download] = []
         for episode in episodes {
             let identifier = ChapterIdentifier(sourceKey: sourceKey, mangaKey: seriesKey.normalizedModuleHref(), chapterKey: episode.url)
             let downloaded = await isChapterDownloaded(chapter: identifier)
             guard !downloaded else { continue }
+            let (streamInfos, _) = await JSController.shared.fetchPlayerStreams(episodeId: episode.url, module: module)
+            let streamUrl = streamInfos.first?.url ?? episode.url // Fallback to episode URL if no stream found
 
             let manga = AidokuRunner.Manga(sourceKey: sourceKey, key: seriesKey.normalizedModuleHref(), title: seriesTitle, cover: posterUrl)
             let chapter = AidokuRunner.Chapter(key: episode.url, title: episode.title, chapterNumber: Float(episode.number))
@@ -235,14 +237,14 @@ extension DownloadManager {
                 manga: manga,
                 chapter: chapter,
                 type: .video,
-                videoUrl: episode.url,
+                videoUrl: streamUrl,
                 posterUrl: posterUrl,
+                headers: streamInfos.first?.headers,
                 sourceName: sourceName
             )
             downloads.append(download)
         }
         guard !downloads.isEmpty else { return }
-
         let queuedDownloads = await queue.add(downloads: downloads, autoStart: true)
         NotificationCenter.default.post(
             name: .downloadsQueued,

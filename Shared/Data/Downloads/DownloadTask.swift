@@ -35,10 +35,16 @@ actor DownloadTask: Identifiable {
 
     private(set) var running: Bool = false
 
+    private var currentDownload: Download?
+    private var currentSource: AidokuRunner.Source?
+
     private static let maxConcurrentPageTasks = 5
+    private static let videoUserAgent = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15"
 
     enum DownloadError: Error {
         case pageProcessorFailed
+        case noSegmentsFound
+        case videoFileCreationFailed
     }
 
     init(id: String, cache: DownloadCache, downloads: [Download]) {
@@ -70,30 +76,35 @@ actor DownloadTask: Identifiable {
     }
 
     func cancel(manga: MangaIdentifier? = nil, chapter: ChapterIdentifier? = nil) {
+        running = false
+
         if let chapter {
             guard let index = downloads.firstIndex(where: { $0.chapterIdentifier == chapter }) else { return }
             // cancel specific chapter download
-            let wasRunning = running
-            running = false
             downloads[index].status = .cancelled
             if index == 0 {
                 pages = []
                 currentPage = 0
                 failedPages = 0
             }
-            // remove chapter tmp download directory
             let download = downloads[index]
             Task {
-                cache.tmpDirectory(for: chapter).removeItem()
+                let directoryToClean = DirectoryManager.shared.directoryForDownload(download)
+
+                if download.type == .video {
+                    await DirectoryManager.shared.cleanupJunkFiles(in: directoryToClean)
+                }
+
+                DirectoryManager.shared.removeDirectory(at: directoryToClean)
                 await delegate?.downloadCancelled(download: download)
                 downloads.removeAll { $0 == download }
-                if wasRunning {
-                    resume()
+                // Resume if there are more downloads
+                if !downloads.isEmpty {
+                    running = true
+                    await next()
                 }
             }
         } else if let manga {
-            let wasRunning = running
-            running = false
             Task {
                 var cancelled: IndexSet = []
                 for i in downloads.indices where downloads[i].mangaIdentifier == manga {
@@ -103,23 +114,34 @@ actor DownloadTask: Identifiable {
                         failedPages = 0
                     }
                     downloads[i].status = .cancelled
+                    if downloads[i].type == .video {
+                        let directoryToClean = DirectoryManager.shared.directoryForDownload(downloads[i])
+                        await DirectoryManager.shared.cleanupJunkFiles(in: directoryToClean)
+                        DirectoryManager.shared.removeDirectory(at: directoryToClean)
+                    }
+
                     await delegate?.downloadCancelled(download: downloads[i])
                     cancelled.insert(i)
                 }
                 downloads.remove(atOffsets: cancelled)
-                cache.directory(for: manga)
-                    .contents
-                    .filter { $0.lastPathComponent.hasPrefix(".tmp") }
-                    .forEach { $0.removeItem() }
-                if wasRunning {
-                    resume()
+                await DirectoryManager.shared.cleanupTemporaryDirectories(for: manga.sourceKey)
+                // Resume if there are more downloads
+                if !downloads.isEmpty {
+                    running = true
+                    await next()
                 }
             }
         } else {
             // cancel all downloads in task
-            running = false
             var manga: Set<MangaIdentifier> = []
             for i in downloads.indices {
+                if downloads[i].type == .video {
+                    let directoryToClean = DirectoryManager.shared.directoryForDownload(downloads[i])
+                    Task {
+                        await DirectoryManager.shared.cleanupJunkFiles(in: directoryToClean)
+                        DirectoryManager.shared.removeDirectory(at: directoryToClean)
+                    }
+                }
                 downloads[i].status = .cancelled
                 manga.insert(downloads[i].mangaIdentifier)
             }
@@ -127,10 +149,7 @@ actor DownloadTask: Identifiable {
             // remove cached tmp directories
             Task {
                 for manga in manga {
-                    cache.directory(for: manga)
-                        .contents
-                        .filter { $0.lastPathComponent.hasPrefix(".tmp") }
-                        .forEach { $0.removeItem() }
+                    await DirectoryManager.shared.cleanupTemporaryDirectories(for: manga.sourceKey)
                 }
                 pages = []
                 currentPage = 0
@@ -204,9 +223,56 @@ extension DownloadTask {
         let download = downloads[0]
         downloads[0].status = .downloading
 
-        let tmpDirectory = cache.tmpDirectory(for: download.chapterIdentifier)
-        tmpDirectory.createDirectory()
+        currentDownload = download
+        currentSource = source
 
+        _ = SourceManager.shared.source(for: download.chapterIdentifier.sourceKey)?.name ?? download.chapterIdentifier.sourceKey
+        let mangaTitle = download.manga.title
+        let chapterTitle = download.chapter.title ?? "Chapter \(download.chapter.chapterNumber ?? 0)"
+
+        let entryDirectory = DirectoryManager.shared.mangaEntryDirectory(
+            sourceKey: download.chapterIdentifier.sourceKey,
+            mangaTitle: mangaTitle
+        )
+
+        // Step 1: Create the entry folder first
+        do {
+            try DirectoryManager.shared.createDirectory(at: entryDirectory)
+        } catch {
+            LogManager.logger.error("Failed to create manga entry directory: (error)")
+            failedPages = 1
+            await handleChapterDownloadFinish(download: download)
+            return
+        }
+
+        // Step 2: Create and validate cache directory before starting downloads
+        let cacheDirectory = DirectoryManager.shared.mangaTempDirectory(
+            sourceKey: download.chapterIdentifier.sourceKey,
+            mangaTitle: mangaTitle
+        )
+
+        do {
+            try DirectoryManager.shared.createDirectory(at: cacheDirectory)
+
+            // Double-check that directory exists
+            guard DirectoryManager.shared.directoryExists(at: cacheDirectory) else {
+                LogManager.logger.error("Failed to validate cache directory exists: (cacheDirectory.path)")
+                failedPages = 1
+                await handleChapterDownloadFinish(download: download)
+                return
+            }
+        } catch {
+            LogManager.logger.error("Failed to create cache directory: (error)")
+            failedPages = 1
+            await handleChapterDownloadFinish(download: download)
+            return
+        }
+
+        _ = DirectoryManager.shared.mangaChapterDirectory(
+            sourceKey: download.chapterIdentifier.sourceKey,
+            mangaTitle: mangaTitle,
+            chapterTitle: chapterTitle
+        )
         if pages.isEmpty {
             pages = ((try? await source.getPageList(
                 manga: download.manga,
@@ -222,7 +288,14 @@ extension DownloadTask {
 
         for (i, page) in pages.enumerated() {
             let pageNumber = String(format: "%03d", i + 1)
-            let targetPath = tmpDirectory.appendingPathComponent(pageNumber)
+            let targetPath = cacheDirectory.appendingPathComponent(pageNumber)
+
+            guard DirectoryManager.shared.directoryExists(at: cacheDirectory) else {
+                LogManager.logger.error("Cache directory disappeared during download: \(cacheDirectory.path)")
+                failedPages += 1
+                await incrementProgress(for: download.chapterIdentifier, failed: true)
+                continue
+            }
 
             if let urlString = page.imageURL, let url = URL(string: urlString) {
                 // add pages that require network requests to a concurrent queue
@@ -245,6 +318,7 @@ extension DownloadTask {
                 } catch {
                     failedPages += 1
                 }
+                await incrementProgress(for: download.chapterIdentifier, failed: false)
             }
 
             if page.hasDescription {
@@ -259,51 +333,68 @@ extension DownloadTask {
             }
         }
 
-        let pageInterceptor: PageInterceptorProcessor? = if source.features.processesPages {
-            PageInterceptorProcessor(source: source)
-        } else {
-            nil
-        }
+        let pageInterceptor: PageInterceptorProcessor? = source.features.processesPages ? PageInterceptorProcessor(source: source) : nil
 
-        if UserDefaults.standard.bool(forKey: "Downloads.parallel") {
-            // download pages from the network concurrently
-            await withTaskGroup(of: (Data?, URL?).self) { taskGroup in
-                for pageGroup in networkPages.chunked(into: Self.maxConcurrentPageTasks) {
-                    for page in pageGroup {
-                        taskGroup.addTask {
-                            await self.downloadPage(page, source: source, pageInterceptor: pageInterceptor)
-                        }
-                    }
-                    for await (data, path) in taskGroup {
-                        guard tmpDirectory.exists else {
-                            // download was cancelled, stop processing
-                            return
-                        }
-                        if let data, let path {
-                            try? data.write(to: path)
-                        }
-                        await self.incrementProgress(for: download.chapterIdentifier, failed: data == nil)
-                    }
-                }
-            }
-        } else {
-            // download pages from the network serially
-            for page in networkPages {
-                let (data, path) = await self.downloadPage(page, source: source, pageInterceptor: pageInterceptor)
-                guard tmpDirectory.exists else {
-                    // download was cancelled, stop processing
-                    return
-                }
-                if let data, let path {
-                    try? data.write(to: path)
-                }
-                await self.incrementProgress(for: download.chapterIdentifier, failed: data == nil)
-            }
-        }
+        let downloadStrategy = UserDefaults.standard.bool(forKey: "Downloads.parallel") ? downloadPagesConcurrently : downloadPagesSerially
+
+        await downloadStrategy(networkPages, cacheDirectory, pageInterceptor)
 
         // handle completion of the current download
         if networkPages.isEmpty && currentPage == pages.count {
+            try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 seconds
             await handleChapterDownloadFinish(download: download)
+        }
+    }
+
+    private func downloadPagesConcurrently(
+        _ networkPages: [NetworkPage],
+        _ cacheDirectory: URL,
+        _ pageInterceptor: PageInterceptorProcessor?
+    ) async {
+        guard let source = currentSource else { return }
+        guard let download = currentDownload else { return }
+
+        await withTaskGroup(of: Void.self) { taskGroup in
+            for pageGroup in networkPages.chunked(into: Self.maxConcurrentPageTasks) {
+                for page in pageGroup {
+                    taskGroup.addTask {
+                        let (data, path) = await self.downloadPage(page, source: source, pageInterceptor: pageInterceptor)
+
+                        guard cacheDirectory.exists else { return }
+                        await self.writeDownloadedData(data: data, path: path, for: download)
+                    }
+                }
+            }
+        }
+    }
+
+    private func downloadPagesSerially(
+        _ networkPages: [NetworkPage],
+        _ cacheDirectory: URL,
+        _ pageInterceptor: PageInterceptorProcessor?
+    ) async {
+        for page in networkPages {
+            guard cacheDirectory.exists else { return }
+            guard let source = self.currentSource else { return }
+            let (data, path) = await self.downloadPage(page, source: source, pageInterceptor: pageInterceptor)
+            guard let download = self.currentDownload else { return }
+            await self.writeDownloadedData(data: data, path: path, for: download)
+        }
+    }
+
+    private func writeDownloadedData(data: Data?, path: URL?, for download: Download) async {
+        guard let data, let path else {
+            LogManager.logger.error("Failed to download page data")
+            await incrementProgress(for: download.chapterIdentifier, failed: true)
+            return
+        }
+
+        do {
+            try data.write(to: path)
+            await incrementProgress(for: download.chapterIdentifier, failed: false)
+        } catch {
+            LogManager.logger.error("Failed to write page data: \(error)")
+            await incrementProgress(for: download.chapterIdentifier, failed: true)
         }
     }
 
@@ -324,206 +415,247 @@ extension DownloadTask {
         var resultPath: URL?
 
         if let pageInterceptor {
-            let image = result.flatMap { PlatformImage(data: $0.0) } ?? .mangaPlaceholder
-            do {
-                let container = ImageContainer(image: image, data: result?.0)
-                let request = ImageRequest(
-                    urlRequest: urlRequest,
-                    userInfo: [.contextKey: page.context ?? [:]]
-                )
-                let newImage = try await pageInterceptor.processAsync(
-                    container,
-                    context: .init(
-                        request: request,
-                        response: .init(
-                            container: container,
-                            request: request,
-                            urlResponse: result?.1 ?? (request.url ?? request.urlRequest?.url).flatMap {
-                                HTTPURLResponse(
-                                    url: $0,
-                                    statusCode: 404,
-                                    httpVersion: nil,
-                                    headerFields: nil
-                                )
-                            }
-                        ),
-                        isCompleted: true
+                let image = result.flatMap { PlatformImage(data: $0.0) } ?? .mangaPlaceholder
+                do {
+                    let container = ImageContainer(image: image, data: result?.0)
+                    let request = ImageRequest(
+                        urlRequest: urlRequest,
+                        userInfo: [.contextKey: page.context ?? [:]]
                     )
-                )
-                guard let newImage else {
-                    throw DownloadError.pageProcessorFailed
+                    let newImage = try await pageInterceptor.processAsync(
+                        container,
+                        context: .init(
+                            request: request,
+                            response: .init(
+                                container: container,
+                                request: request,
+                                urlResponse: result?.1 ?? (request.url ?? request.urlRequest?.url).flatMap {
+                                    HTTPURLResponse(
+                                        url: $0,
+                                        statusCode: 404,
+                                        httpVersion: nil,
+                                        headerFields: nil
+                                    )
+                                }
+                            ),
+                            isCompleted: true
+                        )
+                    )
+                    guard let newImage else {
+                        throw DownloadError.pageProcessorFailed
+                    }
+                    resultData = newImage.pngData()
+                    resultPath = page.targetPath.appendingPathExtension("png")
+                } catch {
                 }
-                resultData = newImage.pngData()
-                resultPath = page.targetPath.appendingPathExtension("png")
-            } catch {
-            }
-        } else if let (data, res) = result {
-            let fileExtention = self.guessFileExtension(response: res, defaultValue: "png")
-            resultData = data
-            resultPath = page.targetPath.appendingPathExtension(fileExtention)
-        } else {
-        }
-
-        return (resultData, resultPath)
-    }
-
-    private func incrementProgress(for id: ChapterIdentifier, failed: Bool = false) async {
-        guard let downloadIndex = downloads.firstIndex(where: { $0.chapterIdentifier == id }) else {
-            return
-        }
-        currentPage += 1
-        downloads[downloadIndex].progress = currentPage
-        let download = downloads[downloadIndex]
-        Task {
-            await delegate?.downloadProgressChanged(download: download)
-        }
-        if failed {
-            failedPages += 1
-        }
-        if currentPage == pages.count {
-            await handleChapterDownloadFinish(download: download)
-        }
-    }
-
-    private func handleChapterDownloadFinish(download: Download) async {
-        let tmpDirectory = cache.tmpDirectory(for: download.chapterIdentifier)
-
-        if download.type == .video {
-            let isFailure = failedPages > 0
-            if isFailure {
-                tmpDirectory.removeItem()
-                await notifyDownloadCancelled(download: download)
+            } else if let (data, res) = result {
+                let fileExtention = self.guessFileExtension(response: res, defaultValue: "png")
+                resultData = data
+                resultPath = page.targetPath.appendingPathExtension(fileExtention)
             } else {
-                await finalizeDownload(download: download, tmpDirectory: tmpDirectory)
-                await notifyDownloadFinished(download: download)
             }
 
+            return (resultData, resultPath)
+        }
+
+        private func incrementProgress(for id: ChapterIdentifier, failed: Bool = false) async {
+            guard let downloadIndex = downloads.firstIndex(where: { $0.chapterIdentifier == id }) else {
+                return
+            }
+            currentPage += 1
+            downloads[downloadIndex].progress = currentPage
+            let download = downloads[downloadIndex]
+            Task {
+                await delegate?.downloadProgressChanged(download: download)
+            }
+            if failed {
+                failedPages += 1
+            }
+            if currentPage == pages.count {
+                await handleChapterDownloadFinish(download: download)
+            }
+        }
+
+        private func handleChapterDownloadFinish(download: Download) async {
+            let directoryToClean: URL
+            if download.type == .video {
+                directoryToClean = DirectoryManager.shared.directoryForDownload(download)
+            } else {
+                let mangaTitle = download.manga.title
+                directoryToClean = DirectoryManager.shared.mangaTempDirectory(
+                    sourceKey: download.chapterIdentifier.sourceKey,
+                    mangaTitle: mangaTitle
+                )
+
+                await DirectoryManager.shared.cleanupMangaTempFolders(
+                    sourceKey: download.chapterIdentifier.sourceKey,
+                    mangaTitle: mangaTitle
+                )
+            }
+
+            if download.type == .video {
+                let isFailure = failedPages > 0
+                if isFailure {
+                    await DirectoryManager.shared.cleanupJunkFiles(in: directoryToClean)
+                    DirectoryManager.shared.removeDirectory(at: directoryToClean)
+                    await notifyDownloadCancelled(download: download)
+                } else {
+                    await finalizeDownload(download: download, tmpDirectory: directoryToClean)
+                    await notifyDownloadFinished(download: download)
+                }
+
+                resetTaskProgress()
+                await next()
+                return
+            }
+
+            if failedPages == pages.count {
+                // the entire chapter failed to download, skip adding to cache and cancel
+                DirectoryManager.shared.removeDirectory(at: directoryToClean)
+                if let downloadIndex = downloads.firstIndex(where: { $0 == download }) {
+                    downloads[downloadIndex].status = .cancelled
+                    downloads.remove(at: downloadIndex)
+                    await delegate?.downloadCancelled(download: download)
+                }
+                resetTaskProgress()
+                await next()
+                return
+            }
+
+            await finalizeDownload(download: download, tmpDirectory: directoryToClean)
+            await notifyDownloadFinished(download: download)
             resetTaskProgress()
             await next()
-            return
         }
 
-        if failedPages == pages.count {
-            // the entire chapter failed to download, skip adding to cache and cancel
-            tmpDirectory.removeItem()
-            if let downloadIndex = downloads.firstIndex(where: { $0 == download }) {
-                downloads[downloadIndex].status = .cancelled
-                downloads.remove(at: downloadIndex)
-                await delegate?.downloadCancelled(download: download)
-            }
-            LogManager.logger.error("Chapter failed to download: \(download.chapter.formattedTitle())")
-        } else {
-            if failedPages > 0 {
-                LogManager.logger.error("Chapter downloaded with \(failedPages) failed pages: \(download.chapter.formattedTitle())")
-            }
+        private func finalizeDownload(download: Download, tmpDirectory: URL) async {
             do {
-                // Save chapter metadata after successful download
-                await DownloadManager.shared.saveChapterMetadata(manga: download.manga, chapter: download.chapter, to: tmpDirectory)
+                let directory: URL
+                if download.type == .video {
+                    directory = tmpDirectory
+                } else {
+                    let mangaTitle = download.manga.title
+                    let chapterTitle = download.chapter.title ?? "Chapter \(download.chapter.chapterNumber ?? 0)"
 
-                let directory = cache.directory(for: download.chapterIdentifier)
+                    let tempDir = DirectoryManager.shared.mangaTempDirectory(
+                        sourceKey: download.chapterIdentifier.sourceKey,
+                        mangaTitle: mangaTitle
+                    )
 
-                try FileManager.default.moveItem(at: tmpDirectory, to: directory)
+                    let chapterDir = DirectoryManager.shared.mangaChapterDirectory(
+                        sourceKey: download.chapterIdentifier.sourceKey,
+                        mangaTitle: mangaTitle,
+                        chapterTitle: chapterTitle
+                    )
 
-                if UserDefaults.standard.bool(forKey: "Downloads.compress") {
-                    try FileManager.default.zipItem(at: directory, to: directory.appendingPathExtension("cbz"), shouldKeepParent: false)
-                    directory.removeItem()
-                }
+                    try DirectoryManager.shared.createDirectory(at: chapterDir)
 
-                // save manga cover if not already present
-                let mangaDirectory = cache.directory(for: download.mangaIdentifier)
-                let coverPath = mangaDirectory.appendingPathComponent("cover.png")
-                if
-                    !coverPath.exists,
-                    let coverUrl = download.manga.cover.flatMap({ URL(string: $0) }),
-                    let source = SourceManager.shared.source(for: download.chapterIdentifier.sourceKey)
-                {
-                    let request = await source.getModifiedImageRequest(url: coverUrl, context: nil)
-                    let result = try? await URLSession.shared.data(for: request)
-                    if let data = result?.0 {
-                        try? data.write(to: coverPath)
+                    guard DirectoryManager.shared.directoryExists(at: tempDir) else {
+                        LogManager.logger.error("Cache directory missing before move: \(tempDir.path)")
+                        LogManager.logger.error("This indicates a race condition - cache was deleted during download")
+                        return
                     }
+
+                    let files = DirectoryManager.shared.directoryContents(at: tempDir)
+
+                    if files.isEmpty {
+                        do {
+                            let manualFiles = try FileManager.default.contentsOfDirectory(atPath: tempDir.path)
+
+                            for fileName in manualFiles {
+                                let fileURL = tempDir.appendingPathComponent(fileName)
+                                let destinationPath = chapterDir.appendingPathComponent(fileName)
+
+                            do {
+                                try FileManager.default.moveItem(at: fileURL, to: destinationPath)
+                            } catch {
+                                LogManager.logger.error("Failed to move file: \(error)")
+                            }
+                            }
+                        } catch {
+                            LogManager.logger.error("Failed to enumerate directory contents: \(error)")
+                        }
+                    } else {
+                        for file in files {
+                            let destination = chapterDir.appendingPathComponent(file.lastPathComponent)
+                            do {
+                                try FileManager.default.moveItem(at: file, to: destination)
+                            } catch {
+                                LogManager.logger.error("Failed to move file: \(error)")
+                            }
+                        }
+                    }
+
+                    DirectoryManager.shared.removeDirectory(at: tempDir)
+
+                    directory = chapterDir
                 }
 
-                await cache.add(chapter: download.chapterIdentifier)
-            } catch {
-                LogManager.logger.error("Error moving temporary download directory (\(tmpDirectory)) to final location: \(error)")
-            }
-            if let downloadIndex = downloads.firstIndex(where: { $0 == download }) {
-                downloads[downloadIndex].status = .finished
-                downloads.remove(at: downloadIndex)
-                await delegate?.downloadFinished(download: download)
-            }
-        }
-        pages = []
-        currentPage = 0
-        failedPages = 0
-        await next()
-    }
-
-    private func finalizeDownload(download: Download, tmpDirectory: URL) async {
-        do {
-            await DownloadManager.shared.saveChapterMetadata(manga: download.manga, chapter: download.chapter, to: tmpDirectory)
-
-            let directory = if download.type == .video {
-                getFinalDirectory(for: download)
-            } else {
-                cache.directory(for: download.chapterIdentifier)
-            }
-            directory.deletingLastPathComponent().createDirectory()
-
-            try FileManager.default.moveItem(at: tmpDirectory, to: directory)
-
-            if download.type == .manga && UserDefaults.standard.bool(forKey: "Downloads.compress") {
-                let archiveURL = directory.appendingPathExtension("cbz")
-                try FileManager.default.zipItem(at: directory, to: archiveURL, shouldKeepParent: false)
-                directory.removeItem()
+            // Only save chapter metadata for manga downloads
+            if download.type == .manga {
+                await DownloadManager.shared.saveChapterMetadata(manga: download.manga, chapter: download.chapter, to: directory)
             }
 
-            await saveCoverIfMissing(download: download, seriesDirectory: directory.deletingLastPathComponent())
+            if download.type == .manga {
+                let mangaTitle = download.manga.title
+                await saveCoverIfMissing(download: download, seriesTitle: mangaTitle)
+            }
+
             await cache.add(chapter: download.chapterIdentifier, url: directory)
+
+            if download.type == .video {
+                await DirectoryManager.shared.cleanupJunkFiles(in: directory)
+            }
         } catch {
             LogManager.logger.error("Failed to finalize download: \(error)")
         }
     }
 
     private func getFinalDirectory(for download: Download) -> URL {
-        let source = SourceManager.shared.source(for: download.chapterIdentifier.sourceKey)
-        let sourceName = download.sourceName ?? source?.name ?? download.chapterIdentifier.sourceKey
+        let sourceName = download.sourceName ?? download.chapterIdentifier.sourceKey
         let seriesTitle = download.manga.title
 
         if download.type == .video {
-            let episodeNumber = download.chapter.chapterNumber.map { String(format: "%g", $0) } ?? "0"
-            return cache.readableDirectory(
-                for: download.chapterIdentifier,
+            return DirectoryManager.shared.animeFinalDirectory(
+                for: download,
                 sourceName: sourceName,
-                seriesTitle: seriesTitle,
-                episodeName: "Episode \(episodeNumber)"
+                seriesTitle: seriesTitle
             )
         } else {
             let chapterName = download.chapter.title
-            return cache.readableDirectory(
+            return DirectoryManager.shared.mangaReadableDirectory(
                 for: download.chapterIdentifier,
                 sourceName: sourceName,
                 seriesTitle: seriesTitle,
-                episodeName: chapterName
+                chapterName: chapterName
             )
         }
     }
 
-    private func saveCoverIfMissing(download: Download, seriesDirectory: URL) async {
-        let coverPath = seriesDirectory.appendingPathComponent("cover.png")
-        guard !coverPath.exists else { return }
+    private func cleanupJunkFiles(in directory: URL) {
+        Task {
+            await DirectoryManager.shared.cleanupJunkFiles(in: directory)
+        }
+    }
+
+    private func saveCoverIfMissing(download: Download, seriesTitle: String) async {
+        let coverPath = DirectoryManager.shared.coverPathForDownload(
+            download,
+            sourceName: download.sourceName,
+            seriesTitle: seriesTitle
+        )
+        guard !DirectoryManager.shared.directoryExists(at: coverPath) else {
+            return
+        }
 
         let coverUrlString = download.type == .video ? download.posterUrl : download.manga.cover
-        guard let coverUrl = coverUrlString.flatMap({ URL(string: $0) }) else { return }
+        _ = download.sourceName ?? download.chapterIdentifier.sourceKey
 
-        let source = SourceManager.shared.source(for: download.chapterIdentifier.sourceKey)
-        let request = await source?.getModifiedImageRequest(url: coverUrl, context: nil) ?? URLRequest(url: coverUrl)
-
-        if let (data, _) = try? await URLSession.shared.data(for: request) {
-            seriesDirectory.createDirectory()
-            try? data.write(to: coverPath)
-        }
+        await DirectoryManager.shared.saveCoverImage(
+            coverUrlString: coverUrlString,
+            to: coverPath,
+            sourceKey: download.chapterIdentifier.sourceKey
+        )
     }
 
     private func notifyDownloadFinished(download: Download) async {
@@ -553,49 +685,62 @@ extension DownloadTask {
         let download = downloads[0]
         downloads[0].status = .downloading
 
+        // Download icon first
+        await saveCoverIfMissing(download: download, seriesTitle: download.manga.title)
+
         guard let videoUrl = download.videoUrl else {
-            await handleChapterDownloadFinish(download: download)
+            await finishDownloadWithError(download)
             return
         }
 
         let (resolvedUrl, resolvedHeaders) = await resolveVideoUrl(videoUrl, download: download)
-        guard !resolvedUrl.isEmpty else {
-            failedPages = 1
-            await handleChapterDownloadFinish(download: download)
+        guard running && !resolvedUrl.isEmpty else {
+            if !running { return }
+            await finishDownloadWithError(download)
             return
         }
 
-        let tmpDirectory = cache.tmpDirectory(for: download.chapterIdentifier)
-        tmpDirectory.createDirectory()
+        let finalDirectory = getFinalDirectory(for: download)
+        guard await createDirectoryIfNeeded(finalDirectory) else {
+            await finishDownloadWithError(download)
+            return
+        }
 
         do {
-            let extractor = M3U8Extractor.shared
-            let streamUrl = try await extractor.resolveBestStreamUrl(url: resolvedUrl, headers: resolvedHeaders)
-            let playlist = try await extractor.fetchAndParseM3U8(url: streamUrl, headers: resolvedHeaders)
-            let segments = playlist.segments
-
+            let segments = try await extractVideoSegments(from: resolvedUrl, headers: resolvedHeaders)
+            guard running else { return }
             guard !segments.isEmpty else {
-                await handleChapterDownloadFinish(download: download)
+                await finishDownloadWithError(download)
                 return
             }
 
             downloads[0].total = segments.count
             await delegate?.downloadProgressChanged(download: downloads[0])
 
-            let segmentDirectory = tmpDirectory.appendingPathComponent("segments")
-            segmentDirectory.createDirectory()
+            let segmentDirectory = finalDirectory.appendingPathComponent("segments")
+            try DirectoryManager.shared.createDirectory(at: segmentDirectory)
 
-            try await downloadSegmentsParallel(segments, directory: segmentDirectory, headers: resolvedHeaders, download: download)
+            try await downloadSegmentsParallel(segments, segmentDirectory, resolvedHeaders, download)
+            guard running else { return }
 
             let episodeNumber = download.chapter.chapterNumber.map { String(format: "%g", $0) } ?? "0"
-            let finalVideoFile = tmpDirectory.appendingPathComponent("Episode \(episodeNumber)").appendingPathExtension("mp4")
-            try await mergeSegments(at: segmentDirectory, to: finalVideoFile)
+            let finalVideoFile = finalDirectory.appendingPathComponent("Episode \(episodeNumber)").appendingPathExtension("mp4")
 
-            segmentDirectory.removeItem()
+            try await mergeSegments(at: segmentDirectory, to: finalVideoFile)
+            guard running else { return }
+
+            guard finalVideoFile.exists else {
+                LogManager.logger.error("Final video file was not created: \(finalVideoFile.path)")
+                await finishDownloadWithError(download)
+                return
+            }
+
+            // Clean up segments directory
+            await cleanupSegmentsDirectory(segmentDirectory)
             await handleChapterDownloadFinish(download: download)
         } catch {
-            failedPages = 1
-            await handleChapterDownloadFinish(download: download)
+            if !running { return }
+            await finishDownloadWithError(download)
         }
     }
 
@@ -608,66 +753,145 @@ extension DownloadTask {
             let module = await MainActor.run { ModuleManager.shared.modules.first { $0.id.uuidString == sourceKey } }
 
             if let module = module {
-                let (streams, _) = await JSController.shared.fetchPlayerStreams(episodeId: resolvedUrl, module: module)
-                if let first = streams.first {
-                    resolvedUrl = first.url
-                    resolvedHeaders = first.headers
-                } else {
-                    return ("", [:])
-                }
-            } else {
-                return ("", [:])
+                let (streamInfos, _) = await JSController.shared.fetchPlayerStreams(episodeId: videoUrl, module: module)
+                resolvedUrl = streamInfos.first?.url ?? videoUrl
+                resolvedHeaders = streamInfos.first?.headers ?? [:]
             }
         }
+
+        // Common video streaming headers
+        resolvedHeaders["User-Agent"] = Self.videoUserAgent
+        resolvedHeaders["Accept"] = "*/*"
+        resolvedHeaders["Accept-Language"] = "en-US,en;q=0.9"
+        resolvedHeaders["Accept-Encoding"] = "gzip, deflate, br"
+        resolvedHeaders["Connection"] = "keep-alive"
+        resolvedHeaders["Referer"] = resolvedUrl
+
         return (resolvedUrl, resolvedHeaders)
+    }
+
+    private func createDirectoryIfNeeded(_ url: URL) async -> Bool {
+        do {
+            try DirectoryManager.shared.createDirectory(at: url)
+            return true
+        } catch {
+            LogManager.logger.error("Failed to create directory: \(error)")
+            return false
+        }
+    }
+
+    private func extractVideoSegments(from url: String, headers: [String: String]) async throws -> [M3U8Extractor.M3U8Segment] {
+        let extractor = M3U8Extractor.shared
+        let streamUrl = try await extractor.resolveBestStreamUrl(url: url, headers: headers)
+        guard running else { throw DownloadError.noSegmentsFound }
+
+        let playlist = try await extractor.fetchAndParseM3U8(url: streamUrl, headers: headers)
+        guard running else { throw DownloadError.noSegmentsFound }
+
+        let segments = playlist.segments
+        guard !segments.isEmpty else { throw DownloadError.noSegmentsFound }
+
+        return segments
+    }
+
+    private func finishDownloadWithError(_ download: Download) async {
+        failedPages = 1
+        await handleChapterDownloadFinish(download: download)
+    }
+
+    private func cleanupSegmentsDirectory(_ directory: URL) async {
+        do {
+            try FileManager.default.removeItem(at: directory)
+        } catch {
+            LogManager.logger.error("Failed to clean up segments directory: \(error)")
+        }
     }
 
     private func downloadSegmentsParallel(
         _ segments: [M3U8Extractor.M3U8Segment],
-        directory: URL,
-        headers: [String: String],
-        download: Download
+        _ directory: URL,
+        _ headers: [String: String],
+        _ download: Download
     ) async throws {
         let maxConcurrent = Self.maxConcurrentPageTasks
+        let totalSegments = segments.count
 
         for chunk in Array(segments.enumerated()).chunked(into: maxConcurrent) {
             guard running && downloads.first == download else { return }
 
+            let isRunning = running
+            let firstDownload = downloads.first
+
             await withTaskGroup(of: Void.self) { group in
                 for (index, segment) in chunk {
                     group.addTask {
-                        guard let segmentUrl = URL(string: segment.url) else { return }
-                        let segmentFile = directory.appendingPathComponent(String(format: "%05d.ts", index))
+                        guard isRunning && firstDownload == download else { return }
 
-                        if !segmentFile.exists {
-                            var request = URLRequest(url: segmentUrl)
-                            if headers.isEmpty {
-                                let userAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " +
-                                               "AppleWebKit/537.36 (KHTML, like Gecko) " +
-                                               "Chrome/120.0.0.0 Safari/537.36"
-                                request.setValue(userAgent, forHTTPHeaderField: "User-Agent")
-                                request.setValue(segmentUrl.absoluteString, forHTTPHeaderField: "Referer")
-                            } else {
-                                for (key, value) in headers {
-                                    request.setValue(value, forHTTPHeaderField: key)
-                                }
-                            }
-                            do {
-                                let (data, _) = try await URLSession.shared.data(for: request)
-                                try data.write(to: segmentFile)
-                            } catch {
-                                LogManager.logger.error("Failed to download segment \(index): \(error)")
+                        await self.downloadSingleSegment(
+                            segment: segment,
+                            index: index,
+                            directory: directory,
+                            headers: headers
+                        )
+                        let progressValue = index + 1
+                        _ = await MainActor.run {
+                            Task {
+                                await self.delegate?.downloadProgressChanged(
+                                    download: Download(
+                                        chapterIdentifier: download.chapterIdentifier,
+                                        status: download.status,
+                                        type: download.type,
+                                        progress: progressValue,
+                                        total: totalSegments,
+                                        manga: download.manga,
+                                        chapter: download.chapter,
+                                        videoUrl: download.videoUrl,
+                                        posterUrl: download.posterUrl,
+                                        headers: download.headers,
+                                        sourceName: download.sourceName
+                                    )
+                                )
                             }
                         }
                     }
                 }
             }
-
-            let lastIndex = chunk.last?.0 ?? 0
-            currentPage = lastIndex + 1
-            downloads[0].progress = currentPage
-            await delegate?.downloadProgressChanged(download: downloads[0])
         }
+    }
+
+    private func downloadSingleSegment(
+        segment: M3U8Extractor.M3U8Segment,
+        index: Int,
+        directory: URL,
+        headers: [String: String]
+    ) async {
+        guard let segmentUrl = URL(string: segment.url) else { return }
+        let segmentFile = directory.appendingPathComponent(String(format: "%05d.ts", index))
+
+        guard !segmentFile.exists else { return }
+
+        do {
+            let request = createSegmentRequest(url: segmentUrl, headers: headers)
+            let (data, _) = try await URLSession.shared.data(for: request)
+            try data.write(to: segmentFile)
+        } catch {
+            LogManager.logger.error("Failed to download segment \(index): \(error)")
+        }
+    }
+
+    private func createSegmentRequest(url: URL, headers: [String: String]) -> URLRequest {
+        var request = URLRequest(url: url)
+
+        if headers.isEmpty {
+            request.setValue(Self.videoUserAgent, forHTTPHeaderField: "User-Agent")
+            request.setValue(url.absoluteString, forHTTPHeaderField: "Referer")
+        } else {
+            for (key, value) in headers {
+                request.setValue(value, forHTTPHeaderField: key)
+            }
+        }
+
+        return request
     }
 
     private func mergeSegments(at directory: URL, to destination: URL) async throws {

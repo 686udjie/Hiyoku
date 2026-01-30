@@ -206,6 +206,17 @@ struct DownloadQueueView: View {
                 guard let download = output.object as? Download else { return }
                 remove(download: download)
             }
+            .onReceive(NotificationCenter.default.publisher(for: .downloadProgressed)) { output in
+                guard let download = output.object as? Download else { return }
+                // Update progress in the UI
+                if download.total > 0 {
+                    progress[download.chapterIdentifier] = (download.progress, download.total)
+                }
+                // Update the download in the queue
+                guard let index = queue.firstIndex(where: { $0.sourceId == download.chapterIdentifier.sourceKey }) else { return }
+                guard let downloadIndex = queue[index].downloads.firstIndex(where: { $0 == download }) else { return }
+                queue[index].downloads[downloadIndex] = download
+            }
             .onReceive(NotificationCenter.default.publisher(for: .downloadCancelled)) { output in
                 guard let download = output.object as? Download else { return }
                 remove(download: download)

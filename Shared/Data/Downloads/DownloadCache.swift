@@ -169,38 +169,48 @@ extension DownloadCache {
 // MARK: Directory Provider
 extension DownloadCache {
     nonisolated func directory(sourceKey: String) -> URL {
-        DownloadManager.directory
-            .appendingSafePathComponent(sourceKey)
+        DirectoryManager.shared.mangaSeriesDirectory(for: MangaIdentifier(sourceKey: sourceKey, mangaKey: ""))
     }
 
     nonisolated func directory(for manga: MangaIdentifier) -> URL {
-        DownloadManager.directory
-            .appendingSafePathComponent(manga.sourceKey)
-            .appendingSafePathComponent(manga.mangaKey)
+        DirectoryManager.shared.mangaEntryDirectory(sourceKey: manga.sourceKey, mangaTitle: manga.mangaKey)
     }
 
     nonisolated func directory(for chapter: ChapterIdentifier) -> URL {
-        DownloadManager.directory
-            .appendingSafePathComponent(chapter.sourceKey)
-            .appendingSafePathComponent(chapter.mangaKey)
-            .appendingSafePathComponent(chapter.chapterKey)
+        DirectoryManager.shared.mangaChapterDirectory(
+            sourceKey: chapter.sourceKey,
+            mangaTitle: chapter.mangaKey,
+            chapterTitle: chapter.chapterKey
+        )
     }
 
     nonisolated func tmpDirectory(for chapter: ChapterIdentifier) -> URL {
-        DownloadManager.directory
-            .appendingSafePathComponent(chapter.sourceKey)
-            .appendingSafePathComponent(chapter.mangaKey)
-            .appendingSafePathComponent(".tmp_\(chapter.chapterKey.directoryName)")
+        DirectoryManager.shared.mangaTempDirectory(sourceKey: chapter.sourceKey, mangaTitle: chapter.mangaKey)
     }
 
     nonisolated func readableDirectory(for chapter: ChapterIdentifier, sourceName: String?, seriesTitle: String?, episodeName: String?) -> URL {
-        let s = sourceName ?? chapter.sourceKey
-        let m = seriesTitle ?? chapter.mangaKey
-        let c = episodeName ?? chapter.chapterKey
+        DirectoryManager.shared.mangaReadableDirectory(
+            for: chapter,
+            sourceName: sourceName,
+            seriesTitle: seriesTitle,
+            chapterName: episodeName
+        )
+    }
 
-        return DownloadManager.directory
-            .appendingSafePathComponent(s)
-            .appendingSafePathComponent(m)
-            .appendingSafePathComponent(c)
+    nonisolated func moduleDirectory(for sourceKey: String, moduleName: String? = nil) -> URL {
+        DirectoryManager.shared.animeModuleDirectory(sourceKey: sourceKey, moduleName: moduleName)
+    }
+
+    nonisolated func moduleSeriesDirectory(for sourceKey: String, moduleName: String?, seriesTitle: String) -> URL {
+        DirectoryManager.shared.animeSeriesDirectory(sourceKey: sourceKey, moduleName: moduleName, seriesTitle: seriesTitle)
+    }
+
+    nonisolated func moduleEpisodeDirectory(for sourceKey: String, moduleName: String?, seriesTitle: String, episodeName: String) -> URL {
+        DirectoryManager.shared.animeEpisodeDirectory(
+            sourceKey: sourceKey,
+            moduleName: moduleName,
+            seriesTitle: seriesTitle,
+            episodeName: episodeName
+        )
     }
 }
