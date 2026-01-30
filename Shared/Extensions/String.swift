@@ -80,8 +80,13 @@ extension String {
     func normalizedModuleHref() -> String {
         let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return trimmed }
-        if let range = trimmed.range(of: "http") {
-            return String(trimmed[range.lowerBound...])
+        if let httpRange = trimmed.range(of: "http") {
+            return String(trimmed[httpRange.lowerBound...])
+        } else if let colonRange = trimmed.range(of: ":", options: .caseInsensitive) {
+            let beforeColon = String(trimmed[..<colonRange.lowerBound])
+            if !beforeColon.contains(" ") && !beforeColon.contains("/") {
+                return String(trimmed[colonRange.lowerBound...])
+            }
         }
         return trimmed
     }
