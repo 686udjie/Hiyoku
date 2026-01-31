@@ -58,6 +58,13 @@ final class PlayerHistoryManager: Sendable {
         NotificationCenter.default.post(name: .playerHistoryUpdated, object: data)
     }
 
+    func getEpisodeUrl(episodeId: String, moduleId: String) async -> String? {
+        await CoreDataManager.shared.container.performBackgroundTask { context in
+            let history = CoreDataManager.shared.getPlayerHistory(episodeId: episodeId, moduleId: moduleId, context: context)
+            return history?.sourceUrl
+        }
+    }
+
     func getAllHistory() async -> [PlayerHistoryItem] {
         await CoreDataManager.shared.container.performBackgroundTask { context in
             let objects = CoreDataManager.shared.getAllPlayerHistory(context: context)

@@ -9,6 +9,7 @@ import Foundation
 import SwiftUI
 import NukeUI
 import AidokuRunner
+import SafariServices
 
 class PlayerSession: ObservableObject, Identifiable {
     let id = UUID()
@@ -169,7 +170,11 @@ struct PlayerInfoView: View {
     private var toolbarContentBase: some ToolbarContent {
         ToolbarItem(placement: .navigationBarTrailing) {
             HStack(spacing: 8) {
-                PlayerRightNavbarButton(viewModel: viewModel, editMode: $viewModel.editMode)
+                PlayerRightNavbarButton(
+                    viewModel: viewModel,
+                    editMode: $viewModel.editMode,
+                    onOpenWebView: openWebView
+                )
             }
         }
 
@@ -224,6 +229,26 @@ struct PlayerInfoView: View {
             get: { errorMessage != nil },
             set: { if !$0 { errorMessage = nil } }
         )
+    }
+
+    private func openWebView() {
+        guard let rawUrlString = viewModel.contentUrl else { return }
+        let normalized = rawUrlString.normalizedModuleHref()
+        let finalUrlString: String
+        if normalized.starts(with: "http") {
+            finalUrlString = normalized
+        } else if let baseUrl = viewModel.module?.metadata.baseUrl {
+            finalUrlString = normalized.absoluteUrl(withBaseUrl: baseUrl)
+        } else {
+            return
+        }
+
+        guard let url = URL(string: finalUrlString),
+              url.scheme == "http" || url.scheme == "https" else { return }
+
+        let safariViewController = SFSafariViewController(url: url)
+        safariViewController.modalPresentationStyle = .pageSheet
+        path.present(safariViewController, animated: true)
     }
 
     private var emptyStateView: some View {
@@ -776,12 +801,18 @@ struct PlayerSessionWrapper: View {
 private struct PlayerRightNavbarButton: View, Equatable {
     @ObservedObject var viewModel: PlayerInfoView.ViewModel
     @Binding var editMode: EditMode
+    let onOpenWebView: () -> Void
     let isBookmarked: Bool
     let isEditing: Bool
 
-    init(viewModel: PlayerInfoView.ViewModel, editMode: Binding<EditMode>) {
+    init(
+        viewModel: PlayerInfoView.ViewModel,
+        editMode: Binding<EditMode>,
+        onOpenWebView: @escaping () -> Void
+    ) {
         self.viewModel = viewModel
         self._editMode = editMode
+        self.onOpenWebView = onOpenWebView
         self.isBookmarked = viewModel.isBookmarked
         self.isEditing = editMode.wrappedValue == .active
     }

@@ -8,6 +8,7 @@
 import SwiftUI
 import NukeUI
 import UIKit
+import SafariServices
 
 struct PlayerDetailsHeaderView: View {
     let module: ScrapingModule?
@@ -195,7 +196,41 @@ struct PlayerDetailsHeaderView: View {
                         longHeldBookmark = true
                     }
             )
+
+            Button {
+                openWebView()
+            } label: {
+                Image(systemName: "safari")
+            }
+            .buttonStyle(PlayerActionButtonStyle(selected: false))
+            .disabled(contentUrl == nil)
         }
+    }
+
+    private func openWebView() {
+        guard let rawUrlString = contentUrl else { return }
+        let normalized = rawUrlString.normalizedModuleHref()
+        let finalUrlString: String
+        if normalized.starts(with: "http") {
+            finalUrlString = normalized
+        } else if let baseUrl = module?.metadata.baseUrl {
+            // hinaime is a special case bcs the baseurl is different from the contenturl
+            // will prolly only do this for hianime bcs i use this module a lot
+            if baseUrl.contains("megacloud.blog") {
+                finalUrlString = "https://hianime.to" + normalized
+            } else {
+                finalUrlString = normalized.absoluteUrl(withBaseUrl: baseUrl)
+            }
+        } else {
+            return
+        }
+
+        guard let url = URL(string: finalUrlString),
+              url.scheme == "http" || url.scheme == "https" else { return }
+
+        let safariViewController = SFSafariViewController(url: url)
+        safariViewController.modalPresentationStyle = .pageSheet
+        path.present(safariViewController, animated: true)
     }
 
     var tagsView: some View {

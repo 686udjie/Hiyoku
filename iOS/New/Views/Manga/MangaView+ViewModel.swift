@@ -234,35 +234,31 @@ extension MangaView.ViewModel {
 
     // fetches manga data, from coredata if in library or from source if not
     func fetchData() async {
-        let mangaId = manga.key
         let sourceKey = manga.sourceKey
-        // Always try to load from DB first
-        let dbChapters: [AidokuRunner.Chapter] = await CoreDataManager.shared.container.performBackgroundTask { @Sendable context in
-            CoreDataManager.shared.getChapters(
-                sourceId: sourceKey,
-                mangaId: mangaId,
-                context: context
-            ).map {
-                $0.toNewChapter()
-            }
-        }
-
-        if !dbChapters.isEmpty {
-            var newManga = self.manga
-            newManga.chapters = dbChapters
-            withAnimation {
-                self.manga = newManga
-                self.chapters = filteredChapters()
-            }
-        }
-
+        let mangaId = manga.key
         let inLibrary = await CoreDataManager.shared.container.performBackgroundTask { @Sendable context in
             CoreDataManager.shared.hasLibraryManga(sourceId: sourceKey, mangaId: mangaId, context: context)
         }
-
-        // If not in library, try to update from source
-        if !inLibrary, let source {
-            // load new data from source
+        if inLibrary {
+            let dbChapters: [AidokuRunner.Chapter] = await CoreDataManager.shared.container.performBackgroundTask { @Sendable context in
+                CoreDataManager.shared.getChapters(
+                    sourceId: sourceKey,
+                    mangaId: mangaId,
+                    context: context
+                ).map {
+                    $0.toNewChapter()
+                }
+            }
+            if !dbChapters.isEmpty {
+                var newManga = self.manga
+                newManga.chapters = dbChapters
+                withAnimation {
+                    self.manga = newManga
+                    self.chapters = filteredChapters()
+                }
+            }
+        } else if let source {
+            // load new data from source (only if not in library)
             await source.partialMangaPublisher?.sink { @Sendable newManga in
                 Task { @MainActor in
                     withAnimation {
@@ -280,10 +276,9 @@ extension MangaView.ViewModel {
 
                 // Cache fetched data to Core Data
                 if newManga.chapters != nil {
-                    let mangaToSave = self.manga
                     await CoreDataManager.shared.container.performBackgroundTask { @Sendable context in
-                        _ = CoreDataManager.shared.getOrCreateManga(mangaToSave, sourceId: sourceKey, context: context)
-                        if let chapters = mangaToSave.chapters {
+                        _ = CoreDataManager.shared.getOrCreateManga(newManga, sourceId: sourceKey, context: context)
+                        if let chapters = newManga.chapters {
                             CoreDataManager.shared.setChapters(
                                 chapters,
                                 sourceId: sourceKey,

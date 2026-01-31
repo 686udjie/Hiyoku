@@ -140,7 +140,7 @@ class ReaderViewController: BaseObservingViewController {
             target: self,
             action: #selector(openWebView)
         )
-        moreButton.isEnabled = chapter.url != nil
+        moreButton.isEnabled = chapter.url != nil || manga.url != nil
         navigationItem.rightBarButtonItems = [
             moreButton,
             UIBarButtonItem(
@@ -462,8 +462,30 @@ class ReaderViewController: BaseObservingViewController {
     }
 
     @objc func openWebView() {
-        guard let url = chapter.url, url.scheme == "http" || url.scheme == "https" else { return }
-        present(SFSafariViewController(url: url), animated: true)
+        var url: URL?
+        var usingFallback = false
+        if let chapterUrl = chapter.url, chapterUrl.scheme == "http" || chapterUrl.scheme == "https" {
+            url = chapterUrl
+        } else if let mangaUrl = manga.url, mangaUrl.scheme == "http" || mangaUrl.scheme == "https" {
+            url = mangaUrl
+            usingFallback = true
+        }
+        guard let finalUrl = url else { return }
+        let safariVC = SFSafariViewController(url: finalUrl)
+        if usingFallback {
+            let alert = UIAlertController(
+                title: NSLocalizedString("CHAPTER_PAGE_UNAVAILABLE", comment: ""),
+                message: NSLocalizedString("CHAPTER_PAGE_UNAVAILABLE_INFO", comment: ""),
+                preferredStyle: .alert
+            )
+            alert.addAction(UIAlertAction(title: NSLocalizedString("CONTINUE", comment: ""), style: .default) { _ in
+                self.present(safariVC, animated: true)
+            })
+            alert.addAction(UIAlertAction(title: NSLocalizedString("CANCEL", comment: ""), style: .cancel))
+            present(alert, animated: true)
+        } else {
+            present(safariVC, animated: true)
+        }
     }
 
     @objc func openChapterList() {
