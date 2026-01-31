@@ -103,20 +103,11 @@ struct PlayerDetailsHeaderView: View {
                         .padding(.bottom, 4)
 
                     if let module = module {
-                        let studio = module.metadata.sourceName
-                        let episodeCount = episodes.count
-
-                        Text(
-                            isLoadingEpisodes
-                                ? "\(studio) · \(NSLocalizedString("LOADING_ELLIPSIS", comment: ""))"
-                                : "\(studio) · \(episodeCount) Episodes"
+                        PlayerSourceLabelView(
+                            text: module.metadata.sourceName,
+                            background: Color(red: 0.25, green: 0.55, blue: 1).opacity(0.3)
                         )
-                        .lineLimit(1)
-                        .foregroundStyle(.secondary)
-                        .font(.callout)
-                        .padding(.bottom, 6)
-                        .textSelection(.enabled)
-                        .transition(.opacity)
+                        .padding(.bottom, 8)
                     }
                     buttonsView
                 }
@@ -359,6 +350,22 @@ struct PlayerLabelView: View {
             .padding(.vertical, 4)
             .background(background)
             .clipShape(Capsule())
+    }
+}
+
+struct PlayerSourceLabelView: View {
+    let text: String
+    var background = Color(UIColor.tertiarySystemFill)
+
+    var body: some View {
+        Text(text)
+            .lineLimit(1)
+            .foregroundStyle(.secondary)
+            .font(.caption2)
+            .padding(.vertical, 4)
+            .padding(.horizontal, 8)
+            .background(background)
+            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
     }
 }
 

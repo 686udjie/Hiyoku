@@ -271,6 +271,20 @@ class PlayerViewController: UIViewController, UIGestureRecognizerDelegate {
     private lazy var subtitleButton = createSystemButton(symbol: "captions.bubble.fill", action: #selector(subtitleTapped))
     private lazy var subtitleBackgroundView = createBlurBackground(cornerRadius: 22)
 
+    private lazy var sourceIndicatorButton: UIButton = {
+        let button = UIButton(type: .system)
+        var config = UIButton.Configuration.plain()
+        config.title = module.metadata.sourceName
+        config.baseForegroundColor = .secondaryLabel
+        config.background.backgroundColor = UIColor(red: 0.25, green: 0.55, blue: 1, alpha: 0.3)
+        config.background.cornerRadius = 6
+        config.contentInsets = NSDirectionalEdgeInsets(top: 4, leading: 8, bottom: 4, trailing: 8)
+        button.configuration = config
+        button.translatesAutoresizingMaskIntoConstraints = false
+        button.alpha = 1
+        return button
+    }()
+
     init(module: ScrapingModule, videoUrl: String, videoTitle: String, headers: [String: String] = [:], subtitleUrl: String? = nil) {
         self.module = module
         self.videoUrl = videoUrl
@@ -420,7 +434,7 @@ extension PlayerViewController {
          closeBackgroundView, listBackgroundView, sliderBackgroundView, speedBackgroundView,
          lockBackgroundView, skipBackgroundView, settingsBackgroundView, subtitleBackgroundView, gutterUnlockButton,
          watchedTimeLabel, totalTimeLabel, titleStackView, leftSkipFeedbackView, rightSkipFeedbackView,
-         speedIndicatorBackgroundView].forEach {
+         speedIndicatorBackgroundView, sourceIndicatorButton].forEach {
 
             $0.translatesAutoresizingMaskIntoConstraints = false
             videoContainer.addSubview($0)
@@ -534,7 +548,12 @@ extension PlayerViewController {
             // Speed indicator
             speedIndicatorBackgroundView.topAnchor.constraint(equalTo: videoContainer.safeAreaLayoutGuide.topAnchor, constant: 16),
             speedIndicatorBackgroundView.centerXAnchor.constraint(equalTo: videoContainer.centerXAnchor),
-            speedIndicatorBackgroundView.heightAnchor.constraint(equalToConstant: 36)
+            speedIndicatorBackgroundView.heightAnchor.constraint(equalToConstant: 36),
+
+            // Source indicator
+            sourceIndicatorButton.topAnchor.constraint(equalTo: videoContainer.safeAreaLayoutGuide.topAnchor, constant: 16),
+            sourceIndicatorButton.leadingAnchor.constraint(equalTo: videoContainer.safeAreaLayoutGuide.leadingAnchor, constant: 16),
+            sourceIndicatorButton.heightAnchor.constraint(greaterThanOrEqualToConstant: 28)
         ])
 
         playPauseButton.addTarget(self, action: #selector(playPauseTapped), for: .touchUpInside)
@@ -841,7 +860,7 @@ extension PlayerViewController {
             playPauseBackgroundView, previousBackgroundView, nextBackgroundView,
             closeBackgroundView, listBackgroundView, sliderBackgroundView, watchedTimeLabel,
             totalTimeLabel, speedBackgroundView, lockBackgroundView, skipBackgroundView,
-            titleStackView, settingsBackgroundView, subtitleBackgroundView
+            titleStackView, settingsBackgroundView, subtitleBackgroundView, sourceIndicatorButton
         ]
     }
 
