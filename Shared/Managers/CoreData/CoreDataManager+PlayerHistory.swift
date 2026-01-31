@@ -7,7 +7,39 @@
 
 import CoreData
 
+struct PlayerProgress {
+    let progress: Int
+    let total: Int?
+    let date: Int
+}
+
 extension CoreDataManager {
+    func getPlayerReadingHistory(
+        sourceId: String,
+        mangaId: String
+    ) async -> [String: PlayerProgress] {
+        await container.performBackgroundTask { context in
+            let request: NSFetchRequest<PlayerHistoryObject> = PlayerHistoryObject.fetchRequest()
+            request.predicate = NSPredicate(format: "moduleId == %@", sourceId)
+
+            var results: [String: PlayerProgress] = [:]
+
+            do {
+                let historyObjects = try context.fetch(request)
+                for obj in historyObjects {
+                    if let episodeId = obj.episodeId as String?, let dateWatched = obj.dateWatched {
+                        let progress = Int(obj.progress)
+                        let total = obj.total != 0 ? Int(obj.total) : nil
+                        let date = Int(dateWatched.timeIntervalSince1970)
+                        results[episodeId] = PlayerProgress(progress: progress, total: total, date: date)
+                    }
+                }
+            } catch { }
+
+            return results
+        }
+    }
+
     func getPlayerHistory(
         episodeId: String,
         moduleId: String,

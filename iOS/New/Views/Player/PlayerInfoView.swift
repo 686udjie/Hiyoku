@@ -160,7 +160,7 @@ struct PlayerInfoView: View {
             }
             .task {
                 guard !episodesLoaded else { return }
-                await viewModel.loadEpisodes()
+                await viewModel.fetchEpisodes()
                 episodesLoaded = true
             }
     }
