@@ -207,7 +207,7 @@ actor DirectoryManager {
         return baseDirectory
             .appendingSafePathComponent(module)
             .appendingSafePathComponent(seriesTitle)
-            .appendingSafePathComponent("icon.jpg")
+            .appendingSafePathComponent("cover.jpg")
     }
 
     func saveCoverImage(

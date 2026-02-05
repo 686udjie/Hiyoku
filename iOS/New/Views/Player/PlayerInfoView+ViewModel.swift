@@ -25,7 +25,10 @@ extension PlayerInfoView {
         private var searchItem: SearchItem?
         private(set) var module: ScrapingModule?
         @Published var episodes: [PlayerEpisode] = [] {
-            didSet { recomputeSortedEpisodes() }
+            didSet {
+                recomputeSortedEpisodes()
+                Task { await loadDownloadStatus() }
+            }
         }
         @Published private(set) var sortedEpisodes: [PlayerEpisode] = []
         @Published var isLoadingEpisodes = false
@@ -229,7 +232,6 @@ extension PlayerInfoView {
             await loadDownloadStatus()
             await MainActor.run {
                 setupDownloadTracker()
-                downloadTracker?.loadStatus(for: self.episodes.map { $0.url })
             }
         }
 
@@ -270,7 +272,6 @@ extension PlayerInfoView {
             await loadDownloadStatus()
             await MainActor.run {
                 setupDownloadTracker()
-                downloadTracker?.loadStatus(for: self.episodes.map { $0.url })
                 initialDataLoaded = true
             }
         }
@@ -318,7 +319,34 @@ extension PlayerInfoView {
             }
         }
         private func loadDownloadStatus() async {
-            // in the future itll be managed by the tracker
+            await MainActor.run {
+                setupDownloadTracker()
+            }
+            await downloadTracker?.loadStatus(for: episodes.map { $0.url })
+            await applyVideoDownloadFallbacks()
+        }
+
+        private func applyVideoDownloadFallbacks() async {
+            guard let sourceId = currentSourceId else { return }
+            let moduleName = module?.metadata.sourceName
+            let seriesTitle = title
+            let episodesToCheck = episodes.filter { downloadStatus[$0.url] != .finished }
+            guard !episodesToCheck.isEmpty else { return }
+
+            for episode in episodesToCheck {
+                let isDownloaded = await DownloadManager.shared.isDownloadedVideoEpisode(
+                    sourceId: sourceId,
+                    moduleName: moduleName,
+                    seriesTitle: seriesTitle,
+                    episodeNumber: episode.number
+                )
+                if isDownloaded {
+                    await MainActor.run {
+                        downloadTracker?.downloadStatus[episode.url] = .finished
+                        downloadTracker?.downloadProgress.removeValue(forKey: episode.url)
+                    }
+                }
+            }
         }
         func getLocalEpisodeUrl(for episode: PlayerEpisode) async -> URL? {
             guard let sourceId = currentSourceId, let mangaId = currentMangaId else { return nil }

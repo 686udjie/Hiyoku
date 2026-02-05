@@ -591,10 +591,7 @@ extension DownloadTask {
                     directory = chapterDir
                 }
 
-            // Only save chapter metadata for manga downloads
-            if download.type == .manga {
-                await DownloadManager.shared.saveChapterMetadata(manga: download.manga, chapter: download.chapter, to: directory)
-            }
+            await DownloadManager.shared.saveChapterMetadata(manga: download.manga, chapter: download.chapter, to: directory)
 
             if download.type == .manga {
                 let mangaTitle = download.manga.title

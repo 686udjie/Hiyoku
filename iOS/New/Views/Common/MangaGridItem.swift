@@ -14,6 +14,8 @@ struct MangaGridItem: View {
     let title: String
     let coverImage: String
     var bookmarked: Bool = false
+    var badge: Int = 0
+    var badge2: Int = 0
 
     var body: some View {
         let view = Rectangle()
@@ -36,6 +38,10 @@ struct MangaGridItem: View {
             .overlay(
                 bookmarkView,
                 alignment: .topTrailing
+            )
+            .overlay(
+                badgeView,
+                alignment: .topLeading
             )
             .contentShape(RoundedRectangle(cornerRadius: 5))
             .clipShape(RoundedRectangle(cornerRadius: 5))
@@ -74,6 +80,51 @@ struct MangaGridItem: View {
         }
     }
 
+    @ViewBuilder
+    var badgeView: some View {
+        HStack(spacing: 0) {
+            if badge > 0 {
+                Text("\(badge)")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 5)
+                    .frame(height: 20)
+                    .background(Color.accentColor)
+                    .clipShape(
+                        SpecificRoundedCorner(
+                            radius: 5,
+                            corners: [
+                                .topLeft,
+                                .bottomLeft,
+                                badge2 > 0 ? [] : .bottomRight,
+                                badge2 > 0 ? [] : .topRight
+                            ].reduce(into: UIRectCorner()) { $0.insert($1) }
+                        )
+                    )
+            }
+            if badge2 > 0 {
+                Text("\(badge2)")
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 5)
+                    .frame(height: 20)
+                    .background(Color.indigo)
+                    .clipShape(
+                        SpecificRoundedCorner(
+                            radius: 5,
+                            corners: [
+                                badge > 0 ? [] : .topLeft,
+                                badge > 0 ? [] : .bottomLeft,
+                                .bottomRight,
+                                .topRight
+                            ].reduce(into: UIRectCorner()) { $0.insert($1) }
+                        )
+                    )
+            }
+        }
+        .padding([.top, .leading], 5)
+    }
+
     static var placeholder: some View {
         Rectangle()
             .fill(Color(uiColor: .secondarySystemFill))
@@ -83,5 +134,19 @@ struct MangaGridItem: View {
                 RoundedRectangle(cornerRadius: 5)
                     .strokeBorder(Color(UIColor.quaternarySystemFill), lineWidth: 1)
             )
+    }
+}
+
+private struct SpecificRoundedCorner: Shape {
+    var radius: CGFloat = .infinity
+    var corners: UIRectCorner = .allCorners
+
+    func path(in rect: CGRect) -> Path {
+        let path = UIBezierPath(
+            roundedRect: rect,
+            byRoundingCorners: corners,
+            cornerRadii: CGSize(width: radius, height: radius)
+        )
+        return Path(path.cgPath)
     }
 }

@@ -241,7 +241,9 @@ struct DownloadQueueView: View {
         if let source = SourceManager.shared.source(for: sourceId) {
             return (source.name, source.imageUrl)
         } else if let module = ModuleManager.shared.modules.first(where: { $0.id.uuidString == sourceId }) {
-            return (module.metadata.sourceName, URL(string: module.metadata.iconUrl))
+            let iconUrl = URL(string: module.metadata.iconUrl) ??
+                          URL(string: module.metadata.iconUrl.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? "")
+            return (module.metadata.sourceName, iconUrl)
         } else {
             return (NSLocalizedString(sourceId, comment: ""), nil)
         }

@@ -315,7 +315,13 @@ extension MangaView.ViewModel {
     func fetchDownloadedChapters() async {
         let downloadedChapters = await DownloadManager.shared.getDownloadedChapters(for: manga.identifier)
             .filter { chapter in
-                !(manga.chapters ?? chapters).contains(where: { $0.key.directoryName == chapter.chapterId.directoryName })
+                let downloadedKey = chapter.chapter?.key
+                return !(manga.chapters ?? chapters).contains(where: { existing in
+                    if let downloadedKey {
+                        return existing.key == downloadedKey
+                    }
+                    return existing.key.directoryName == chapter.chapterId.directoryName
+                })
             }
             .map { $0.toChapter() }
             .sorted { (lhs: AidokuRunner.Chapter, rhs: AidokuRunner.Chapter) in
@@ -473,10 +479,8 @@ extension MangaView.ViewModel {
     }
 
     private func loadDownloadStatus() async {
-        await MainActor.run {
-             let allChapters = chapters + otherDownloadedChapters
-             downloadTracker.loadStatus(for: allChapters.map { $0.key })
-        }
+        let allChapters = chapters + otherDownloadedChapters
+        await downloadTracker.loadStatus(for: allChapters.map { $0.key })
     }
 
     private func loadBookmarked() async {

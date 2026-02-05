@@ -14,6 +14,7 @@ actor DownloadManager {
     static let shared = DownloadManager()
 
     static let directory = FileManager.default.documentDirectory.appendingPathComponent("Downloads", isDirectory: true)
+    private static let videoExtensions: Set<String> = ["mp4", "mkv", "mov", "avi"]
 
     @MainActor
     private let cache: DownloadCache = .init()
@@ -114,10 +115,8 @@ actor DownloadManager {
     }
 
     func downloadsCount(for identifier: MangaIdentifier) async -> Int {
-        let directory = await cache.getMangaDirectory(for: identifier)
-        return directory.contents
-            .filter { ($0.isDirectory || $0.pathExtension == "cbz") && !$0.lastPathComponent.hasPrefix(".tmp") }
-            .count
+        let keys = await getDownloadedChapterKeys(for: identifier)
+        return keys.count
     }
 
     func hasQueuedDownloads(type: DownloadType? = nil) async -> Bool {
@@ -396,6 +395,31 @@ extension DownloadManager {
         return items.videos.sorted { $0.displayTitle < $1.displayTitle }
     }
 
+    /// Fetch downloaded chapter keys
+    func getDownloadedChapterKeys(for identifier: MangaIdentifier) async -> Set<String> {
+        guard Self.directory.exists else { return [] }
+
+        let seriesDirectories = findDownloadedSeriesDirectories(for: identifier)
+        guard !seriesDirectories.isEmpty else { return [] }
+
+        var keys = Set<String>()
+        for seriesDir in seriesDirectories {
+            let subItems = seriesDir.contents.filter { !$0.lastPathComponent.hasPrefix(".") }
+            for item in subItems {
+                guard item.isDirectory || item.pathExtension == "cbz" else { continue }
+                if item.isDirectory {
+                    guard isCompletedDownloadDirectory(item) else { continue }
+                }
+
+                let info = loadComicInfo(at: item)
+                let key = info?.extraData()?.chapterKey ?? item.deletingPathExtension().lastPathComponent
+                keys.insert(key)
+            }
+        }
+
+        return keys
+    }
+
     private func listDownloadedItems() async -> (manga: [DownloadedMangaInfo], videos: [DownloadedVideoInfo]) {
         var manga: [DownloadedMangaInfo] = []
         var videos: [DownloadedVideoInfo] = []
@@ -415,7 +439,7 @@ extension DownloadManager {
                 var videoEpisodes: [URL] = []
                 var videoTotalSize: Int64 = 0
 
-                for episodeDir in episodeDirectories where episodeDir.contents.contains(where: { $0.pathExtension == "mp4" }) {
+                for episodeDir in episodeDirectories where containsCompletedVideo(in: episodeDir) {
                     videoEpisodes.append(episodeDir)
                     videoTotalSize += await calculateDirectorySize(episodeDir)
                 }
@@ -427,8 +451,8 @@ extension DownloadManager {
                     let actualSeriesId = extraData?.mangaKey ?? seriesName
 
                     let metadata = await getVideoMetadata(sourceId: actualSourceId, seriesId: actualSeriesId, directoryName: seriesName)
-                    let coverUrl = seriesDir.appendingPathComponent("cover.png").exists ?
-                        seriesDir.appendingPathComponent("cover.png").absoluteString : metadata.coverUrl
+                    let coverUrl = seriesDir.appendingPathComponent("cover.jpg").exists ?
+                        seriesDir.appendingPathComponent("cover.jpg").absoluteString : metadata.coverUrl
 
                     videos.append(DownloadedVideoInfo(
                         sourceId: actualSourceId,
@@ -476,6 +500,43 @@ extension DownloadManager {
         return (manga, videos)
     }
 
+    private func findDownloadedSeriesDirectories(for identifier: MangaIdentifier) -> [URL] {
+        guard Self.directory.exists else { return [] }
+
+        var matches: [URL] = []
+        let sourceDirectories = Self.directory.contents.filter { $0.isDirectory }
+        for sourceDir in sourceDirectories {
+            let seriesDirectories = sourceDir.contents.filter { $0.isDirectory }
+            for seriesDir in seriesDirectories {
+                if let comicInfo = loadComicInfo(at: seriesDir) {
+                    let extraData = comicInfo.extraData()
+                    let sourceKey = extraData?.sourceKey ?? sourceDir.lastPathComponent
+                    let mangaKey = extraData?.mangaKey ?? seriesDir.lastPathComponent
+                    if sourceKey == identifier.sourceKey && mangaKey == identifier.mangaKey {
+                        matches.append(seriesDir)
+                    }
+                } else if sourceDir.lastPathComponent == identifier.sourceKey,
+                          seriesDir.lastPathComponent == identifier.mangaKey {
+                    matches.append(seriesDir)
+                }
+            }
+        }
+
+        return matches
+    }
+
+    private func isCompletedDownloadDirectory(_ directory: URL) -> Bool {
+        guard directory.isDirectory else { return false }
+        guard !directory.lastPathComponent.hasPrefix(".tmp") else { return false }
+        let contents = directory.contents
+        return contents.contains { $0.lastPathComponent == "ComicInfo.xml" }
+            || contents.contains { Self.videoExtensions.contains($0.pathExtension.lowercased()) }
+    }
+
+    private func containsCompletedVideo(in directory: URL) -> Bool {
+        directory.contents.contains { Self.videoExtensions.contains($0.pathExtension.lowercased()) }
+    }
+
     private struct DownloadedMangaMetadata {
         let title: String?
         let coverUrl: String?
@@ -504,7 +565,7 @@ extension DownloadManager {
             }
             return DownloadedMangaMetadata(
                 title: comicInfo.series,
-                coverUrl: seriesDir.appendingPathComponent("cover.png").absoluteString,
+                coverUrl: seriesDir.appendingPathComponent("cover.jpg").absoluteString,
                 isInLibrary: isInLibrary,
                 actualMangaId: extraData?.mangaKey ?? mangaId
             )
@@ -527,7 +588,7 @@ extension DownloadManager {
                         }
                     }
 
-                    let localCover = seriesDir.appendingPathComponent("cover.png")
+                    let localCover = seriesDir.appendingPathComponent("cover.jpg")
                     continuation.resume(returning: DownloadedMangaMetadata(
                         title: mangaObject?.title,
                         coverUrl: localCover.exists ? localCover.absoluteString : mangaObject?.cover,
@@ -573,11 +634,28 @@ extension DownloadManager {
         let directory = await cache.getDirectory(for: chapter)
         guard directory.exists else { return nil }
 
-        if let mp4File = directory.contents.first(where: { $0.pathExtension == "mp4" }) {
-            return mp4File
+        if let file = directory.contents.first(where: { Self.videoExtensions.contains($0.pathExtension.lowercased()) }) {
+            return file
         }
 
         return nil
+    }
+
+    func isDownloadedVideoEpisode(
+        sourceId: String,
+        moduleName: String?,
+        seriesTitle: String,
+        episodeNumber: Int
+    ) async -> Bool {
+        let episodeName = "Episode \(episodeNumber)"
+        let directory = DirectoryManager.shared.animeEpisodeDirectory(
+            sourceKey: sourceId,
+            moduleName: moduleName,
+            seriesTitle: seriesTitle,
+            episodeName: episodeName
+        )
+        guard directory.exists else { return false }
+        return containsCompletedVideo(in: directory)
     }
 
     func deleteChapter(for chapter: ChapterIdentifier) async {

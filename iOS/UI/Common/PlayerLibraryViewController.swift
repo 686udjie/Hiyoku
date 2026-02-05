@@ -287,11 +287,31 @@ struct PlayerView: View {
     @StateObject private var libraryManager = PlayerLibraryManager.shared
     @StateObject var searchViewModel = PlayerLibrarySearchViewModel()
     @State var searchText = "" // Made public for UIKit search controller
+    @State private var itemCounts: [UUID: (unread: Int, downloads: Int)] = [:]
+    @AppStorage("Library.unreadChapterBadges") private var showUnreadBadges = false
+    @AppStorage("Library.downloadedChapterBadges") private var showDownloadBadges = false
     @EnvironmentObject private var path: NavigationCoordinator
 
     private let gridColumns = [
         GridItem(.adaptive(minimum: 140), spacing: 16)
     ]
+    private var refreshPublisher: AnyPublisher<Notification, Never> {
+        let names: [Notification.Name] = [
+            Notification.Name("Library.unreadChapterBadges"),
+            Notification.Name("Library.downloadedChapterBadges"),
+            .playerHistoryAdded,
+            .playerHistoryUpdated,
+            .playerHistoryRemoved,
+            .downloadFinished,
+            .downloadRemoved,
+            .downloadCancelled,
+            .downloadsRemoved,
+            .downloadsCancelled,
+            .downloadsQueued
+        ]
+        return Publishers.MergeMany(names.map { NotificationCenter.default.publisher(for: $0) })
+            .eraseToAnyPublisher()
+    }
 
     var filteredBookmarks: [PlayerLibraryItem] {
         if searchText.isEmpty {
@@ -312,87 +332,98 @@ struct PlayerView: View {
             if searchText.isEmpty {
                 // Show bookmarks when not searching
                 if !libraryManager.items.isEmpty {
-                    ScrollView {
-                        LazyVGrid(columns: gridColumns, spacing: 16) {
-                            ForEach(filteredBookmarks) { bookmark in
-                                Button {
-                                    let zoomSourceIdentifier = "player-banner-\(bookmark.id.uuidString)"
-                                    // Navigate to player info page
-                                    let searchItem = SearchItem(
-                                        title: bookmark.title,
-                                        imageUrl: bookmark.imageUrl,
-                                        href: bookmark.sourceUrl
-                                    )
-
-                                    // Find the module for this bookmark
-                                    if let module = ModuleManager.shared.modules.first(where: { $0.id == bookmark.moduleId }) {
-                                        let playerInfoVC = PlayerInfoViewController(
-                                            bookmark: bookmark,
-                                            searchItem: searchItem,
-                                            module: module,
-                                            path: path
-                                        )
-                                        // Add zoom transition animation (iOS 18+)
-                                        if #available(iOS 18.0, *) {
-                                            playerInfoVC.preferredTransition = .zoom { _ in
-                                                guard let root = path.navigationController?.view else { return nil }
-                                                return root.findSubview(withAccessibilityIdentifier: zoomSourceIdentifier)
-                                            }
-                                        }
-                                        path.push(playerInfoVC)
-                                    }
-                                } label: {
-                                    bookmarkBanner(for: bookmark)
-                                        .accessibilityIdentifier("player-banner-\(bookmark.id.uuidString)")
-                                }
-                                .buttonStyle(PlainButtonStyle())
-                            }
-                        }
-                        .padding()
-                    }
+                    bookmarksGrid
                 }
             } else {
-                // Show search results when searching
-                if searchViewModel.isLoading {
-                    PlaceholderGridView()
-                } else if searchResults.isEmpty {
-                    UnavailableView.search(text: searchText)
-                } else {
-                    ScrollView {
-                        LazyVGrid(columns: gridColumns, spacing: 16) {
-                            ForEach(searchResults) { result in
-                                Button {
-                                    let zoomSourceIdentifier = "player-search-banner-\(result.id.uuidString)"
-                                    // Navigate to player info page for search result
-                                    let searchItem = SearchItem(
-                                        title: result.title,
-                                        imageUrl: result.imageUrl,
-                                        href: result.href
-                                    )
+                searchResultsView
+            }
+        }
+        .onAppear(perform: refreshCounts)
+        .onChange(of: libraryManager.items) { _ in refreshCounts() }
+        .onReceive(refreshPublisher) { _ in refreshCounts() }
+    }
 
-                                    let playerInfoVC = PlayerInfoViewController(
-                                        searchItem: searchItem,
-                                        module: result.module,
-                                        path: path
-                                    )
-                                    // Add zoom transition animation (iOS 18+)
-                                    if #available(iOS 18.0, *) {
-                                        playerInfoVC.preferredTransition = .zoom { _ in
-                                            guard let root = path.navigationController?.view else { return nil }
-                                            return root.findSubview(withAccessibilityIdentifier: zoomSourceIdentifier)
-                                        }
-                                    }
-                                    path.push(playerInfoVC)
-                                } label: {
-                                    searchResultBanner(for: result)
-                                        .accessibilityIdentifier("player-search-banner-\(result.id.uuidString)")
+    private var bookmarksGrid: some View {
+        ScrollView {
+            LazyVGrid(columns: gridColumns, spacing: 16) {
+                ForEach(filteredBookmarks) { bookmark in
+                    Button {
+                        let zoomSourceIdentifier = "player-banner-\(bookmark.id.uuidString)"
+                        // Navigate to player info page
+                        let searchItem = SearchItem(
+                            title: bookmark.title,
+                            imageUrl: bookmark.imageUrl,
+                            href: bookmark.sourceUrl
+                        )
+
+                        // Find the module for this bookmark
+                        if let module = ModuleManager.shared.modules.first(where: { $0.id == bookmark.moduleId }) {
+                            let playerInfoVC = PlayerInfoViewController(
+                                bookmark: bookmark,
+                                searchItem: searchItem,
+                                module: module,
+                                path: path
+                            )
+                            // Add zoom transition animation (iOS 18+)
+                            if #available(iOS 18.0, *) {
+                                playerInfoVC.preferredTransition = .zoom { _ in
+                                    guard let root = path.navigationController?.view else { return nil }
+                                    return root.findSubview(withAccessibilityIdentifier: zoomSourceIdentifier)
                                 }
-                                .buttonStyle(PlainButtonStyle())
                             }
+                            path.push(playerInfoVC)
                         }
-                        .padding()
+                    } label: {
+                        bookmarkBanner(for: bookmark)
+                            .accessibilityIdentifier("player-banner-\(bookmark.id.uuidString)")
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                }
+            }
+            .padding()
+        }
+    }
+
+    @ViewBuilder
+    private var searchResultsView: some View {
+        if searchViewModel.isLoading {
+            PlaceholderGridView()
+        } else if searchResults.isEmpty {
+            UnavailableView.search(text: searchText)
+        } else {
+            ScrollView {
+                LazyVGrid(columns: gridColumns, spacing: 16) {
+                    ForEach(searchResults) { result in
+                        Button {
+                            let zoomSourceIdentifier = "player-search-banner-\(result.id.uuidString)"
+                            // Navigate to player info page for search result
+                            let searchItem = SearchItem(
+                                title: result.title,
+                                imageUrl: result.imageUrl,
+                                href: result.href
+                            )
+
+                            let playerInfoVC = PlayerInfoViewController(
+                                searchItem: searchItem,
+                                module: result.module,
+                                path: path
+                            )
+                            // Add zoom transition animation (iOS 18+)
+                            if #available(iOS 18.0, *) {
+                                playerInfoVC.preferredTransition = .zoom { _ in
+                                    guard let root = path.navigationController?.view else { return nil }
+                                    return root.findSubview(withAccessibilityIdentifier: zoomSourceIdentifier)
+                                }
+                            }
+                            path.push(playerInfoVC)
+                        } label: {
+                            searchResultBanner(for: result)
+                                .accessibilityIdentifier("player-search-banner-\(result.id.uuidString)")
+                        }
+                        .buttonStyle(PlainButtonStyle())
                     }
                 }
+                .padding()
             }
         }
     }
@@ -402,7 +433,9 @@ struct PlayerView: View {
             source: nil,
             title: bookmark.title,
             coverImage: bookmark.imageUrl,
-            bookmarked: false
+            bookmarked: false,
+            badge: showUnreadBadges ? (itemCounts[bookmark.id]?.unread ?? 0) : 0,
+            badge2: showDownloadBadges ? (itemCounts[bookmark.id]?.downloads ?? 0) : 0
         )
     }
 
@@ -413,6 +446,59 @@ struct PlayerView: View {
             coverImage: result.imageUrl,
             bookmarked: false
         )
+    }
+
+    private func refreshCounts() {
+        Task {
+            await fetchCounts()
+        }
+    }
+
+    private func fetchCounts() async {
+        let items = libraryManager.items
+        let counts = await withTaskGroup(of: (UUID, Int, Int)?.self) { group in
+            for item in items {
+                group.addTask {
+                    guard let module = await MainActor.run(body: {
+                        ModuleManager.shared.modules.first(where: { $0.id == item.moduleId })
+                    }) else { return nil }
+                    let sourceId = module.id.uuidString
+                    let mangaId = item.sourceUrl.normalizedModuleHref()
+                    let chapters = await CoreDataManager.shared.container.performBackgroundTask { context in
+                        CoreDataManager.shared.getChapters(sourceId: sourceId, mangaId: mangaId, context: context)
+                            .compactMap { $0.id }
+                    }
+                    let history = await CoreDataManager.shared.getPlayerReadingHistory(sourceId: sourceId, mangaId: mangaId)
+                    var unread = 0
+                    if !chapters.isEmpty {
+                        let readIds = Set(history.filter { $0.value.progress > 0 && $0.value.progress == $0.value.total }.keys)
+                        unread = chapters.filter { !readIds.contains($0) }.count
+                    }
+                    let sourceName = module.metadata.sourceName
+                    // Check candidates in order: UUID+ID, UUID+Title, Name+ID, Name+Title
+                    let candidates = [
+                        (sourceId, mangaId),
+                        (sourceId, item.title),
+                        (sourceName, mangaId),
+                        (sourceName, item.title)
+                    ]
+                    var downloads = 0
+                    for (src, key) in candidates {
+                        downloads = await DownloadManager.shared.downloadsCount(for: MangaIdentifier(sourceKey: src, mangaKey: key))
+                        if downloads > 0 { break }
+                    }
+                    return (item.id, unread, downloads)
+                }
+            }
+            var results: [UUID: (Int, Int)] = [:]
+            for await result in group {
+                if let (id, unread, downloads) = result {
+                    results[id] = (unread, downloads)
+                }
+            }
+            return results
+        }
+        self.itemCounts = counts
     }
 }
 

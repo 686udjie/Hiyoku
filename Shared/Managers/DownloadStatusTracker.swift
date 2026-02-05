@@ -24,14 +24,25 @@ class DownloadStatusTracker: ObservableObject {
         setupObservers()
     }
 
-    func loadStatus(for chapterKeys: [String]) {
+    func loadStatus(for chapterKeys: [String]) async {
+        let identifier = MangaIdentifier(sourceKey: sourceId, mangaKey: mangaId)
+        let downloadedKeys = await DownloadManager.shared.getDownloadedChapterKeys(for: identifier)
         for key in chapterKeys {
-            let identifier = ChapterIdentifier(
+            if downloadedKeys.contains(key) {
+                downloadStatus[key] = .finished
+                downloadProgress.removeValue(forKey: key)
+                continue
+            }
+            let chapterIdentifier = ChapterIdentifier(
                 sourceKey: sourceId,
                 mangaKey: mangaId,
                 chapterKey: key
             )
-            downloadStatus[key] = DownloadManager.shared.getDownloadStatus(for: identifier)
+            let status = DownloadManager.shared.getDownloadStatus(for: chapterIdentifier)
+            downloadStatus[key] = status
+            if status == .finished {
+                downloadProgress.removeValue(forKey: key)
+            }
         }
     }
 
