@@ -479,7 +479,7 @@ extension DownloadTask {
         private func handleChapterDownloadFinish(download: Download) async {
             let directoryToClean: URL
             if download.type == .video {
-                directoryToClean = DirectoryManager.shared.directoryForDownload(download)
+                directoryToClean = getFinalDirectory(for: download)
             } else {
                 let mangaTitle = download.manga.title
                 directoryToClean = DirectoryManager.shared.mangaTempDirectory(
@@ -690,7 +690,11 @@ extension DownloadTask {
             return
         }
 
-        let (resolvedUrl, resolvedHeaders) = await resolveVideoUrl(videoUrl, download: download)
+        let resolved = await resolveVideoUrl(videoUrl, download: download)
+        let resolvedUrl = resolved.url
+        let resolvedHeaders = resolved.headers
+        let resolvedSubtitleUrl = resolved.subtitleUrl
+
         guard running && !resolvedUrl.isEmpty else {
             if !running { return }
             await finishDownloadWithError(download)
@@ -726,6 +730,15 @@ extension DownloadTask {
             try await mergeSegments(at: segmentDirectory, to: finalVideoFile)
             guard running else { return }
 
+            // Downloads subtitle
+            if let subtitleUrl = resolvedSubtitleUrl, let subtitleUrlObj = URL(string: subtitleUrl) {
+                let extensionName = subtitleUrlObj.pathExtension.isEmpty ? "srt" : subtitleUrlObj.pathExtension
+                let subtitleFile = finalDirectory
+                    .appendingPathComponent("Subtitle")
+                    .appendingPathExtension(extensionName)
+                try? await downloadSubtitle(from: subtitleUrl, to: subtitleFile, headers: resolvedHeaders)
+            }
+
             guard finalVideoFile.exists else {
                 LogManager.logger.error("Final video file was not created: \(finalVideoFile.path)")
                 await finishDownloadWithError(download)
@@ -741,18 +754,26 @@ extension DownloadTask {
         }
     }
 
-    private func resolveVideoUrl(_ videoUrl: String, download: Download) async -> (String, [String: String]) {
+    private struct ResolvedVideoData {
+        let url: String
+        let headers: [String: String]
+        let subtitleUrl: String?
+    }
+
+    private func resolveVideoUrl(_ videoUrl: String, download: Download) async -> ResolvedVideoData {
         var resolvedUrl = videoUrl
         var resolvedHeaders = download.headers ?? [:]
+        var resolvedSubtitleUrl = download.subtitleUrl
 
         if !resolvedUrl.lowercased().hasPrefix("http") {
             let sourceKey = download.chapterIdentifier.sourceKey
             let module = await MainActor.run { ModuleManager.shared.modules.first { $0.id.uuidString == sourceKey } }
 
             if let module = module {
-                let (streamInfos, _) = await JSController.shared.fetchPlayerStreams(episodeId: videoUrl, module: module)
+                let (streamInfos, subtitle) = await JSController.shared.fetchPlayerStreams(episodeId: videoUrl, module: module)
                 resolvedUrl = streamInfos.first?.url ?? videoUrl
                 resolvedHeaders = streamInfos.first?.headers ?? [:]
+                resolvedSubtitleUrl = subtitle ?? download.subtitleUrl
             }
         }
 
@@ -764,7 +785,20 @@ extension DownloadTask {
         resolvedHeaders["Connection"] = "keep-alive"
         resolvedHeaders["Referer"] = resolvedUrl
 
-        return (resolvedUrl, resolvedHeaders)
+        return ResolvedVideoData(url: resolvedUrl, headers: resolvedHeaders, subtitleUrl: resolvedSubtitleUrl)
+    }
+
+    private func downloadSubtitle(from urlString: String, to targetPath: URL, headers: [String: String]) async throws {
+        guard let url = URL(string: urlString) else { return }
+        var request = URLRequest(url: url)
+        for (key, value) in headers {
+            request.addValue(value, forHTTPHeaderField: key)
+        }
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        if let httpResponse = response as? HTTPURLResponse, (200...299).contains(httpResponse.statusCode) {
+            try data.write(to: targetPath)
+        }
     }
 
     private func createDirectoryIfNeeded(_ url: URL) async -> Bool {
@@ -831,24 +865,23 @@ extension DownloadTask {
                             headers: headers
                         )
                         let progressValue = index + 1
-                        _ = await MainActor.run {
-                            Task {
-                                await self.delegate?.downloadProgressChanged(
-                                    download: Download(
-                                        chapterIdentifier: download.chapterIdentifier,
-                                        status: download.status,
-                                        type: download.type,
-                                        progress: progressValue,
-                                        total: totalSegments,
-                                        manga: download.manga,
-                                        chapter: download.chapter,
-                                        videoUrl: download.videoUrl,
-                                        posterUrl: download.posterUrl,
-                                        headers: download.headers,
-                                        sourceName: download.sourceName
-                                    )
+                        Task { [weak self] in
+                            guard let self = self else { return }
+                            await self.delegate?.downloadProgressChanged(
+                                download: Download(
+                                    chapterIdentifier: download.chapterIdentifier,
+                                    status: download.status,
+                                    type: download.type,
+                                    progress: progressValue,
+                                    total: totalSegments,
+                                    manga: download.manga,
+                                    chapter: download.chapter,
+                                    videoUrl: download.videoUrl,
+                                    posterUrl: download.posterUrl,
+                                    headers: download.headers,
+                                    sourceName: download.sourceName
                                 )
-                            }
+                            )
                         }
                     }
                 }

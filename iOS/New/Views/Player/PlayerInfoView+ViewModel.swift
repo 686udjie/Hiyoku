@@ -348,14 +348,14 @@ extension PlayerInfoView {
                 }
             }
         }
-        func getLocalEpisodeUrl(for episode: PlayerEpisode) async -> URL? {
+        func getLocalEpisodeUrls(for episode: PlayerEpisode) async -> (video: URL, subtitle: URL?)? {
             guard let sourceId = currentSourceId, let mangaId = currentMangaId else { return nil }
             let chapterIdentifier = ChapterIdentifier(
                 sourceKey: sourceId,
                 mangaKey: mangaId,
                 chapterKey: episode.url
             )
-            return await DownloadManager.shared.getDownloadedFileUrl(for: chapterIdentifier)
+            return await DownloadManager.shared.getDownloadedFileUrls(for: chapterIdentifier)
         }
         func fetchHistory() async {
             guard let sourceId = currentSourceId else { return }

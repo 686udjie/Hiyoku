@@ -39,6 +39,7 @@ struct Download: Equatable, Sendable, Codable {
     // Video info
     var videoUrl: String?
     var posterUrl: String?
+    var subtitleUrl: String?
     var headers: [String: String]?
     var sourceName: String?
 
@@ -53,6 +54,7 @@ struct Download: Equatable, Sendable, Codable {
         type: DownloadType = .manga,
         videoUrl: String? = nil,
         posterUrl: String? = nil,
+        subtitleUrl: String? = nil,
         headers: [String: String]? = nil,
         sourceName: String? = nil
     ) -> Download {
@@ -66,6 +68,7 @@ struct Download: Equatable, Sendable, Codable {
             chapter: chapter,
             videoUrl: videoUrl,
             posterUrl: posterUrl,
+            subtitleUrl: subtitleUrl,
             headers: headers,
             sourceName: sourceName
         )

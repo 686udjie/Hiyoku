@@ -520,9 +520,9 @@ extension PlayerInfoView {
             errorMessage = "Episode ID is not available"
             return
         }
-        if let localUrl = await viewModel.getLocalEpisodeUrl(for: episode) {
-             let streamInfo = StreamInfo(title: "Downloaded", url: localUrl.absoluteString, headers: [:])
-             await playSelectedStream(streamInfo, subtitleUrl: nil, episode: episode)
+        if let (localVideoUrl, localSubtitleUrl) = await viewModel.getLocalEpisodeUrls(for: episode) {
+             let streamInfo = StreamInfo(title: "Downloaded", url: localVideoUrl.absoluteString, headers: [:])
+             await playSelectedStream(streamInfo, subtitleUrl: localSubtitleUrl?.absoluteString, episode: episode)
              return
         }
 

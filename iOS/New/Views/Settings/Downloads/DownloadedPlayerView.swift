@@ -212,7 +212,7 @@ struct DownloadedPlayerView: View {
             chapterKey: episode.videoKey
         )
         Task {
-            if let localUrl = await DownloadManager.shared.getDownloadedFileUrl(for: identifier) {
+            if let urls = await DownloadManager.shared.getDownloadedFileUrls(for: identifier) {
                 await MainActor.run {
                     let module = ModuleManager.shared.modules.first { module in
                         module.id.uuidString == viewModel.video.sourceId ||
@@ -222,8 +222,9 @@ struct DownloadedPlayerView: View {
 
                     let player = PlayerViewController(
                         module: module,
-                        videoUrl: localUrl.path,
-                        videoTitle: "\(viewModel.video.displayTitle) - \(episode.displayTitle)"
+                        videoUrl: urls.video.path,
+                        videoTitle: "\(viewModel.video.displayTitle) - \(episode.displayTitle)",
+                        subtitleUrl: urls.subtitle?.path
                     )
                     path.present(player, animated: true)
                 }
@@ -238,9 +239,9 @@ struct DownloadedPlayerView: View {
             chapterKey: episode.videoKey
         )
         Task {
-            if let url = await DownloadManager.shared.getDownloadedFileUrl(for: identifier) {
+            if let urls = await DownloadManager.shared.getDownloadedFileUrls(for: identifier) {
                 let activityViewController = UIActivityViewController(
-                    activityItems: [url],
+                    activityItems: [urls.video],
                     applicationActivities: nil
                 )
                 guard let sourceView = path.rootViewController?.view else { return }

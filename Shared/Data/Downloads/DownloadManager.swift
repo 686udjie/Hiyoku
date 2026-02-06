@@ -226,7 +226,7 @@ extension DownloadManager {
             let identifier = ChapterIdentifier(sourceKey: sourceKey, mangaKey: seriesKey.normalizedModuleHref(), chapterKey: episode.url)
             let downloaded = await isChapterDownloaded(chapter: identifier)
             guard !downloaded else { continue }
-            let (streamInfos, _) = await JSController.shared.fetchPlayerStreams(episodeId: episode.url, module: module)
+            let (streamInfos, subtitleUrl) = await JSController.shared.fetchPlayerStreams(episodeId: episode.url, module: module)
             let streamUrl = streamInfos.first?.url ?? episode.url // Fallback to episode URL if no stream found
 
             let manga = AidokuRunner.Manga(sourceKey: sourceKey, key: seriesKey.normalizedModuleHref(), title: seriesTitle, cover: posterUrl)
@@ -238,6 +238,7 @@ extension DownloadManager {
                 type: .video,
                 videoUrl: streamUrl,
                 posterUrl: posterUrl,
+                subtitleUrl: subtitleUrl,
                 headers: streamInfos.first?.headers,
                 sourceName: sourceName
             )
@@ -630,15 +631,19 @@ extension DownloadManager {
         }
     }
 
-    func getDownloadedFileUrl(for chapter: ChapterIdentifier) async -> URL? {
+    func getDownloadedFileUrls(for chapter: ChapterIdentifier) async -> (video: URL, subtitle: URL?)? {
         let directory = await cache.getDirectory(for: chapter)
         guard directory.exists else { return nil }
 
-        if let file = directory.contents.first(where: { Self.videoExtensions.contains($0.pathExtension.lowercased()) }) {
-            return file
+        let subtitleExtensions: Set<String> = ["srt", "vtt", "ass", "ssa"]
+
+        let contents = directory.contents
+        guard let videoFile = contents.first(where: { Self.videoExtensions.contains($0.pathExtension.lowercased()) }) else {
+            return nil
         }
 
-        return nil
+        let subtitleFile = contents.first(where: { subtitleExtensions.contains($0.pathExtension.lowercased()) })
+        return (videoFile, subtitleFile)
     }
 
     func isDownloadedVideoEpisode(

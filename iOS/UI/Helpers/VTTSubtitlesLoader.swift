@@ -30,37 +30,52 @@ class VTTSubtitlesLoader: ObservableObject {
         case unknown
     }
     func load(from urlString: String) {
-        guard let url = URL(string: urlString) else { return }
-        URLSession.shared.dataTask(with: url) { data, _, error in
-            if error != nil {
-                return
-            }
-            guard let responseData = data,
-                  let subtitleContent = String(data: responseData, encoding: .utf8),
-                  !subtitleContent.isEmpty,
-                  error == nil else {
+        let url: URL
+        if urlString.hasPrefix("/") {
+            url = URL(fileURLWithPath: urlString)
+        } else if let u = URL(string: urlString) {
+            url = u
+        } else {
+            return
+        }
+        if url.isFileURL {
+            do {
+                let data = try Data(contentsOf: url)
+                processSubtitleData(data)
+            } catch {
                 DispatchQueue.main.async {
                     self.cues = []
                 }
-                return
             }
-            let trimmed = subtitleContent.trimmingCharacters(in: .whitespacesAndNewlines)
-            let detectedFormat: SubtitleFormat = trimmed.contains("WEBVTT") ? .vtt : .srt
-            DispatchQueue.main.async {
-                switch detectedFormat {
-                case .vtt:
-                    self.cues = self.parseVTT(content: subtitleContent)
-                case .srt:
-                    self.cues = self.parseSRT(content: subtitleContent)
-                case .unknown:
-                    if trimmed.contains("WEBVTT") {
-                        self.cues = self.parseVTT(content: subtitleContent)
-                    } else {
-                        self.cues = self.parseSRT(content: subtitleContent)
-                    }
-                }
-            }
+            return
+        }
+
+        URLSession.shared.dataTask(with: url) { [weak self] data, _, _ in
+            self?.processSubtitleData(data)
         }.resume()
+    }
+
+    private func processSubtitleData(_ data: Data?) {
+        guard let responseData = data,
+              let subtitleContent = String(data: responseData, encoding: .utf8),
+              !subtitleContent.isEmpty else {
+            DispatchQueue.main.async {
+                self.cues = []
+            }
+            return
+        }
+        let trimmed = subtitleContent.trimmingCharacters(in: .whitespacesAndNewlines)
+        let detectedFormat: SubtitleFormat = trimmed.contains("WEBVTT") ? .vtt : .srt
+        DispatchQueue.main.async {
+            switch detectedFormat {
+            case .vtt:
+                self.cues = self.parseVTT(content: subtitleContent)
+            case .srt:
+                self.cues = self.parseSRT(content: subtitleContent)
+            case .unknown:
+                self.cues = self.parseVTT(content: subtitleContent)
+            }
+        }
     }
     // MARK: - VTT Parsing
     private func parseVTT(content: String) -> [SubtitleCue] {

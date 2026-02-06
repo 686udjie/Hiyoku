@@ -168,9 +168,21 @@ actor DirectoryManager {
                 }
                 // clean junk
                 let junkExtensions = [".tmp", ".part", ".m3u8", ".ts", ".log"]
+                let protectedExtensions = [".srt", ".vtt", ".ass", ".ssa"]
+                var isJunk = false
                 for ext in junkExtensions where fileName.hasSuffix(ext) {
-                    try? FileManager.default.removeItem(at: item)
+                    isJunk = true
                     break
+                }
+                if isJunk {
+                    for ext in protectedExtensions where fileName.hasSuffix(ext) {
+                        isJunk = false
+                        break
+                    }
+                }
+
+                if isJunk {
+                    try? FileManager.default.removeItem(at: item)
                 }
             }
         } catch {
