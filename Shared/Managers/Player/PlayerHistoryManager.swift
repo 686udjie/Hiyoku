@@ -47,6 +47,7 @@ final class PlayerHistoryManager: Sendable {
     func setProgress(data: EpisodeHistoryData) async {
 
         await CoreDataManager.shared.container.performBackgroundTask { context in
+            context.mergePolicy = NSMergePolicy(merge: .mergeByPropertyObjectTrumpMergePolicyType)
             _ = CoreDataManager.shared.createOrUpdatePlayerHistory(data, context: context)
             do {
                 try context.save()
@@ -62,6 +63,13 @@ final class PlayerHistoryManager: Sendable {
         await CoreDataManager.shared.container.performBackgroundTask { context in
             let history = CoreDataManager.shared.getPlayerHistory(episodeId: episodeId, moduleId: moduleId, context: context)
             return history?.sourceUrl
+        }
+    }
+
+    func getProgress(episodeId: String, moduleId: String) async -> Double? {
+        await CoreDataManager.shared.container.performBackgroundTask { context in
+            let history = CoreDataManager.shared.getPlayerHistory(episodeId: episodeId, moduleId: moduleId, context: context)
+            return history != nil ? Double(history!.progress) : nil
         }
     }
 
@@ -88,7 +96,9 @@ final class PlayerHistoryManager: Sendable {
 
     func removeHistory(episodeId: String, moduleId: String) async {
         await CoreDataManager.shared.container.performBackgroundTask { context in
+            context.mergePolicy = NSMergePolicy(merge: .mergeByPropertyObjectTrumpMergePolicyType)
             CoreDataManager.shared.removePlayerHistory(episodeId: episodeId, moduleId: moduleId, context: context)
+
             do {
                 try context.save()
             } catch {
@@ -100,6 +110,7 @@ final class PlayerHistoryManager: Sendable {
 
     func removeHistoryForContent(sourceUrl: String, moduleId: String) async {
         await CoreDataManager.shared.container.performBackgroundTask { context in
+            context.mergePolicy = NSMergePolicy(merge: .mergeByPropertyObjectTrumpMergePolicyType)
             CoreDataManager.shared.removePlayerHistoryForContent(sourceUrl: sourceUrl, moduleId: moduleId, context: context)
             do {
                 try context.save()

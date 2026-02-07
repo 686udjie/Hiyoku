@@ -11,12 +11,6 @@ import NukeUI
 import AidokuRunner
 import SafariServices
 
-class PlayerSession: ObservableObject, Identifiable {
-    let id = UUID()
-    @Published var episode: PlayerEpisode
-    init(episode: PlayerEpisode) { self.episode = episode }
-}
-
 struct PlayerInfoView: View {
     @StateObject private var viewModel: ViewModel
 
@@ -27,7 +21,6 @@ struct PlayerInfoView: View {
 
     @State private var showingCoverView = false
     @State private var descriptionExpanded = false
-    @State private var playerSession: PlayerSession?
     @State private var currentStreamUrl: String?
     @State private var currentStreamHeaders: [String: String]?
     @State private var errorMessage: String?
@@ -96,26 +89,6 @@ struct PlayerInfoView: View {
                 PlayerCoverPageView(posterUrl: viewModel.posterUrl, title: viewModel.title)
             }
             .environment(\.editMode, $viewModel.editMode)
-            .fullScreenCover(item: $playerSession,
-                             onDismiss: {
-                                 Task {
-                                     await viewModel.fetchHistory()
-                                 }
-                             },
-                             content: { session in
-                    if let module = viewModel.module {
-                        PlayerSessionWrapper(
-                            session: session,
-                            module: module,
-                            episodes: viewModel.sortedEpisodes,
-                            title: viewModel.title,
-                            currentStreamUrl: $currentStreamUrl,
-                            currentStreamHeaders: $currentStreamHeaders,
-                            namespace: transitionNamespace
-                        )
-                    }
-                }
-            )
             .navigationBarBackButtonHidden(viewModel.editMode == .active)
             .onChange(of: viewModel.editMode) { mode in
                 let controller = path.rootViewController as? UINavigationController ??
@@ -629,11 +602,20 @@ extension PlayerInfoView {
             subtitleUrl: subtitleUrl ?? episode.subtitleUrl
         )
 
-        if let session = playerSession {
-            session.episode = updatedEpisode
-        } else {
-            playerSession = PlayerSession(episode: updatedEpisode)
-        }
+        PlayerPresenter.present(
+            module: viewModel.module!,
+            videoUrl: stream.url,
+            videoTitle: viewModel.title,
+            headers: stream.headers,
+            subtitleUrl: subtitleUrl ?? updatedEpisode.subtitleUrl,
+            episodes: viewModel.sortedEpisodes,
+            currentEpisode: updatedEpisode,
+            onDismiss: {
+                Task {
+                    await viewModel.fetchHistory()
+                }
+            }
+        )
     }
 }
 
@@ -755,46 +737,6 @@ private struct DownloadProgressView: UIViewRepresentable {
 
     func updateUIView(_ uiView: CircularProgressView, context: Context) {
         uiView.setProgress(value: progress, withAnimation: false)
-    }
-}
-
-struct PlayerSessionWrapper: View {
-    @ObservedObject var session: PlayerSession
-    let module: ScrapingModule
-    let episodes: [PlayerEpisode]
-    let title: String
-    @Binding var currentStreamUrl: String?
-    @Binding var currentStreamHeaders: [String: String]?
-    let namespace: Namespace.ID
-
-    var body: some View {
-        Player(
-            module: module,
-            episode: session.episode,
-            episodes: episodes,
-            title: title,
-            streamUrl: currentStreamUrl,
-            streamHeaders: currentStreamHeaders ?? [:],
-            onNext: { navigateToEpisode(offset: 1) },
-            onPrevious: { navigateToEpisode(offset: -1) },
-            onEpisodeSelected: { switchToEpisode($0) }
-        )
-        .ignoresSafeArea()
-        .navigationTransitionZoom(sourceID: session.episode, in: namespace)
-        .preferredColorScheme(.dark)
-    }
-
-    private func navigateToEpisode(offset: Int) {
-        guard let currentIndex = episodes.firstIndex(where: { $0.url == session.episode.url }) else { return }
-        let newIndex = currentIndex + offset
-        guard newIndex >= 0 && newIndex < episodes.count else { return }
-        switchToEpisode(episodes[newIndex])
-    }
-
-    private func switchToEpisode(_ episode: PlayerEpisode) {
-        session.episode = episode
-        currentStreamUrl = nil
-        currentStreamHeaders = nil
     }
 }
 

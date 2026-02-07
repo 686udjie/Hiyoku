@@ -24,24 +24,13 @@ class PlayerViewController: UIViewController, UIGestureRecognizerDelegate {
     var onNextEpisode: (() -> Void)?
     var onPreviousEpisode: (() -> Void)?
     var onEpisodeSelected: ((PlayerEpisode) -> Void)?
+    var onDismiss: (() -> Void)?
 
     // Data
     var allEpisodes: [PlayerEpisode] = []
     var currentEpisode: PlayerEpisode?
-    private enum RotationState {
-        case none, entering, exiting
-    }
-    private var rotationState: RotationState = .none
-    private var orientationId: UUID?
     private var pendingStartTime: Double?
     private var isFileLoaded = false
-    // Black overlay for landscape rotation
-    private lazy var transitionOverlay: UIView = {
-        let view = UIView()
-        view.backgroundColor = .black
-        view.alpha = 0
-        return view
-    }()
 
     // MPV Properties
     private var mpv: OpaquePointer?
@@ -61,7 +50,6 @@ class PlayerViewController: UIViewController, UIGestureRecognizerDelegate {
     private var duration: Double = 0
     private var position: Double = 0
     private var lastSavedTime: TimeInterval = 0
-    private var lastSavedPosition: Double = 0
 
     private let bgraFormatCString: [CChar] = Array("bgra\0".utf8CString)
     private var dimensionsArray = [Int32](repeating: 0, count: 2)
@@ -81,19 +69,19 @@ class PlayerViewController: UIViewController, UIGestureRecognizerDelegate {
         return b
     }()
 
-    private lazy var playPauseBackgroundView = createBlurBackground(cornerRadius: 30)
-    private lazy var previousBackgroundView = createBlurBackground(cornerRadius: 25)
-    private lazy var nextBackgroundView = createBlurBackground(cornerRadius: 25)
-    private lazy var closeBackgroundView = createBlurBackground(cornerRadius: 22)
-    private lazy var sliderBackgroundView = createBlurBackground(cornerRadius: 20)
-    private lazy var speedBackgroundView = createBlurBackground(cornerRadius: 14)
-    private lazy var lockBackgroundView = createBlurBackground(cornerRadius: 14)
-    private lazy var skipBackgroundView = createBlurBackground(
+    private lazy var playPauseBackgroundView = createControlBackground(cornerRadius: 30)
+    private lazy var previousBackgroundView = createControlBackground(cornerRadius: 25)
+    private lazy var nextBackgroundView = createControlBackground(cornerRadius: 25)
+    private lazy var closeBackgroundView = createControlBackground(cornerRadius: 22)
+    private lazy var sliderBackgroundView = createControlBackground(cornerRadius: 20)
+    private lazy var speedBackgroundView = createControlBackground(cornerRadius: 14)
+    private lazy var lockBackgroundView = createControlBackground(cornerRadius: 14)
+    private lazy var skipBackgroundView = createControlBackground(
         cornerRadius: 14,
         color: .systemBlue.withAlphaComponent(0.8),
         borderColor: .systemBlue.withAlphaComponent(0.3)
     )
-    private lazy var speedIndicatorBackgroundView = createBlurBackground(cornerRadius: 18)
+    private lazy var speedIndicatorBackgroundView = createControlBackground(cornerRadius: 18)
 
     private lazy var previousButton = createSystemButton(symbol: "backward.end.fill", action: #selector(previousTapped))
 
@@ -144,16 +132,22 @@ class PlayerViewController: UIViewController, UIGestureRecognizerDelegate {
 
     private lazy var listButton = createSystemButton(symbol: "list.bullet", action: #selector(listTapped))
 
-    private lazy var listBackgroundView = createBlurBackground(cornerRadius: 22)
+    private lazy var listBackgroundView = createControlBackground(cornerRadius: 22)
 
     private lazy var lockButton: UIButton = {
         let b = createSystemButton(symbol: "lock.open.fill", size: 16, action: #selector(lockTapped))
         return b
     }()
 
+    func configure(episodes: [PlayerEpisode], current: PlayerEpisode, title: String) {
+        self.allEpisodes = episodes
+        self.currentEpisode = current
+        self.updateTitle(title)
+    }
+
     private lazy var settingsButton = createSystemButton(symbol: "gearshape.fill", action: #selector(settingsTapped))
 
-    private lazy var settingsBackgroundView = createBlurBackground(cornerRadius: 22)
+    private lazy var settingsBackgroundView = createControlBackground(cornerRadius: 22)
 
     private let showTitleLabel: UILabel = {
         let l = UILabel()
@@ -269,29 +263,28 @@ class PlayerViewController: UIViewController, UIGestureRecognizerDelegate {
     }
     var subtitleDelay: Double = 0
     private lazy var subtitleButton = createSystemButton(symbol: "captions.bubble.fill", action: #selector(subtitleTapped))
-    private lazy var subtitleBackgroundView = createBlurBackground(cornerRadius: 22)
+    private lazy var subtitleBackgroundView = createControlBackground(cornerRadius: 22)
 
-    private lazy var sourceIndicatorButton: UIButton = {
-        let button = UIButton(type: .system)
-        var config = UIButton.Configuration.plain()
-        config.title = module.metadata.sourceName
-        config.baseForegroundColor = .secondaryLabel
-        config.background.backgroundColor = UIColor(red: 0.25, green: 0.55, blue: 1, alpha: 0.3)
-        config.background.cornerRadius = 6
-        config.contentInsets = NSDirectionalEdgeInsets(top: 4, leading: 8, bottom: 4, trailing: 8)
-        button.configuration = config
-        button.translatesAutoresizingMaskIntoConstraints = false
-        button.alpha = 1
-        return button
-    }()
-
-    init(module: ScrapingModule, videoUrl: String, videoTitle: String, headers: [String: String] = [:], subtitleUrl: String? = nil) {
+    init(
+        module: ScrapingModule,
+        videoUrl: String,
+        videoTitle: String,
+        headers: [String: String] = [:],
+        subtitleUrl: String? = nil,
+        episodes: [PlayerEpisode] = [],
+        currentEpisode: PlayerEpisode? = nil
+    ) {
         self.module = module
         self.videoUrl = videoUrl
         self.videoTitle = videoTitle
         self.headers = headers
         self.subtitleUrl = subtitleUrl
+        self.allEpisodes = episodes
+        self.currentEpisode = currentEpisode
         super.init(nibName: nil, bundle: nil)
+
+        // landscape presentation
+        modalPresentationStyle = .fullScreen
     }
 
     required init?(coder: NSCoder) {
@@ -306,17 +299,17 @@ class PlayerViewController: UIViewController, UIGestureRecognizerDelegate {
         super.viewDidAppear(animated)
         disableSwipeGestures()
         resetAutoHideTimer()
+
+        if resolvedUrl == nil {
+            prepareAndPlay()
+        }
     }
 
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
         stopPlayer()
         autoHideTimer?.invalidate()
-        // Unregister landscape orientation constraint
-        if let orientationId = orientationId {
-            InterfaceOrientationCoordinator.shared.unregister(orientationsWithID: orientationId)
-            self.orientationId = nil
-        }
+        onDismiss?()
     }
 
     override func viewDidLayoutSubviews() {
@@ -333,35 +326,26 @@ class PlayerViewController: UIViewController, UIGestureRecognizerDelegate {
             showError(message: "Failed to initialize player: \(error)")
         }
 
-        if !videoUrl.isEmpty {
-            prepareAndPlay()
-        }
+        listButton.isEnabled = allEpisodes.count > 1
+        listButton.tintColor = allEpisodes.count > 1 ? .white : .secondaryLabel
+
         setupSubtitleLabel()
         loadSubtitleSettings()
         if let subUrl = subtitleUrl, !subUrl.isEmpty {
              subtitlesLoader.load(from: subUrl)
         }
         NotificationCenter.default.addObserver(self, selector: #selector(subtitleSettingsDidChange), name: .subtitleSettingsDidChange, object: nil)
+        updatePlayerMetadata()
     }
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
         overrideUserInterfaceStyle = .dark
-        rotationState = .entering
-        startRotationTransition()
-        orientationId = UUID()
-        InterfaceOrientationCoordinator.shared.register(orientations: .landscape, id: orientationId!)
-        UIViewController.attemptRotationToDeviceOrientation()
-        // If landscape transition immediately
-        DispatchQueue.main.async { [weak self] in
-            guard let self = self, self.view.bounds.width > self.view.bounds.height else { return }
-            self.endRotationTransition()
-        }
     }
     override var preferredStatusBarStyle: UIStatusBarStyle {
         .lightContent
     }
     override var prefersStatusBarHidden: Bool {
-        rotationState != .none
+        true
     }
     override var prefersHomeIndicatorAutoHidden: Bool {
         true
@@ -372,14 +356,9 @@ class PlayerViewController: UIViewController, UIGestureRecognizerDelegate {
     override var supportedInterfaceOrientations: UIInterfaceOrientationMask {
         .landscape
     }
-    override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
-        super.viewWillTransition(to: size, with: coordinator)
-        guard rotationState != .none else { return }
-        coordinator.animate(alongsideTransition: { _ in
-            self.transitionOverlay.frame = CGRect(origin: .zero, size: size)
-        }, completion: { _ in
-            self.endRotationTransition()
-        })
+
+    override var shouldAutorotate: Bool {
+        true
     }
 }
 
@@ -387,15 +366,9 @@ class PlayerViewController: UIViewController, UIGestureRecognizerDelegate {
 extension PlayerViewController {
     private func setupUI() {
         view.backgroundColor = .black
-        videoContainer.translatesAutoresizingMaskIntoConstraints = false
+        videoContainer.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        videoContainer.frame = view.bounds
         view.addSubview(videoContainer)
-
-        NSLayoutConstraint.activate([
-            videoContainer.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
-            videoContainer.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor),
-            videoContainer.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor),
-            videoContainer.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor)
-        ])
 
         displayLayer.videoGravity = .resizeAspect
         videoContainer.layer.addSublayer(displayLayer)
@@ -434,7 +407,7 @@ extension PlayerViewController {
          closeBackgroundView, listBackgroundView, sliderBackgroundView, speedBackgroundView,
          lockBackgroundView, skipBackgroundView, settingsBackgroundView, subtitleBackgroundView, gutterUnlockButton,
          watchedTimeLabel, totalTimeLabel, titleStackView, leftSkipFeedbackView, rightSkipFeedbackView,
-         speedIndicatorBackgroundView, sourceIndicatorButton].forEach {
+         speedIndicatorBackgroundView].forEach {
 
             $0.translatesAutoresizingMaskIntoConstraints = false
             videoContainer.addSubview($0)
@@ -548,12 +521,7 @@ extension PlayerViewController {
             // Speed indicator
             speedIndicatorBackgroundView.topAnchor.constraint(equalTo: videoContainer.safeAreaLayoutGuide.topAnchor, constant: 16),
             speedIndicatorBackgroundView.centerXAnchor.constraint(equalTo: videoContainer.centerXAnchor),
-            speedIndicatorBackgroundView.heightAnchor.constraint(equalToConstant: 36),
-
-            // Source indicator
-            sourceIndicatorButton.topAnchor.constraint(equalTo: videoContainer.safeAreaLayoutGuide.topAnchor, constant: 16),
-            sourceIndicatorButton.leadingAnchor.constraint(equalTo: videoContainer.safeAreaLayoutGuide.leadingAnchor, constant: 16),
-            sourceIndicatorButton.heightAnchor.constraint(greaterThanOrEqualToConstant: 28)
+            speedIndicatorBackgroundView.heightAnchor.constraint(equalToConstant: 36)
         ])
 
         playPauseButton.addTarget(self, action: #selector(playPauseTapped), for: .touchUpInside)
@@ -583,8 +551,8 @@ extension PlayerViewController {
         }
     }
 
-    private func createBlurBackground(cornerRadius: CGFloat, color: UIColor = .tertiarySystemFill,
-                                      borderColor: UIColor = .tertiarySystemFill) -> UIVisualEffectView {
+    private func createControlBackground(cornerRadius: CGFloat, color: UIColor = .tertiarySystemFill,
+                                         borderColor: UIColor = .tertiarySystemFill) -> UIVisualEffectView {
         let blurEffect = UIBlurEffect(style: .systemThinMaterial)
         let view = UIVisualEffectView(effect: blurEffect)
         view.layer.cornerRadius = cornerRadius
@@ -860,7 +828,7 @@ extension PlayerViewController {
             playPauseBackgroundView, previousBackgroundView, nextBackgroundView,
             closeBackgroundView, listBackgroundView, sliderBackgroundView, watchedTimeLabel,
             totalTimeLabel, speedBackgroundView, lockBackgroundView, skipBackgroundView,
-            titleStackView, settingsBackgroundView, subtitleBackgroundView, sourceIndicatorButton
+            titleStackView, settingsBackgroundView, subtitleBackgroundView
         ]
     }
 
@@ -921,55 +889,10 @@ extension PlayerViewController {
     @objc private func previousTapped() {
         onPreviousEpisode?()
     }
-    private func startRotationTransition() {
-        transitionOverlay.frame = view.bounds
-        transitionOverlay.alpha = 1
-        view.addSubview(transitionOverlay)
-        videoContainer.alpha = 0
-        setNeedsStatusBarAppearanceUpdate()
-        setNeedsUpdateOfHomeIndicatorAutoHidden()
-    }
-    private func endRotationTransition() {
-        switch rotationState {
-        case .entering:
-            UIView.animate(withDuration: 0.3, delay: 0, options: .curveEaseOut, animations: {
-                self.transitionOverlay.alpha = 0
-                self.videoContainer.alpha = 1
-            }, completion: { _ in
-                self.transitionOverlay.removeFromSuperview()
-                self.rotationState = .none
-                self.setNeedsStatusBarAppearanceUpdate()
-                self.setNeedsUpdateOfHomeIndicatorAutoHidden()
-                if self.isFileLoaded {
-                    self.setProperty("pause", "no")
-                }
-            })
-        case .exiting:
-            UIView.animate(withDuration: 0.25, animations: {
-                self.view.alpha = 0
-            }, completion: { _ in
-                self.dismiss(animated: false)
-                self.rotationState = .none
-            })
-        case .none:
-            break
-        }
-    }
 
     @objc private func closeTapped() {
         saveProgress()
-        rotationState = .exiting
-        startRotationTransition()
-        if let orientationId = orientationId {
-            InterfaceOrientationCoordinator.shared.unregister(orientationsWithID: orientationId)
-            self.orientationId = nil
-        }
-        UIViewController.attemptRotationToDeviceOrientation()
-        // Fallback for (ik this is doodoo code)
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
-            guard let self = self, self.rotationState == .exiting else { return }
-            self.endRotationTransition()
-        }
+        dismiss(animated: true)
     }
 
     private func formatTime(_ seconds: Double) -> String {
@@ -1060,20 +983,16 @@ extension PlayerViewController {
         }
     }
 
-    func configure(episodes: [PlayerEpisode], current: PlayerEpisode?, title: String) {
-        self.allEpisodes = episodes
-        self.currentEpisode = current
-        self.videoTitle = title
-
-        showTitleLabel.text = title
-        if let current = current {
+    private func updatePlayerMetadata() {
+        showTitleLabel.text = videoTitle
+        if let current = currentEpisode {
             episodeNumberLabel.text = "Episode \(current.number)"
         } else {
             episodeNumberLabel.text = ""
         }
 
-        listButton.isEnabled = episodes.count > 1
-        listButton.tintColor = episodes.count > 1 ? .secondaryLabel : .tertiaryLabel
+        listButton.isEnabled = allEpisodes.count > 1
+        listButton.tintColor = allEpisodes.count > 1 ? .white : .secondaryLabel
     }
 
     @objc private func listTapped() {
@@ -1099,7 +1018,7 @@ extension PlayerViewController {
 
     func updateTitle(_ title: String) {
         self.videoTitle = title
-        self.showTitleLabel.text = title
+        updatePlayerMetadata()
     }
 
     @objc private func settingsTapped() {
@@ -1118,10 +1037,7 @@ extension PlayerViewController {
             sheet.prefersGrabberVisible = true
         }
 
-        if var topController = UIApplication.shared.firstKeyWindow?.rootViewController {
-            while let presented = topController.presentedViewController {
-                topController = presented
-            }
+        if let topController = PlayerPresenter.findTopViewController() {
             topController.present(hostingController, animated: true)
         } else {
              self.present(hostingController, animated: true)
@@ -1407,39 +1323,20 @@ extension PlayerViewController {
     }
     private func getSavedProgress() async -> Double? {
         guard let current = currentEpisode else { return nil }
-        let episodeId = current.url
-        let moduleId = module.id.uuidString
-        return await CoreDataManager.shared.container.performBackgroundTask { context in
-            if let result = PlayerViewController.fetchHistoryObject(context: context, episodeId: episodeId, moduleId: moduleId) {
-                // Use doubleValue to be safe with different integer types in Core Data
-                if let progressNum = result.value(forKey: "progress") as? NSNumber {
-                    return progressNum.doubleValue
-                }
-            }
-            return nil
-        }
+        return await PlayerHistoryManager.shared.getProgress(episodeId: current.url, moduleId: module.id.uuidString)
     }
     private func saveProgress() {
-        guard let current = currentEpisode, position > 0, duration > 0 else {
-            return
-        }
-        let episodeId = current.url
-        let moduleId = module.id.uuidString
-        let currentPos = Int(position)
-        let totalDur = Int(duration)
-        let title = self.videoTitle
-        let episodeNum = current.number
-        let epTitle = current.title
-        let sourceUrl = current.url
+        guard let current = currentEpisode, position > 0, duration > 0 else { return }
+
         let data = PlayerHistoryManager.EpisodeHistoryData(
-            playerTitle: title,
-            episodeId: episodeId,
-            episodeNumber: Double(episodeNum),
-            episodeTitle: epTitle,
-            sourceUrl: sourceUrl,
-            moduleId: moduleId,
-            progress: currentPos,
-            total: totalDur,
+            playerTitle: self.videoTitle,
+            episodeId: current.url,
+            episodeNumber: Double(current.number),
+            episodeTitle: current.title,
+            sourceUrl: current.url,
+            moduleId: module.id.uuidString,
+            progress: Int(position),
+            total: Int(duration),
             watchedDuration: 0,
             date: Date()
         )
@@ -1447,17 +1344,6 @@ extension PlayerViewController {
         Task {
             await PlayerHistoryManager.shared.setProgress(data: data)
         }
-    }
-
-    private nonisolated static func fetchHistoryObject(context: NSManagedObjectContext, episodeId: String, moduleId: String) -> NSManagedObject? {
-        let fetchRequest = NSFetchRequest<NSManagedObject>(entityName: "PlayerHistory")
-        fetchRequest.predicate = NSPredicate(
-            format: "episodeId == %@ AND moduleId == %@",
-            episodeId,
-            moduleId
-        )
-        fetchRequest.fetchLimit = 1
-        return try? context.fetch(fetchRequest).first
     }
 
     private func setOption(_ name: String, _ value: String) {
@@ -1515,10 +1401,7 @@ extension PlayerViewController {
                 }
                 pendingStartTime = nil
             }
-            // Only start if rotation transition is done
-            if rotationState == .none {
-                setProperty("pause", "no")
-            }
+            setProperty("pause", "no")
             return
         }
 
@@ -1802,10 +1685,7 @@ struct PlayerSettingsView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button {
-                         if var topController = UIApplication.shared.firstKeyWindow?.rootViewController {
-                            while let presented = topController.presentedViewController {
-                                topController = presented
-                            }
+                         if let topController = PlayerPresenter.findTopViewController() {
                             topController.dismiss(animated: true, completion: onDismiss)
                         }
                     } label: {

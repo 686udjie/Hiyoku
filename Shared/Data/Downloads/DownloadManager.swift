@@ -155,6 +155,13 @@ actor DownloadManager {
             return nil
         }
     }
+
+    func refresh() async {
+        await MainActor.run {
+            cache.refresh()
+        }
+        invalidateDownloadedMangaCache()
+    }
 }
 
 // MARK: File Management
@@ -301,6 +308,7 @@ extension DownloadManager {
     /// Remove all downloads.
     func deleteAll() async {
         await cache.removeAll()
+        await refresh()
     }
 }
 
@@ -448,7 +456,11 @@ extension DownloadManager {
                 if !videoEpisodes.isEmpty {
                     let comicInfo = loadComicInfo(at: seriesDir)
                     let extraData = comicInfo?.extraData()
-                    let actualSourceId = extraData?.sourceKey ?? sourceId
+                    var actualSourceId = extraData?.sourceKey ?? sourceId
+                    if extraData?.sourceKey == nil,
+                       let module = await ModuleManager.shared.modules.first(where: { $0.metadata.sourceName == sourceId }) {
+                        actualSourceId = module.id.uuidString
+                    }
                     let actualSeriesId = extraData?.mangaKey ?? seriesName
 
                     let metadata = await getVideoMetadata(sourceId: actualSourceId, seriesId: actualSeriesId, directoryName: seriesName)
@@ -827,6 +839,9 @@ extension DownloadManager {
     /// Invalidate the downloaded manga cache (call when downloads are added/removed)
     private func invalidateDownloadedMangaCache() {
         lastCacheUpdate = .distantPast
+        Task { @MainActor in
+            cache.refresh()
+        }
     }
 }
 

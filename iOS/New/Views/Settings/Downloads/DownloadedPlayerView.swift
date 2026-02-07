@@ -220,13 +220,26 @@ struct DownloadedPlayerView: View {
                     }
                     guard let module = module else { return }
 
-                    let player = PlayerViewController(
+                    let episodes = viewModel.episodes
+                        .map { $0.toPlayerEpisode() }
+                        .sorted { $0.number < $1.number }
+
+                    let currentEpisode = episodes.first(where: { $0.url == episode.videoKey })
+
+                    PlayerPresenter.present(
                         module: module,
                         videoUrl: urls.video.path,
-                        videoTitle: "\(viewModel.video.displayTitle) - \(episode.displayTitle)",
-                        subtitleUrl: urls.subtitle?.path
+                        videoTitle: viewModel.video.displayTitle,
+                        subtitleUrl: urls.subtitle?.path,
+                        episodes: episodes,
+                        currentEpisode: currentEpisode,
+                        onDismiss: {
+                            // Refresh history after playback
+                            Task {
+                                await viewModel.loadHistory()
+                            }
+                        }
                     )
-                    path.present(player, animated: true)
                 }
             }
         }
@@ -360,28 +373,14 @@ extension DownloadedPlayerView {
 
         func loadHistory() async {
             let moduleId = video.sourceId
-            let map: [String: (progress: Int, total: Int?)] = await CoreDataManager.shared.container
-                .performBackgroundTask { context in
-                    var results: [String: (progress: Int, total: Int?)] = [:]
-                let fetchRequest = NSFetchRequest<NSManagedObject>(entityName: "PlayerHistory")
-                fetchRequest.predicate = NSPredicate(format: "moduleId == %@", moduleId)
-                do {
-                    let historyObjects = try context.fetch(fetchRequest)
-                    for obj in historyObjects {
-                        if let episodeId = obj.value(forKey: "episodeId") as? String,
-                           let progress = obj.value(forKey: "progress") as? Int16 {
-                            let total = obj.value(forKey: "total") as? Int16
-                            results[episodeId] = (
-                                progress: Int(progress),
-                                total: total.map(Int.init)
-                            )
-                        }
-                    }
-                } catch {
-                    print("Error fetching history: \(error)")
+            var map: [String: (progress: Int, total: Int?)] = [:]
+
+            for episode in episodes {
+                if let progress = await PlayerHistoryManager.shared.getProgress(episodeId: episode.videoKey, moduleId: moduleId) {
+                    map[episode.videoKey] = (progress: Int(progress), total: nil)
                 }
-                return results
-                }
+            }
+
             await MainActor.run {
                 self.watchHistory = map
             }

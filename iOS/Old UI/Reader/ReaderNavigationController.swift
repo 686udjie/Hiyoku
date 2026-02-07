@@ -45,7 +45,7 @@ struct SwiftUIReaderNavigationController: View {
     let manga: AidokuRunner.Manga
     let chapter: AidokuRunner.Chapter
 
-    @State private var interfaceOrientations: UIInterfaceOrientationMask?
+    @State private var interfaceOrientations: UIInterfaceOrientationMask
 
     init(source: AidokuRunner.Source?, manga: AidokuRunner.Manga, chapter: AidokuRunner.Chapter) {
         self.source = source

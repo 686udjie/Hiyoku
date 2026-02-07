@@ -67,4 +67,12 @@ struct DownloadedVideoItemInfo: Identifiable, Hashable {
     var formattedSize: String {
         ByteCountFormatter.string(fromByteCount: size, countStyle: .file)
     }
+
+    func toPlayerEpisode() -> PlayerEpisode {
+        PlayerEpisode(
+            number: videoNumber ?? 0,
+            title: displayTitle,
+            url: videoKey
+        )
+    }
 }

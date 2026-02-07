@@ -223,6 +223,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
         Task {
             await MangaManager.shared.scheduleLibraryRefresh()
+            await DownloadManager.shared.refresh()
         }
 
         return true
@@ -242,8 +243,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     func application(_ application: UIApplication, supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
-        InterfaceOrientationCoordinator.shared.supportedOrientations
+        .allButUpsideDown
     }
+
 }
 
 extension AppDelegate {

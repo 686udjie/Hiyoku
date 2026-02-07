@@ -103,13 +103,17 @@ struct PlayerDetailsHeaderView: View {
                         .contentTransitionDisabledPlease()
                         .padding(.bottom, 4)
 
-                    if let module = module {
-                        PlayerSourceLabelView(
-                            text: module.metadata.sourceName,
-                            background: Color(red: 0.25, green: 0.55, blue: 1).opacity(0.3)
-                        )
+                    if let sourceName {
+                        HStack(spacing: 6) {
+                            LabelView(
+                                text: sourceName,
+                                background: Color(red: 0.25, green: 0.55, blue: 1).opacity(0.3)
+                            )
+                        }
                         .padding(.bottom, 8)
+                        .transition(.opacity)
                     }
+
                     buttonsView
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -365,42 +369,6 @@ struct PlayerCoverView: View {
         }
         .frame(width: width, height: height)
         .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
-    }
-}
-
-struct PlayerLabelView: View {
-    let text: String
-    let background: Color
-
-    init(text: String, background: Color = Color.gray.opacity(0.3)) {
-        self.text = text
-        self.background = background
-    }
-
-    var body: some View {
-        Text(text)
-            .font(.system(size: 12, weight: .medium))
-            .foregroundColor(.white)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(background)
-            .clipShape(Capsule())
-    }
-}
-
-struct PlayerSourceLabelView: View {
-    let text: String
-    var background = Color(UIColor.tertiarySystemFill)
-
-    var body: some View {
-        Text(text)
-            .lineLimit(1)
-            .foregroundStyle(.secondary)
-            .font(.caption2)
-            .padding(.vertical, 4)
-            .padding(.horizontal, 8)
-            .background(background)
-            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
     }
 }
 
