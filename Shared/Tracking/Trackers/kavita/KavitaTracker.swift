@@ -23,7 +23,8 @@ final class KavitaTracker: EnhancedTracker, PageTracker {
         .init(supportedStatuses: [], scoreType: .tenPoint, scoreOptions: [])
     }
 
-    func register(trackId: String, highestChapterRead: Float?, earliestReadDate: Date?) async throws -> String? {
+    func register(trackId: String, sourceId: String?, highestChapterRead: Float?, earliestReadDate: Date?) async throws -> String? {
+        guard !isPlayerSource(sourceId) else { return nil }
         guard let highestChapterRead else { return nil }
 
         let (sourceKey, seriesId) = try getIdParts(from: trackId)
@@ -40,7 +41,8 @@ final class KavitaTracker: EnhancedTracker, PageTracker {
         return nil
     }
 
-    func update(trackId: String, update: TrackUpdate) async throws {
+    func update(trackId: String, sourceId: String?, update: TrackUpdate) async throws {
+        guard !isPlayerSource(sourceId) else { return }
         let (sourceKey, seriesId) = try getIdParts(from: trackId)
         try await api.update(
             sourceKey: sourceKey,
@@ -49,7 +51,8 @@ final class KavitaTracker: EnhancedTracker, PageTracker {
         )
     }
 
-    func getState(trackId: String) async throws -> TrackState {
+    func getState(trackId: String, sourceId: String?) async throws -> TrackState {
+        guard !isPlayerSource(sourceId) else { throw KavitaTrackerError.getStateFailed }
         let (sourceKey, seriesId) = try getIdParts(from: trackId)
         if let state = try await api.getState(sourceKey: sourceKey, seriesId: seriesId) {
             return state
@@ -67,7 +70,7 @@ final class KavitaTracker: EnhancedTracker, PageTracker {
         }
     }
 
-    func getUrl(trackId: String) async -> URL? {
+    func getUrl(trackId: String, sourceId: String?) async -> URL? {
         nil // url is the same as the series url, so it's not necessary to provide
     }
 
@@ -106,6 +109,11 @@ extension KavitaTracker {
         let split = id.split(separator: idSeparator, maxSplits: 2).map(String.init)
         guard split.count == 2 else { throw KomgaTrackerError.invalidId }
         return (sourceKey: split[0], seriesId: split[1])
+    }
+
+    private func isPlayerSource(_ sourceId: String?) -> Bool {
+        guard let sourceId = sourceId else { return false }
+        return SourceManager.shared.source(for: sourceId) == nil
     }
 }
 

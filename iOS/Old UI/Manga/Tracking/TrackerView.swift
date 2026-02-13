@@ -30,6 +30,19 @@ struct TrackerView: View {
 
     @State var safariUrl: URL?
     @State var showSafari = false
+    private var isAnime: Bool {
+        SourceManager.isPlayerSource(item.sourceId)
+    }
+
+    var totalChaptersBinding: Binding<Float?> {
+        let val = state?.totalChapters != nil ? Float(state!.totalChapters!) : nil
+        return Binding.constant(val)
+    }
+
+    var totalVolumesBinding: Binding<Float?> {
+        let val = state?.totalVolumes != nil ? Float(state!.totalVolumes!) : nil
+        return Binding.constant(val)
+    }
 
     var body: some View {
         VStack {
@@ -59,7 +72,7 @@ struct TrackerView: View {
                     }
                     Button {
                         Task {
-                            safariUrl = await tracker.getUrl(trackId: item.id)
+                            safariUrl = await tracker.getUrl(trackId: item.id, sourceId: item.sourceId)
                             guard safariUrl != nil else { return }
                             showSafari = true
                         }
@@ -90,17 +103,19 @@ struct TrackerView: View {
                     selectedOption: $statusOption
                 )
                 TrackerSettingOptionView(
-                    NSLocalizedString("CHAPTERS", comment: ""),
+                    NSLocalizedString(isAnime ? "EPISODE_PLURAL" : "CHAPTERS", comment: ""),
                     type: .counter,
                     count: $lastReadChapter,
-                    total: Binding.constant(state?.totalChapters != nil ? Float(state!.totalChapters!) : nil)
+                    total: totalChaptersBinding
                 )
-                TrackerSettingOptionView(
-                    NSLocalizedString("VOLUMES", comment: ""),
-                    type: .counter,
-                    count: $lastReadVolume,
-                    total: Binding.constant(state?.totalVolumes != nil ? Float(state!.totalVolumes!) : nil)
-                )
+                if !isAnime {
+                    TrackerSettingOptionView(
+                        NSLocalizedString("VOLUMES", comment: ""),
+                        type: .counter,
+                        count: $lastReadVolume,
+                        total: totalVolumesBinding
+                    )
+                }
                 TrackerSettingOptionView(NSLocalizedString("STARTED", comment: ""), type: .date, date: $startReadDate)
                 TrackerSettingOptionView(NSLocalizedString("FINISHED", comment: ""), type: .date, date: $finishReadDate)
 
@@ -174,7 +189,7 @@ struct TrackerView: View {
         }
         // fetch latest tracker state
         .task {
-            state = try? await tracker.getState(trackId: item.id)
+            state = try? await tracker.getState(trackId: item.id, sourceId: item.sourceId)
             guard let state else { return }
 
             let newScoreOption: Int?
@@ -192,17 +207,28 @@ struct TrackerView: View {
                 newScoreOption = scoreOption
             }
 
+            let statusOptionIndex = info.supportedStatuses
+                .firstIndex { $0.rawValue == state.status?.rawValue }
+                .flatMap {
+                    info.supportedStatuses.distance(
+                        from: info.supportedStatuses.startIndex,
+                        to: $0
+                    )
+                } ?? 0
+
+            var uiScore: Float?
+            if let stateScore = state.score {
+                if info.scoreType == .tenPointDecimal {
+                    uiScore = Float(stateScore) / 10
+                } else {
+                    uiScore = Float(stateScore)
+                }
+            }
+
             withAnimation {
-                score = state.score != nil ? info.scoreType == .tenPointDecimal ? Float(state.score!) / 10 : Float(state.score!) : nil
+                score = uiScore
                 scoreOption = newScoreOption
-                statusOption = info.supportedStatuses
-                    .firstIndex { $0.rawValue == state.status?.rawValue }
-                    .flatMap {
-                        info.supportedStatuses.distance(
-                            from: info.supportedStatuses.startIndex,
-                            to: $0
-                        )
-                    } ?? 0
+                statusOption = statusOptionIndex
                 lastReadChapter = state.lastReadChapter != nil ? Float(state.lastReadChapter!) : nil
                 lastReadVolume = state.lastReadVolume != nil ? Float(state.lastReadVolume!) : nil
                 startReadDate = state.startReadDate
@@ -214,7 +240,7 @@ struct TrackerView: View {
             if stateUpdated {
                 Task {
                     do {
-                        try await tracker.update(trackId: item.id, update: update)
+                        try await tracker.update(trackId: item.id, sourceId: item.sourceId, update: update)
                     } catch {
                         LogManager.logger.error("Failed to update tracker \(tracker.id): \(error)")
                     }

@@ -9,9 +9,9 @@ import Foundation
 
 enum AniListQueries {
     static let searchQuery = """
-    query ($search: String) {
+    query ($search: String, $type: MediaType) {
       Page(perPage: 20) {
-        media(search: $search, type: MANGA, isAdult: false) {
+        media(search: $search, type: $type, isAdult: false) {
           id
           title {
             userPreferred
@@ -31,9 +31,9 @@ enum AniListQueries {
     """
 
     static let searchQueryNsfw = """
-    query ($search: String) {
+    query ($search: String, $type: MediaType) {
       Page(perPage: 20) {
-        media(search: $search, type: MANGA) {
+        media(search: $search, type: $type) {
           id
           title {
             userPreferred
@@ -53,8 +53,8 @@ enum AniListQueries {
     """
 
     static let mediaQuery = """
-    query ($id: Int) {
-      Media(id: $id) {
+    query ($id: Int, $type: MediaType) {
+      Media(id: $id, type: $type) {
         id
         title {
           userPreferred
@@ -74,6 +74,7 @@ enum AniListQueries {
       Media(id: $id) {
         chapters
         volumes
+        episodes
         mediaListEntry {
           status
           score(format: POINT_100)
@@ -150,6 +151,7 @@ struct GraphQLError: Codable, Sendable {
 
 struct AniListSearchVars: Codable, Sendable {
     var search: String
+    var type: String?
 }
 
 struct AniListUpdateMediaVars: Codable, Sendable {
@@ -168,6 +170,7 @@ struct AniListSearchResponse: Codable, Sendable {
 
 struct AniListMediaStatusVars: Codable, Sendable {
     var id: Int
+    var type: String?
 }
 
 struct AniListMediaStatusResponse: Codable, Sendable {
@@ -201,6 +204,7 @@ struct Media: Codable, Sendable {
     var mediaListEntry: MediaListEntry?
     var chapters: Int?
     var volumes: Int?
+    var episodes: Int?
 }
 
 struct MediaTitle: Codable, Sendable {

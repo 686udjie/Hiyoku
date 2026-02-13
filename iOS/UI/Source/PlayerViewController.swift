@@ -18,7 +18,9 @@ class PlayerViewController: UIViewController, UIGestureRecognizerDelegate {
     var videoUrl: String
     var videoTitle: String
     var headers: [String: String]
+    let mangaId: String?
     private var resolvedUrl: String?
+    private var markedAsCompleted = false
 
     // Navigation Callbacks
     var onNextEpisode: (() -> Void)?
@@ -138,6 +140,34 @@ class PlayerViewController: UIViewController, UIGestureRecognizerDelegate {
         let b = createSystemButton(symbol: "lock.open.fill", size: 16, action: #selector(lockTapped))
         return b
     }()
+
+    init(
+        module: ScrapingModule,
+        videoUrl: String,
+        videoTitle: String,
+        headers: [String: String] = [:],
+        subtitleUrl: String? = nil,
+        episodes: [PlayerEpisode] = [],
+        currentEpisode: PlayerEpisode? = nil,
+        mangaId: String? = nil
+    ) {
+        self.module = module
+        self.videoUrl = videoUrl
+        self.videoTitle = videoTitle
+        self.headers = headers
+        self.subtitleUrl = subtitleUrl
+        self.mangaId = mangaId
+        self.allEpisodes = episodes
+        self.currentEpisode = currentEpisode
+        super.init(nibName: nil, bundle: nil)
+
+        // landscape presentation
+        modalPresentationStyle = .fullScreen
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
 
     func configure(episodes: [PlayerEpisode], current: PlayerEpisode, title: String) {
         self.allEpisodes = episodes
@@ -264,32 +294,6 @@ class PlayerViewController: UIViewController, UIGestureRecognizerDelegate {
     var subtitleDelay: Double = 0
     private lazy var subtitleButton = createSystemButton(symbol: "captions.bubble.fill", action: #selector(subtitleTapped))
     private lazy var subtitleBackgroundView = createControlBackground(cornerRadius: 22)
-
-    init(
-        module: ScrapingModule,
-        videoUrl: String,
-        videoTitle: String,
-        headers: [String: String] = [:],
-        subtitleUrl: String? = nil,
-        episodes: [PlayerEpisode] = [],
-        currentEpisode: PlayerEpisode? = nil
-    ) {
-        self.module = module
-        self.videoUrl = videoUrl
-        self.videoTitle = videoTitle
-        self.headers = headers
-        self.subtitleUrl = subtitleUrl
-        self.allEpisodes = episodes
-        self.currentEpisode = currentEpisode
-        super.init(nibName: nil, bundle: nil)
-
-        // landscape presentation
-        modalPresentationStyle = .fullScreen
-    }
-
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
 
     deinit {
         stopPlayer()
@@ -1343,6 +1347,24 @@ extension PlayerViewController {
 
         Task {
             await PlayerHistoryManager.shared.setProgress(data: data)
+        }
+
+        // Trigger tracker update if threshold is met
+        if !markedAsCompleted {
+            let thresholdString = UserDefaults.standard.string(forKey: "Player.historyThreshold") ?? "80"
+            let threshold = (Double(thresholdString) ?? 80) / 100
+            let progress = position / duration
+
+            if progress >= threshold {
+                markedAsCompleted = true
+                Task {
+                    let sourceId = module.id.uuidString
+                    if let mangaId = mangaId {
+                        let episode = current.toTrackableEpisode(sourceId: sourceId, mangaId: mangaId)
+                        await TrackerManager.shared.setCompleted(episode: episode, sourceId: sourceId, mangaId: mangaId)
+                    }
+                }
+            }
         }
     }
 

@@ -25,7 +25,7 @@ struct PlayerDetailsHeaderView: View {
     @Binding var showingCoverView: Bool
     @Binding var episodeSortOption: EpisodeSortOption
     @Binding var episodeSortAscending: Bool
-
+    var onTrackerButtonPressed: (() -> Void)?
     var onWatchButtonPressed: (() -> Void)?
 
     @EnvironmentObject private var path: NavigationCoordinator
@@ -33,6 +33,8 @@ struct PlayerDetailsHeaderView: View {
     @State private var watchButtonText = NSLocalizedString("LOADING_ELLIPSIS")
     @State private var watchButtonDisabled = true
     @State private var longHeldBookmark = false
+    @State private var isTracking = false
+    @State private var hasAvailableTrackers = false
 
     @ObservedObject private var libraryManager = PlayerLibraryManager.shared
 
@@ -52,6 +54,7 @@ struct PlayerDetailsHeaderView: View {
         showingCoverView: Binding<Bool>,
         episodeSortOption: Binding<EpisodeSortOption>,
         episodeSortAscending: Binding<Bool>,
+        onTrackerButtonPressed: (() -> Void)? = nil,
         onWatchButtonPressed: (() -> Void)? = nil
     ) {
         self.module = module
@@ -67,7 +70,12 @@ struct PlayerDetailsHeaderView: View {
         self._showingCoverView = showingCoverView
         self._episodeSortOption = episodeSortOption
         self._episodeSortAscending = episodeSortAscending
+        self.onTrackerButtonPressed = onTrackerButtonPressed
         self.onWatchButtonPressed = onWatchButtonPressed
+        self._isTracking = State(initialValue: TrackerManager.shared.isTracking(
+            sourceId: module?.id.uuidString ?? "",
+            mangaId: contentUrl ?? ""
+        ))
     }
 
     var body: some View {
@@ -177,7 +185,18 @@ struct PlayerDetailsHeaderView: View {
         .onChange(of: isLoadingEpisodes) { _ in
             updateWatchButton()
         }
-        .onChange(of: bookmarked) { _ in }
+        .onReceive(NotificationCenter.default.publisher(for: .updateTrackers)) { _ in
+            isTracking = TrackerManager.shared.isTracking(
+                sourceId: module?.id.uuidString ?? "",
+                mangaId: contentUrl ?? ""
+            )
+        }
+        .task {
+            updateWatchButton()
+            if let module = module, let contentUrl = contentUrl {
+                hasAvailableTrackers = await TrackerManager.shared.hasAvailableTrackers(sourceKey: module.id.uuidString, mangaKey: contentUrl)
+            }
+        }
     }
 
     var buttonsView: some View {
@@ -200,6 +219,15 @@ struct PlayerDetailsHeaderView: View {
                         longHeldBookmark = true
                     }
             )
+
+            if hasAvailableTrackers {
+                Button {
+                    onTrackerButtonPressed?()
+                } label: {
+                    Image(systemName: "clock.arrow.2.circlepath")
+                }
+                .buttonStyle(PlayerActionButtonStyle(selected: isTracking))
+            }
 
             Button {
                 openWebView()

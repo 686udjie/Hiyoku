@@ -119,8 +119,14 @@ class SourceManager {
 
 // MARK: - Source Management
 extension SourceManager {
-    func source(for id: String) -> AidokuRunner.Source? {
-        sources.first { $0.id == id }
+    func source(for sourceId: String) -> AidokuRunner.Source? {
+        sources.first { $0.id == sourceId }
+    }
+
+    /// Check if a given source ID is a player source.
+    static func isPlayerSource(_ sourceId: String?) -> Bool {
+        guard let sourceId = sourceId else { return false }
+        return shared.source(for: sourceId) == nil
     }
 
     func hasSourceInstalled(id: String) -> Bool {

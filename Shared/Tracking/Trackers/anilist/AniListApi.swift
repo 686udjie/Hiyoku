@@ -26,26 +26,26 @@ actor AniListApi {
 
 // MARK: - Data
 extension AniListApi {
-    func search(query: String, nsfw: Bool = true) async -> ALPage? {
+    func search(query: String, type: String? = "MANGA", nsfw: Bool = true) async -> ALPage? {
         let response: GraphQLResponse<AniListSearchResponse>? = await request(
             GraphQLVariableQuery(
                 query: nsfw ? AniListQueries.searchQueryNsfw : AniListQueries.searchQuery,
-                variables: AniListSearchVars(search: query)
+                variables: AniListSearchVars(search: query, type: type)
             )
         )
         return response?.data.Page
     }
 
-    func getMedia(id: Int) async -> Media? {
+    func getMedia(id: Int, type: String? = "MANGA") async -> Media? {
         let response: GraphQLResponse<AniListMediaStatusResponse>? = await request(
-            GraphQLVariableQuery(query: AniListQueries.mediaQuery, variables: AniListMediaStatusVars(id: id))
+            GraphQLVariableQuery(query: AniListQueries.mediaQuery, variables: AniListMediaStatusVars(id: id, type: type))
         )
         return response?.data.Media
     }
 
-    func getMediaState(id: Int) async -> Media? {
+    func getMediaState(id: Int, type: String? = "MANGA") async -> Media? {
         let response: GraphQLResponse<AniListMediaStatusResponse>? = await request(
-            GraphQLVariableQuery(query: AniListQueries.mediaStatusQuery, variables: AniListMediaStatusVars(id: id))
+            GraphQLVariableQuery(query: AniListQueries.mediaStatusQuery, variables: AniListMediaStatusVars(id: id, type: type))
         )
         return response?.data.Media
     }

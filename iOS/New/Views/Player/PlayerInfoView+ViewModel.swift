@@ -191,7 +191,7 @@ extension PlayerInfoView {
                         context: context
                     )
 
-                    let chaptersToSave = fetchedEpisodes.map { $0.toChapter() }
+                    let chaptersToSave = fetchedEpisodes.map { $0.toTrackableEpisode(sourceId: sourceId, mangaId: mangaId) }
                     CoreDataManager.shared.setChapters(
                         chaptersToSave,
                         sourceId: sourceId,
@@ -283,7 +283,7 @@ extension PlayerInfoView {
             )
 
             if !fetchedEpisodes.isEmpty {
-                let chaptersToSave = fetchedEpisodes.map { $0.toChapter() }
+                let chaptersToSave = fetchedEpisodes.map { $0.toTrackableEpisode(sourceId: sourceId, mangaId: mangaId) }
                 await CoreDataManager.shared.container.performBackgroundTask { context in
                     _ = CoreDataManager.shared.getOrCreateManga(
                         AidokuRunner.Manga(
@@ -504,10 +504,27 @@ extension PlayerInfoView {
                 return
             }
 
-            let sorted = episodes.sorted { lhs, rhs in
+            self.sortedEpisodes = episodes.sorted { lhs, rhs in
                 episodeSortAscending ? lhs.number < rhs.number : lhs.number > rhs.number
             }
-            self.sortedEpisodes = sorted
+        }
+
+        func trackableManga() -> AidokuRunner.Manga? {
+            guard let module = module, let contentUrl = contentUrl else { return nil }
+            let moduleId = module.id.uuidString
+            return AidokuRunner.Manga(
+                sourceKey: moduleId,
+                key: contentUrl,
+                title: title,
+                cover: posterUrl,
+                authors: nil,
+                description: nil,
+                url: URL(string: contentUrl.absoluteUrl(withBaseUrl: module.metadata.baseUrl)),
+                tags: nil,
+                status: .unknown,
+                contentRating: .unknown,
+                chapters: episodes.map { $0.toTrackableEpisode(sourceId: moduleId, mangaId: contentUrl) }
+            )
         }
     }
 }

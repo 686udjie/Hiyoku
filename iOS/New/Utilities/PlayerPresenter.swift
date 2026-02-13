@@ -39,6 +39,7 @@ class PlayerPresenter {
         subtitleUrl: String? = nil,
         episodes: [PlayerEpisode] = [],
         currentEpisode: PlayerEpisode? = nil,
+        mangaId: String? = nil,
         onDismiss: (() -> Void)? = nil
     ) {
         guard let topVC = findTopViewController() else {
@@ -52,7 +53,8 @@ class PlayerPresenter {
             headers: headers,
             subtitleUrl: subtitleUrl,
             episodes: episodes,
-            currentEpisode: currentEpisode
+            currentEpisode: currentEpisode,
+            mangaId: mangaId
         )
 
         playerVC.onDismiss = onDismiss

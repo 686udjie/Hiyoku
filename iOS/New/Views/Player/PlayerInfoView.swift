@@ -266,6 +266,13 @@ struct PlayerInfoView: View {
                 showingCoverView: $showingCoverView,
                 episodeSortOption: $viewModel.episodeSortOption,
                 episodeSortAscending: $viewModel.episodeSortAscending,
+                onTrackerButtonPressed: {
+                    guard let manga = viewModel.trackableManga() else { return }
+                    let vc = TrackerModalViewController(manga: manga)
+                    vc.modalPresentationStyle = .overFullScreen
+                    path.present(vc, animated: false)
+                }
+,
                 onWatchButtonPressed: {
                     if let firstEpisode = viewModel.sortedEpisodes.first {
                         Task {
@@ -610,6 +617,7 @@ extension PlayerInfoView {
             subtitleUrl: subtitleUrl ?? updatedEpisode.subtitleUrl,
             episodes: viewModel.sortedEpisodes,
             currentEpisode: updatedEpisode,
+            mangaId: viewModel.contentUrl,
             onDismiss: {
                 Task {
                     await viewModel.fetchHistory()

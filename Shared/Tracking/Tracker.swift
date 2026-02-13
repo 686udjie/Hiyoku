@@ -43,7 +43,7 @@ protocol Tracker: AnyObject, Sendable {
     ///   - trackId: The identifier for a tracker item.
     ///   - highestChapterRead: The highest chapter number read, if it exists.
     ///   - earliestReadDate: The earliest date for a read chapter, if it exists.
-    func register(trackId: String, highestChapterRead: Float?, earliestReadDate: Date?) async throws -> String?
+    func register(trackId: String, sourceId: String?, highestChapterRead: Float?, earliestReadDate: Date?) async throws -> String?
 
     /// Update the state of a tracked title.
     ///
@@ -53,7 +53,7 @@ protocol Tracker: AnyObject, Sendable {
     /// - Parameters:
     ///   - trackId: The identifier for a tracker item.
     ///   - update: The update object with new state values for the tracker item.
-    func update(trackId: String, update: TrackUpdate) async throws
+    func update(trackId: String, sourceId: String?, update: TrackUpdate) async throws
 
     /// Get the current state of a tracked title from the tracker.
     ///
@@ -63,14 +63,14 @@ protocol Tracker: AnyObject, Sendable {
     /// - Returns: The current state of the tracker item.
     ///
     /// - Parameter trackId: The identifier for a tracker item.
-    func getState(trackId: String) async throws -> TrackState
+    func getState(trackId: String, sourceId: String?) async throws -> TrackState
 
     /// Get the tracker web URL for a title.
     ///
     /// - Returns: The URL for the title on the tracker website.
     ///
     /// - Parameter trackId: The identifier for a tracker item.
-    func getUrl(trackId: String) async -> URL?
+    func getUrl(trackId: String, sourceId: String?) async -> URL?
 
     /// Get search results for possible tracker matches for a Manga.
     ///

@@ -8,9 +8,11 @@
 import Foundation
 import AidokuRunner
 
+typealias TrackableEpisode = AidokuRunner.Chapter
+
 extension PlayerEpisode {
-    func toChapter() -> AidokuRunner.Chapter {
-        AidokuRunner.Chapter(
+    func toTrackableEpisode(sourceId: String, mangaId: String) -> TrackableEpisode {
+        TrackableEpisode(
             key: self.url,
             title: self.title,
             chapterNumber: Float(self.number),

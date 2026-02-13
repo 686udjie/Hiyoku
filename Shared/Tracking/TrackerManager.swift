@@ -50,6 +50,12 @@ actor TrackerManager {
             .flatMap { try? JSONDecoder().decode(TrackingState.self, from: $0) } ?? .init()
     }
 
+    struct ProgressUpdate {
+        let chapterNum: Float?
+        let volumeNum: Int?
+        let displayMode: ChapterTitleDisplayMode
+    }
+
     /// Send chapter read update to logged in trackers.
     func setCompleted(chapter: Chapter, skipTracker: Tracker? = nil) async {
         let chapterNum = chapter.chapterNum
@@ -62,6 +68,56 @@ actor TrackerManager {
 
         let sourceId = chapter.sourceId
         let mangaId = chapter.mangaId
+        await setCompletedInternal(
+            sourceId: sourceId,
+            mangaId: mangaId,
+            progress: ProgressUpdate(chapterNum: chapterNum, volumeNum: volumeNum, displayMode: displayMode),
+            skipTracker: skipTracker
+        )
+    }
+
+    /// Send chapter read update to logged in trackers (for player sources).
+    func setCompleted(chapter: Chapter, sourceId: String, mangaId: String, skipTracker: Tracker? = nil) async {
+        let chapterNum = chapter.chapterNum
+        let volumeNum = chapter.volumeNum.flatMap { Int(floor($0)) }
+        guard chapterNum != nil || volumeNum != nil else { return }
+
+        let uniqueKey = "\(sourceId).\(mangaId)"
+        let key = "Manga.chapterDisplayMode.\(uniqueKey)"
+        let displayMode = ChapterTitleDisplayMode(rawValue: UserDefaults.standard.integer(forKey: key)) ?? .default
+
+        await setCompletedInternal(
+            sourceId: sourceId,
+            mangaId: mangaId,
+            progress: ProgressUpdate(chapterNum: chapterNum, volumeNum: volumeNum, displayMode: displayMode),
+            skipTracker: skipTracker
+        )
+    }
+
+    /// Send chapter read update to logged in trackers (for TrackableEpisode).
+    func setCompleted(episode: AidokuRunner.Chapter, sourceId: String, mangaId: String, skipTracker: Tracker? = nil) async {
+        let chapterNum = episode.chapterNumber
+        let volumeNum = episode.volumeNumber.flatMap { Int(floor($0)) }
+        guard chapterNum != nil || volumeNum != nil else { return }
+
+        let uniqueKey = "\(sourceId).\(mangaId)"
+        let key = "Manga.chapterDisplayMode.\(uniqueKey)"
+        let displayMode = ChapterTitleDisplayMode(rawValue: UserDefaults.standard.integer(forKey: key)) ?? .default
+
+        await setCompletedInternal(
+            sourceId: sourceId,
+            mangaId: mangaId,
+            progress: ProgressUpdate(chapterNum: chapterNum, volumeNum: volumeNum, displayMode: displayMode),
+            skipTracker: skipTracker
+        )
+    }
+
+    private func setCompletedInternal(
+        sourceId: String,
+        mangaId: String,
+        progress: ProgressUpdate,
+        skipTracker: Tracker?
+    ) async {
         let trackItems: [TrackItem] = await CoreDataManager.shared.container.performBackgroundTask { @Sendable context in
             CoreDataManager.shared.getTracks(
                 sourceId: sourceId,
@@ -75,25 +131,25 @@ actor TrackerManager {
                 skipTracker?.id != item.trackerId,
                 let tracker = Self.getTracker(id: item.trackerId),
                 !(tracker is PageTracker),
-                let state = try? await tracker.getState(trackId: item.id)
+                let state = try? await tracker.getState(trackId: item.id, sourceId: sourceId)
             else { continue }
 
             // Check if we need to update based on chapter display mode
             var shouldUpdate = false
-            if displayMode == .chapter {
+            if progress.displayMode == .chapter {
                 // Chapter mode: check chapter progress, or volume progress if no chapter
-                let hasChapterProgress = chapterNum != nil && (state.lastReadChapter ?? 0) < chapterNum!
-                let hasVolumeProgress = volumeNum != nil && (state.lastReadChapter ?? 0) < Float(volumeNum!)
+                let hasChapterProgress = progress.chapterNum != nil && (state.lastReadChapter ?? 0) < progress.chapterNum!
+                let hasVolumeProgress = progress.volumeNum != nil && (state.lastReadChapter ?? 0) < Float(progress.volumeNum!)
                 shouldUpdate = hasChapterProgress || hasVolumeProgress
-            } else if displayMode == .volume {
+            } else if progress.displayMode == .volume {
                 // Volume mode: check volume progress, or chapter progress if no volume
-                let hasChapterProgress = chapterNum != nil && (state.lastReadVolume ?? 0) < Int(floor(chapterNum!))
-                let hasVolumeProgress = volumeNum != nil && (state.lastReadVolume ?? 0) < volumeNum!
+                let hasChapterProgress = progress.chapterNum != nil && (state.lastReadVolume ?? 0) < Int(floor(progress.chapterNum!))
+                let hasVolumeProgress = progress.volumeNum != nil && (state.lastReadVolume ?? 0) < progress.volumeNum!
                 shouldUpdate = hasChapterProgress || hasVolumeProgress
             } else {
                 // Default mode: check both chapter and volume progress
-                let hasChapterProgress = chapterNum != nil && (state.lastReadChapter ?? 0) < chapterNum!
-                let hasVolumeProgress = volumeNum != nil && (state.lastReadVolume ?? 0) < volumeNum!
+                let hasChapterProgress = progress.chapterNum != nil && (state.lastReadChapter ?? 0) < progress.chapterNum!
+                let hasVolumeProgress = progress.volumeNum != nil && (state.lastReadVolume ?? 0) < progress.volumeNum!
                 shouldUpdate = hasChapterProgress || hasVolumeProgress
             }
             guard shouldUpdate else { continue }
@@ -101,46 +157,46 @@ actor TrackerManager {
             var update = TrackUpdate()
 
             // update last read chapter and volume based on mode
-            if displayMode == .chapter {
+            if progress.displayMode == .chapter {
                 // chapter mode: only update chapter, don't update volume
-                if let chapterNum, chapterNum > 0 && state.lastReadChapter ?? 0 < chapterNum {
+                if let chapterNum = progress.chapterNum, chapterNum > 0 && (state.lastReadChapter ?? 0) < chapterNum {
                     update.lastReadChapter = chapterNum
-                } else if let volumeNum {
+                } else if let volumeNum = progress.volumeNum {
                     // no chapter metadata, use volume number as chapter
                     let chapterFromVolume = Float(volumeNum)
-                    if chapterFromVolume > state.lastReadChapter ?? 0 {
+                    if chapterFromVolume > (state.lastReadChapter ?? 0) {
                         update.lastReadChapter = chapterFromVolume
                     }
                 }
-            } else if displayMode == .volume {
+            } else if progress.displayMode == .volume {
                 // volume mode: only update volume, don't update chapter
-                if let volumeNum, volumeNum > 0 && state.lastReadVolume ?? 0 < volumeNum {
+                if let volumeNum = progress.volumeNum, volumeNum > 0 && (state.lastReadVolume ?? 0) < volumeNum {
                     update.lastReadVolume = volumeNum
-                } else if let chapterNum {
+                } else if let chapterNum = progress.chapterNum {
                     // no volume metadata, use chapter number as volume
                     let volumeFromChapter = Int(floor(chapterNum))
-                    if volumeFromChapter > state.lastReadVolume ?? 0 {
+                    if volumeFromChapter > (state.lastReadVolume ?? 0) {
                         update.lastReadVolume = volumeFromChapter
                     }
                 }
             } else {
                 // default mode: update both chapter and volume if available
-                if let chapterNum, chapterNum > 0 && state.lastReadChapter ?? 0 < chapterNum {
+                if let chapterNum = progress.chapterNum, chapterNum > 0 && state.lastReadChapter ?? 0 < chapterNum {
                     update.lastReadChapter = chapterNum
                 }
-                if let volumeNum, volumeNum > 0 && state.lastReadVolume ?? 0 < volumeNum {
+                if let volumeNum = progress.volumeNum, volumeNum > 0 && state.lastReadVolume ?? 0 < volumeNum {
                     update.lastReadVolume = volumeNum
                 }
             }
 
             // update reading state
             let readLastChapter = if
-                chapterNum != nil,
+                progress.chapterNum != nil,
                 let totalChapters = state.totalChapters,
                 let lastReadChapter = state.lastReadChapter
             {
                 totalChapters == Int(floor(lastReadChapter))
-            } else if (chapterNum == nil || displayMode == .volume) && update.lastReadVolume != nil {
+            } else if (progress.chapterNum == nil || progress.displayMode == .volume) && update.lastReadVolume != nil {
                 update.lastReadVolume == state.totalVolumes
             } else {
                 false
@@ -159,7 +215,7 @@ actor TrackerManager {
             }
 
             do {
-                try await tracker.update(trackId: item.id, update: update)
+                try await tracker.update(trackId: item.id, sourceId: sourceId, update: update)
             } catch {
                 LogManager.logger.error("Failed to set tracker chapter as completed (\(tracker.id)): \(error)")
             }
@@ -223,6 +279,7 @@ actor TrackerManager {
         do {
             let id = try await tracker.register(
                 trackId: item.id,
+                sourceId: manga.sourceKey,
                 highestChapterRead: highestReadNumber,
                 earliestReadDate: earliestReadDate
             )
@@ -524,12 +581,12 @@ extension TrackerManager {
         chapters: [AidokuRunner.Chapter]? = nil,
         currentHighestRead: Float? = nil
     ) async -> [AidokuRunner.Chapter] {
-        guard
-            let state = try? await tracker.getState(trackId: trackId),
-            case let trackerLastReadChapter = state.lastReadChapter,
-            case let trackerLastReadVolume = state.lastReadVolume,
-            (trackerLastReadChapter ?? 0) > 0 || (trackerLastReadVolume ?? 0) > 0
-        else {
+        guard let state = try? await tracker.getState(trackId: trackId, sourceId: manga.sourceKey) else { return [] }
+
+        let trackerLastReadChapter = state.lastReadChapter
+        let trackerLastReadVolume = state.lastReadVolume
+
+        guard (trackerLastReadChapter ?? 0) > 0 || (trackerLastReadVolume ?? 0) > 0 else {
             return []
         }
 

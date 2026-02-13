@@ -23,7 +23,7 @@ final class BangumiTracker: OAuthTracker {
         .init(supportedStatuses: TrackStatus.defaultStatuses, scoreType: .tenPoint)
     }
 
-    func register(trackId: String, highestChapterRead: Float?, earliestReadDate: Date?) async throws -> String? {
+    func register(trackId: String, sourceId: String?, highestChapterRead: Float?, earliestReadDate: Date?) async throws -> String? {
         guard let id = Int(trackId) else {
             throw BangumiTrackerError.invalidId
         }
@@ -39,7 +39,7 @@ final class BangumiTracker: OAuthTracker {
         return nil
     }
 
-    func update(trackId: String, update: TrackUpdate) async throws {
+    func update(trackId: String, sourceId: String?, update: TrackUpdate) async throws {
         guard let id = Int(trackId) else {
             throw BangumiTrackerError.invalidId
         }
@@ -49,7 +49,7 @@ final class BangumiTracker: OAuthTracker {
         }
     }
 
-    func getState(trackId: String) async throws -> TrackState {
+    func getState(trackId: String, sourceId: String?) async throws -> TrackState {
         guard let id = Int(trackId) else {
             throw BangumiTrackerError.invalidId
         }
@@ -76,7 +76,7 @@ final class BangumiTracker: OAuthTracker {
         )
     }
 
-    func getUrl(trackId: String) -> URL? {
+    func getUrl(trackId: String, sourceId: String?) -> URL? {
         URL(string: "https://bgm.tv/subject/\(trackId)")
     }
 

@@ -23,19 +23,19 @@ final class ShikimoriTracker: OAuthTracker {
         .init(supportedStatuses: TrackStatus.defaultStatuses, scoreType: .tenPoint)
     }
 
-    func register(trackId: String, highestChapterRead: Float?, earliestReadDate: Date?) async throws -> String? {
+    func register(trackId: String, sourceId: String?, highestChapterRead: Float?, earliestReadDate: Date?) async throws -> String? {
         await api.register(trackId: trackId, highestChapterRead: highestChapterRead, earliestReadDate: earliestReadDate)
     }
 
-    func update(trackId: String, update: TrackUpdate) async {
+    func update(trackId: String, sourceId: String?, update: TrackUpdate) async {
         await api.update(trackId: trackId, update: update)
     }
 
-    func getState(trackId: String) async -> TrackState {
+    func getState(trackId: String, sourceId: String?) async -> TrackState {
         await api.getState(trackId)
     }
 
-    func getUrl(trackId: String) async -> URL? {
+    func getUrl(trackId: String, sourceId: String?) async -> URL? {
         guard let id = await api.getMangaIdByRate(trackId: trackId) else { return nil }
 
         return URL(string: oauthClient.baseUrl + "/mangas/\(id)")

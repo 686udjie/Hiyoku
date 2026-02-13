@@ -86,12 +86,13 @@ final class AniListTracker: OAuthTracker {
         return nil
     }
 
-    func register(trackId: String, highestChapterRead: Float?, earliestReadDate: Date?) async throws -> String? {
+    func register(trackId: String, sourceId: String?, highestChapterRead: Float?, earliestReadDate: Date?) async throws -> String? {
         guard let id = Int(trackId) else {
             throw AniListTrackerError.invalidId
         }
+        let isAnime = SourceManager.isPlayerSource(sourceId)
         // set status to reading if status doesn't already exist
-        let state = await api.getMediaState(id: id)
+        let state = await api.getMediaState(id: id, type: isAnime ? "ANIME" : "MANGA")
         if state?.mediaListEntry?.status == nil {
             await api.update(media: id, update: TrackUpdate(
                 status: earliestReadDate != nil ? .reading : .planning,
@@ -102,7 +103,7 @@ final class AniListTracker: OAuthTracker {
         return nil
     }
 
-    func update(trackId: String, update: TrackUpdate) async throws {
+    func update(trackId: String, sourceId: String?, update: TrackUpdate) async throws {
         guard let id = Int(trackId) else {
             throw AniListTrackerError.invalidId
         }
@@ -114,11 +115,12 @@ final class AniListTracker: OAuthTracker {
         await api.update(media: id, update: update)
     }
 
-    func getState(trackId: String) async throws -> TrackState {
+    func getState(trackId: String, sourceId: String?) async throws -> TrackState {
         guard let id = Int(trackId) else {
             throw AniListTrackerError.invalidId
         }
-        guard let result = await api.getMediaState(id: id) else {
+        let isAnime = SourceManager.isPlayerSource(sourceId)
+        guard let result = await api.getMediaState(id: id, type: isAnime ? "ANIME" : "MANGA") else {
             throw AniListTrackerError.getStateFailed
         }
 
@@ -135,19 +137,21 @@ final class AniListTracker: OAuthTracker {
             status: getStatus(statusString: result.mediaListEntry?.status),
             lastReadChapter: Float(result.mediaListEntry?.progress ?? 0),
             lastReadVolume: result.mediaListEntry?.progressVolumes,
-            totalChapters: result.chapters,
+            totalChapters: isAnime ? result.episodes : result.chapters,
             totalVolumes: result.volumes,
             startReadDate: decodeDate(result.mediaListEntry?.startedAt),
             finishReadDate: decodeDate(result.mediaListEntry?.completedAt)
         )
     }
 
-    func getUrl(trackId: String) -> URL? {
-        URL(string: "https://anilist.co/manga/\(trackId)")
+    func getUrl(trackId: String, sourceId: String?) -> URL? {
+        let isAnime = SourceManager.isPlayerSource(sourceId)
+        return URL(string: "https://anilist.co/\(isAnime ? "anime" : "manga")/\(trackId)")
     }
 
     func search(for manga: AidokuRunner.Manga, includeNsfw: Bool) async -> [TrackSearchItem] {
-        await search(title: manga.title, nsfw: includeNsfw)
+        let isAnime = SourceManager.isPlayerSource(manga.sourceKey)
+        return await search(title: manga.title, type: isAnime ? "ANIME" : "MANGA", nsfw: includeNsfw)
     }
 
     func search(title: String, includeNsfw: Bool) async -> [TrackSearchItem] {
@@ -156,10 +160,11 @@ final class AniListTracker: OAuthTracker {
             url.host == "anilist.co",
             case let pathComponents = url.pathComponents,
             pathComponents.count >= 3,
+            let typeString = pathComponents[1].lowercased() == "anime" ? "ANIME" : "MANGA",
             let id = Int(pathComponents[2])
         {
             // use anilist url to search
-            guard let media = await api.getMedia(id: id) else { return [] }
+            guard let media = await api.getMedia(id: id, type: typeString) else { return [] }
             return [TrackSearchItem(
                 id: String(media.id ?? 0),
                 title: media.title?.userPreferred,
@@ -174,8 +179,8 @@ final class AniListTracker: OAuthTracker {
         }
     }
 
-    private func search(title: String, nsfw: Bool) async -> [TrackSearchItem] {
-        guard let page = await api.search(query: title, nsfw: nsfw) else {
+    private func search(title: String, type: String? = "MANGA", nsfw: Bool) async -> [TrackSearchItem] {
+        guard let page = await api.search(query: title, type: type, nsfw: nsfw) else {
             return []
         }
 
