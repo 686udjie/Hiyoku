@@ -8,6 +8,8 @@
 import Foundation
 import Combine
 import UIKit
+import AidokuRunner
+import CoreData
 
 @MainActor
 class PlayerLibraryManager: ObservableObject {
@@ -162,6 +164,89 @@ class PlayerLibraryManager: ObservableObject {
             }
         }
         return nil
+    }
+    func checkForUpdates() async {
+        var moduleItems: [UUID: [PlayerLibraryItem]] = [:]
+        for item in items {
+            if moduleItems[item.moduleId] == nil {
+                moduleItems[item.moduleId] = []
+            }
+            moduleItems[item.moduleId]?.append(item)
+        }
+        // Fetch episodes in parallel
+        let updates = await withTaskGroup(of: (PlayerLibraryItem, [PlayerEpisode]).self) { group in
+            for (_, items) in moduleItems {
+                guard
+                    let firstItem = items.first,
+                    let module = ModuleManager.shared.modules.first(where: { $0.id == firstItem.moduleId })
+                else { continue }
+                for item in items {
+                    group.addTask {
+                        let fetchedEpisodes = await JSController.shared.fetchPlayerEpisodes(
+                            contentUrl: item.sourceUrl,
+                            module: module
+                        )
+                        return (item, fetchedEpisodes)
+                    }
+                }
+            }
+            var results: [(PlayerLibraryItem, [PlayerEpisode])] = []
+            for await result in group where !result.1.isEmpty {
+                results.append(result)
+            }
+            return results
+        }
+        guard !updates.isEmpty else { return }
+        let allModules = ModuleManager.shared.modules
+        await CoreDataManager.shared.container.performBackgroundTask { context in
+            var hasNewUpdates = false
+            for (item, fetchedEpisodes) in updates {
+                guard let module = allModules.first(where: { $0.id == item.moduleId }) else { continue }
+                let sourceId = module.id.uuidString
+                let animeId = item.sourceUrl.normalizedModuleHref()
+                // ensure anime exists
+                _ = CoreDataManager.shared.getOrCreateManga(
+                    AidokuRunner.Manga(
+                        sourceKey: sourceId,
+                        key: animeId,
+                        title: item.title,
+                        cover: item.imageUrl,
+                        url: URL(string: item.sourceUrl)
+                    ),
+                    sourceId: sourceId,
+                    context: context
+                )
+                let episodesToSave = fetchedEpisodes.map { $0.toTrackableEpisode(sourceId: sourceId, mangaId: animeId) }
+                let existingEpisodes = CoreDataManager.shared.getChapters(
+                    sourceId: sourceId,
+                    mangaId: animeId,
+                    context: context
+                )
+                let existingIds = Set(existingEpisodes.map { $0.id })
+                let newEpisodes = CoreDataManager.shared.setChapters(
+                    episodesToSave,
+                    sourceId: sourceId,
+                    mangaId: animeId,
+                    context: context
+                )
+                // create update objects for new episodes
+                for episode in newEpisodes where !existingIds.contains(episode.id) {
+                    CoreDataManager.shared.createMangaUpdate(
+                        sourceId: sourceId,
+                        mangaId: animeId,
+                        chapterObject: episode,
+                        context: context
+                    )
+                    hasNewUpdates = true
+                }
+            }
+            if hasNewUpdates {
+               try? context.save()
+            }
+        }
+        await MainActor.run {
+            NotificationCenter.default.post(name: .updatePlayerLibrary, object: nil)
+        }
     }
 
     private func setupNotifications() {

@@ -121,6 +121,13 @@ class PlayerLibraryViewController: BaseObservingViewController {
         action: #selector(openDownloadQueue)
     )
 
+    private lazy var updatesBarButton = UIBarButtonItem(
+        image: UIImage(systemName: "bell"),
+        style: .plain,
+        target: self,
+        action: #selector(openUpdates)
+    )
+
     override func configure() {
         super.configure()
 
@@ -237,22 +244,20 @@ class PlayerLibraryViewController: BaseObservingViewController {
     func updateNavbarItems() {
         Task { @MainActor in
             let hasDownloads = await DownloadManager.shared.hasQueuedDownloads(type: .video)
-            let currentItems = navigationItem.rightBarButtonItems ?? []
-            let containsButton = currentItems.contains(downloadBarButton)
+            var items: [UIBarButtonItem] = [updatesBarButton]
             if hasDownloads {
-                if !containsButton {
-                    let insertIndex = max(0, currentItems.count - 1)
-                    var newItems = currentItems
-                    newItems.insert(downloadBarButton, at: insertIndex)
-                    navigationItem.setRightBarButtonItems(newItems, animated: true)
-                }
-            } else {
-                if containsButton {
-                    let newItems = currentItems.filter { $0 != downloadBarButton }
-                    navigationItem.setRightBarButtonItems(newItems, animated: true)
-                }
+                items.append(downloadBarButton)
             }
+            navigationItem.setRightBarButtonItems(items, animated: true)
         }
+    }
+
+    @objc func openUpdates() {
+        let path = NavigationCoordinator(rootViewController: self)
+        let viewController = UIHostingController(rootView: MangaUpdatesView().environmentObject(path))
+        viewController.navigationItem.largeTitleDisplayMode = .never
+        viewController.navigationItem.title = NSLocalizedString("MANGA_UPDATES")
+        navigationController?.pushViewController(viewController, animated: true)
     }
 
     @objc func openDownloadQueue() {
@@ -307,7 +312,8 @@ struct PlayerView: View {
             .downloadCancelled,
             .downloadsRemoved,
             .downloadsCancelled,
-            .downloadsQueued
+            .downloadsQueued,
+            .updatePlayerLibrary
         ]
         return Publishers.MergeMany(names.map { NotificationCenter.default.publisher(for: $0) })
             .eraseToAnyPublisher()
@@ -463,23 +469,23 @@ struct PlayerView: View {
                         ModuleManager.shared.modules.first(where: { $0.id == item.moduleId })
                     }) else { return nil }
                     let sourceId = module.id.uuidString
-                    let mangaId = item.sourceUrl.normalizedModuleHref()
-                    let chapters = await CoreDataManager.shared.container.performBackgroundTask { context in
-                        CoreDataManager.shared.getChapters(sourceId: sourceId, mangaId: mangaId, context: context)
+                    let animeId = item.sourceUrl.normalizedModuleHref()
+                    let episodes = await CoreDataManager.shared.container.performBackgroundTask { context in
+                        CoreDataManager.shared.getChapters(sourceId: sourceId, mangaId: animeId, context: context)
                             .compactMap { $0.id }
                     }
-                    let history = await CoreDataManager.shared.getPlayerReadingHistory(sourceId: sourceId, mangaId: mangaId)
+                    let history = await CoreDataManager.shared.getPlayerReadingHistory(sourceId: sourceId, mangaId: animeId)
                     var unread = 0
-                    if !chapters.isEmpty {
+                    if !episodes.isEmpty {
                         let readIds = Set(history.filter { $0.value.progress > 0 && $0.value.progress == $0.value.total }.keys)
-                        unread = chapters.filter { !readIds.contains($0) }.count
+                        unread = episodes.filter { !readIds.contains($0) }.count
                     }
                     let sourceName = module.metadata.sourceName
                     // Check candidates in order: UUID+ID, UUID+Title, Name+ID, Name+Title
                     let candidates = [
-                        (sourceId, mangaId),
+                        (sourceId, animeId),
                         (sourceId, item.title),
-                        (sourceName, mangaId),
+                        (sourceName, animeId),
                         (sourceName, item.title)
                     ]
                     var downloads = 0

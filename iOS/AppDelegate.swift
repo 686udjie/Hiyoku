@@ -224,6 +224,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         Task {
             await MangaManager.shared.scheduleLibraryRefresh()
             await DownloadManager.shared.refresh()
+            await PlayerLibraryManager.shared.checkForUpdates()
         }
 
         return true
