@@ -252,6 +252,7 @@ struct HistoryView: View {
                         path.push(vc)
                     }
                 }
+                .accessibilityIdentifier("player-history-entry-\(player.id)")
                 .swipeActions(edge: .trailing) {
                     SwiftUI.Button("Delete") {
                         playerEntryToDelete = player
@@ -388,6 +389,7 @@ private struct HistoryEntryCell: View {
             }
             .padding(.vertical, 8)
         }
+        .buttonStyle(SelectHighlightButtonStyle())
         .tint(.primary)
     }
 

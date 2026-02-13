@@ -200,7 +200,7 @@ struct PlayerSourceInitialView: View {
                         .fill(Color.gray.opacity(0.2))
                         .frame(width: 80, height: 80)
                         .overlay(
-                            Image(systemName: "tv.fill")
+                            Image(systemName: "play.tv.fill")
                                 .font(.system(size: 30))
                                 .foregroundStyle(.gray)
                         )

@@ -8,6 +8,7 @@
 import UIKit
 import SwiftUI
 import NukeUI
+import Nuke
 import AidokuRunner
 import Combine
 
@@ -109,10 +110,19 @@ class PlayerLibrarySearchViewModel: ObservableObject {
 class PlayerLibraryViewController: BaseObservingViewController {
     private let path = NavigationCoordinator(rootViewController: nil)
     private var searchController: UISearchController!
-    private var playerView: PlayerView!
+    private lazy var collectionView = UICollectionView(frame: .zero, collectionViewLayout: makeCollectionViewLayout())
+    private lazy var dataSource = makeDataSource()
+    private var currentItems: [PlayerLibraryEntry] = []
     private lazy var emptyStackView = EmptyPageStackView()
     private var libraryObserver: AnyCancellable?
     private var downloadObservers = Set<AnyCancellable>()
+    private var searchResultsObserver: AnyCancellable?
+
+    private let searchViewModel = PlayerLibrarySearchViewModel()
+
+    private var searchText = ""
+
+    private var itemCounts: [UUID: (unread: Int, downloads: Int)] = [:]
 
     private lazy var downloadBarButton = UIBarButtonItem(
         image: UIImage(systemName: "square.and.arrow.down"),
@@ -134,7 +144,7 @@ class PlayerLibraryViewController: BaseObservingViewController {
         // Configure navigation bar to match LibraryViewController
         title = NSLocalizedString("PLAYER")
         navigationController?.navigationBar.prefersLargeTitles = true
-        navigationItem.hidesSearchBarWhenScrolling = true
+        navigationItem.hidesSearchBarWhenScrolling = false
 
         // Create NavigationCoordinator with the navigation controller
         path.rootViewController = self.navigationController
@@ -146,15 +156,14 @@ class PlayerLibraryViewController: BaseObservingViewController {
         searchController.searchBar.placeholder = "Search in Player"
         navigationItem.searchController = searchController
 
-        // Add SwiftUI PlayerView (simplified bookmark banners)
-        playerView = PlayerView()
-        let hostingController = UIHostingController(rootView: playerView.environmentObject(path))
-        addChild(hostingController)
-
-        hostingController.view.frame = view.bounds
-        hostingController.view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-        view.addSubview(hostingController.view)
-        hostingController.didMove(toParent: self)
+        // Configure collection view (reader-style)
+        collectionView.backgroundColor = .clear
+        collectionView.delegate = self
+        collectionView.dataSource = dataSource
+        collectionView.alwaysBounceVertical = true
+        collectionView.delaysContentTouches = false
+        collectionView.showsHorizontalScrollIndicator = false
+        view.addSubview(collectionView)
 
         Task {
             await SourceManager.shared.loadSources()
@@ -169,40 +178,103 @@ class PlayerLibraryViewController: BaseObservingViewController {
         emptyStackView.text = NSLocalizedString("PLAYER_ADD_CONTENT", comment: "")
         view.addSubview(emptyStackView)
 
-        // Observe library changes to update empty state
+        // Observe library changes to update empty state + snapshot
         libraryObserver = PlayerLibraryManager.shared.$items
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
-                self?.updateEmptyState()
+                self?.applySnapshot(animated: true)
             }
 
-        updateEmptyState()
+        searchResultsObserver = searchViewModel.$results
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                self?.applySnapshot(animated: true)
+            }
+
+        applySnapshot(animated: false)
     }
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
+        navigationController?.setNavigationBarHidden(false, animated: false)
+        navigationController?.navigationBar.prefersLargeTitles = true
+        navigationItem.largeTitleDisplayMode = .always
+        navigationItem.searchController = searchController
+        navigationController?.navigationBar.layoutIfNeeded()
         updateNavbarItems()
+    }
+
+    override func viewDidAppear(_ animated: Bool) {
+        super.viewDidAppear(animated)
+
+        // hack to show search bar on initial presentation (match LibraryViewController)
+        if !navigationItem.hidesSearchBarWhenScrolling {
+            UIView.performWithoutAnimation {
+                navigationItem.hidesSearchBarWhenScrolling = true
+                navigationController?.navigationBar.layoutIfNeeded()
+            }
+        }
     }
 
     override func constrain() {
         super.constrain()
 
+        collectionView.translatesAutoresizingMaskIntoConstraints = false
         emptyStackView.translatesAutoresizingMaskIntoConstraints = false
 
         NSLayoutConstraint.activate([
+            collectionView.topAnchor.constraint(equalTo: view.topAnchor),
+            collectionView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            collectionView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            collectionView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+
             emptyStackView.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             emptyStackView.centerYAnchor.constraint(equalTo: view.centerYAnchor)
         ])
     }
 
     private func updateEmptyState() {
-        let isSearching = !playerView.searchText.isEmpty
+        let isSearching = !searchText.isEmpty
         let isEmpty = PlayerLibraryManager.shared.items.isEmpty && !isSearching
         emptyStackView.isHidden = !isEmpty
     }
 
     override func observe() {
         super.observe()
+
+        let invalidateLayout: (Notification) -> Void = { [weak self] _ in
+            Task { @MainActor in
+                self?.collectionView.collectionViewLayout.invalidateLayout()
+            }
+        }
+
+        [
+            "General.portraitRows",
+            "General.landscapeRows"
+        ].forEach { name in
+            addObserver(forName: name, using: invalidateLayout)
+        }
+
+        let refreshCounts: (Notification) -> Void = { [weak self] _ in
+            self?.refreshCounts()
+        }
+
+        [
+            Notification.Name("Library.unreadChapterBadges"),
+            Notification.Name("Library.downloadedChapterBadges"),
+            .playerHistoryAdded,
+            .playerHistoryUpdated,
+            .playerHistoryRemoved,
+            .downloadFinished,
+            .downloadRemoved,
+            .downloadCancelled,
+            .downloadsRemoved,
+            .downloadsCancelled,
+            .downloadsQueued,
+            .updatePlayerLibrary
+        ].forEach { name in
+            addObserver(forName: name, using: refreshCounts)
+        }
 
         let checkNavbarDownloadButton: (Notification) -> Void = { [weak self] _ in
             guard let self else { return }
@@ -276,192 +348,216 @@ class PlayerLibraryViewController: BaseObservingViewController {
 
 extension PlayerLibraryViewController: UISearchResultsUpdating {
     func updateSearchResults(for searchController: UISearchController) {
-        let searchText = searchController.searchBar.text ?? ""
-        playerView.searchText = searchText
-
-        // Trigger search through all player sources
-        playerView.searchViewModel.search(query: searchText)
-
-        // Update empty state visibility
-        updateEmptyState()
+        searchText = searchController.searchBar.text ?? ""
+        searchViewModel.search(query: searchText)
+        applySnapshot(animated: true)
     }
 }
 
-// MARK: - Player View
-struct PlayerView: View {
-    @StateObject private var libraryManager = PlayerLibraryManager.shared
-    @StateObject var searchViewModel = PlayerLibrarySearchViewModel()
-    @State var searchText = "" // Made public for UIKit search controller
-    @State private var itemCounts: [UUID: (unread: Int, downloads: Int)] = [:]
-    @AppStorage("Library.unreadChapterBadges") private var showUnreadBadges = false
-    @AppStorage("Library.downloadedChapterBadges") private var showDownloadBadges = false
-    @EnvironmentObject private var path: NavigationCoordinator
-
-    private let gridColumns = [
-        GridItem(.adaptive(minimum: 140), spacing: 16)
-    ]
-    private var refreshPublisher: AnyPublisher<Notification, Never> {
-        let names: [Notification.Name] = [
-            Notification.Name("Library.unreadChapterBadges"),
-            Notification.Name("Library.downloadedChapterBadges"),
-            .playerHistoryAdded,
-            .playerHistoryUpdated,
-            .playerHistoryRemoved,
-            .downloadFinished,
-            .downloadRemoved,
-            .downloadCancelled,
-            .downloadsRemoved,
-            .downloadsCancelled,
-            .downloadsQueued,
-            .updatePlayerLibrary
-        ]
-        return Publishers.MergeMany(names.map { NotificationCenter.default.publisher(for: $0) })
-            .eraseToAnyPublisher()
+// MARK: - Collection View
+extension PlayerLibraryViewController {
+    private enum Section: Int, CaseIterable {
+        case main
     }
 
-    var filteredBookmarks: [PlayerLibraryItem] {
-        if searchText.isEmpty {
-            return libraryManager.items
-        } else {
-            return libraryManager.items.filter { item in
-                item.title.localizedCaseInsensitiveContains(searchText)
+    private struct PlayerLibraryEntry: Hashable {
+        enum Kind: Hashable {
+            case bookmark(id: UUID)
+            case search(id: UUID)
+        }
+
+        let kind: Kind
+        let title: String
+        let imageUrl: String
+        let href: String
+        let moduleId: UUID
+        let bookmark: PlayerLibraryItem?
+
+        var badgeKey: UUID? {
+            switch kind {
+            case .bookmark(let id): id
+            case .search: nil
             }
         }
     }
 
-    var searchResults: [PlayerLibrarySearchResult] {
-        searchViewModel.results
+    private func isSearching() -> Bool {
+        !searchText.isEmpty
     }
 
-    var body: some View {
-        ZStack {
-            if searchText.isEmpty {
-                // Show bookmarks when not searching
-                if !libraryManager.items.isEmpty {
-                    bookmarksGrid
-                }
+    private func buildEntries() -> [PlayerLibraryEntry] {
+        if isSearching() {
+            return searchViewModel.results.map { result in
+                PlayerLibraryEntry(
+                    kind: .search(id: result.id),
+                    title: result.title,
+                    imageUrl: result.imageUrl,
+                    href: result.href,
+                    moduleId: result.module.id,
+                    bookmark: nil
+                )
+            }
+        } else {
+            return PlayerLibraryManager.shared.items.map { item in
+                PlayerLibraryEntry(
+                    kind: .bookmark(id: item.id),
+                    title: item.title,
+                    imageUrl: item.imageUrl,
+                    href: item.sourceUrl,
+                    moduleId: item.moduleId,
+                    bookmark: item
+                )
+            }
+        }
+    }
+
+    private func applySnapshot(animated: Bool) {
+        currentItems = buildEntries()
+        var snapshot = NSDiffableDataSourceSnapshot<Section, PlayerLibraryEntry>()
+        snapshot.appendSections([.main])
+        snapshot.appendItems(currentItems, toSection: .main)
+        dataSource.apply(snapshot, animatingDifferences: animated)
+        updateEmptyState()
+        refreshCounts()
+    }
+
+    private func makeCollectionViewLayout() -> UICollectionViewLayout {
+        let layout = UICollectionViewCompositionalLayout { _, environment in
+            let spacing: CGFloat = 16
+            let isLandscape = environment.container.effectiveContentSize.width > environment.container.effectiveContentSize.height
+            let itemsPerRow = max(1, UserDefaults.standard.integer(forKey: isLandscape ? "General.landscapeRows" : "General.portraitRows"))
+
+            let availableWidth = max(1, environment.container.effectiveContentSize.width - 32)
+
+            let item = NSCollectionLayoutItem(layoutSize: NSCollectionLayoutSize(
+                widthDimension: .fractionalWidth(1),
+                heightDimension: .fractionalHeight(1)
+            ))
+
+            let groupHeight = availableWidth * 3 / (2 * CGFloat(itemsPerRow))
+            let group = NSCollectionLayoutGroup.horizontal(
+                layoutSize: NSCollectionLayoutSize(
+                    widthDimension: .fractionalWidth(1),
+                    heightDimension: .estimated(groupHeight)
+                ),
+                subitem: item,
+                count: itemsPerRow
+            )
+            group.interItemSpacing = .fixed(spacing)
+
+            let section = NSCollectionLayoutSection(group: group)
+            section.contentInsets = NSDirectionalEdgeInsets(top: 16, leading: 16, bottom: 16, trailing: 16)
+            section.interGroupSpacing = spacing
+
+            return section
+        }
+        return layout
+    }
+
+    private func makeDataSource() -> UICollectionViewDiffableDataSource<Section, PlayerLibraryEntry> {
+        collectionView.register(MangaGridCell.self, forCellWithReuseIdentifier: "MangaGridCell")
+
+        return UICollectionViewDiffableDataSource(collectionView: collectionView) { collectionView, indexPath, item in
+            guard let cell = collectionView.dequeueReusableCell(
+                withReuseIdentifier: "MangaGridCell",
+                for: indexPath
+            ) as? MangaGridCell else {
+                return UICollectionViewCell()
+            }
+
+            cell.sourceId = item.moduleId.uuidString
+            cell.mangaId = item.href.normalizedModuleHref()
+            cell.title = item.title
+            if let badgeKey = item.badgeKey {
+                cell.badgeNumber = UserDefaults.standard.bool(forKey: "Library.unreadChapterBadges")
+                    ? (self.itemCounts[badgeKey]?.unread ?? 0)
+                    : 0
+                cell.badgeNumber2 = UserDefaults.standard.bool(forKey: "Library.downloadedChapterBadges")
+                    ? (self.itemCounts[badgeKey]?.downloads ?? 0)
+                    : 0
             } else {
-                searchResultsView
+                cell.badgeNumber = 0
+                cell.badgeNumber2 = 0
             }
-        }
-        .onAppear(perform: refreshCounts)
-        .onChange(of: libraryManager.items) { _ in refreshCounts() }
-        .onReceive(refreshPublisher) { _ in refreshCounts() }
-    }
-
-    private var bookmarksGrid: some View {
-        ScrollView {
-            LazyVGrid(columns: gridColumns, spacing: 16) {
-                ForEach(filteredBookmarks) { bookmark in
-                    Button {
-                        let zoomSourceIdentifier = "player-banner-\(bookmark.id.uuidString)"
-                        // Navigate to player info page
-                        let searchItem = SearchItem(
-                            title: bookmark.title,
-                            imageUrl: bookmark.imageUrl,
-                            href: bookmark.sourceUrl
-                        )
-
-                        // Find the module for this bookmark
-                        if let module = ModuleManager.shared.modules.first(where: { $0.id == bookmark.moduleId }) {
-                            let playerInfoVC = PlayerInfoViewController(
-                                bookmark: bookmark,
-                                searchItem: searchItem,
-                                module: module,
-                                path: path
-                            )
-                            // Add zoom transition animation (iOS 18+)
-                            if #available(iOS 18.0, *) {
-                                playerInfoVC.preferredTransition = .zoom { _ in
-                                    guard let root = path.navigationController?.view else { return nil }
-                                    return root.findSubview(withAccessibilityIdentifier: zoomSourceIdentifier)
-                                }
-                            }
-                            path.push(playerInfoVC)
-                        }
-                    } label: {
-                        bookmarkBanner(for: bookmark)
-                            .accessibilityIdentifier("player-banner-\(bookmark.id.uuidString)")
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                }
+            Task {
+                await cell.loadImage(url: URL(string: item.imageUrl))
             }
-            .padding()
+            return cell
         }
     }
+}
 
-    @ViewBuilder
-    private var searchResultsView: some View {
-        if searchViewModel.isLoading {
-            PlaceholderGridView()
-        } else if searchResults.isEmpty {
-            UnavailableView.search(text: searchText)
+extension PlayerLibraryViewController: UICollectionViewDelegate {
+    func collectionView(_ collectionView: UICollectionView, didHighlightItemAt indexPath: IndexPath) {
+        (collectionView.cellForItem(at: indexPath) as? MangaGridCell)?.highlight()
+    }
+
+    func collectionView(_ collectionView: UICollectionView, didUnhighlightItemAt indexPath: IndexPath) {
+        (collectionView.cellForItem(at: indexPath) as? MangaGridCell)?.unhighlight()
+    }
+
+    func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
+        guard let item = dataSource.itemIdentifier(for: indexPath) else { return }
+
+        guard let module = ModuleManager.shared.modules.first(where: { $0.id == item.moduleId }) else { return }
+        let searchItem = SearchItem(title: item.title, imageUrl: item.imageUrl, href: item.href)
+        let vc: PlayerInfoViewController
+        if let bookmark = item.bookmark {
+            vc = PlayerInfoViewController(bookmark: bookmark, searchItem: searchItem, module: module, path: path)
         } else {
-            ScrollView {
-                LazyVGrid(columns: gridColumns, spacing: 16) {
-                    ForEach(searchResults) { result in
-                        Button {
-                            let zoomSourceIdentifier = "player-search-banner-\(result.id.uuidString)"
-                            // Navigate to player info page for search result
-                            let searchItem = SearchItem(
-                                title: result.title,
-                                imageUrl: result.imageUrl,
-                                href: result.href
-                            )
-
-                            let playerInfoVC = PlayerInfoViewController(
-                                searchItem: searchItem,
-                                module: result.module,
-                                path: path
-                            )
-                            // Add zoom transition animation (iOS 18+)
-                            if #available(iOS 18.0, *) {
-                                playerInfoVC.preferredTransition = .zoom { _ in
-                                    guard let root = path.navigationController?.view else { return nil }
-                                    return root.findSubview(withAccessibilityIdentifier: zoomSourceIdentifier)
-                                }
-                            }
-                            path.push(playerInfoVC)
-                        } label: {
-                            searchResultBanner(for: result)
-                                .accessibilityIdentifier("player-search-banner-\(result.id.uuidString)")
-                        }
-                        .buttonStyle(PlainButtonStyle())
-                    }
+            vc = PlayerInfoViewController(searchItem: searchItem, module: module, path: path)
+        }
+        if #available(iOS 18.0, *) {
+            vc.preferredTransition = .zoom { context in
+                guard
+                    context.zoomedViewController is PlayerInfoViewController,
+                    let indexPath = self.dataSource.indexPath(for: item),
+                    let cell = self.collectionView.cellForItem(at: indexPath)
+                else {
+                    return nil
                 }
-                .padding()
+                return cell.contentView
             }
         }
+        path.push(vc)
     }
 
-    private func bookmarkBanner(for bookmark: PlayerLibraryItem) -> some View {
-        MangaGridItem(
-            source: nil,
-            title: bookmark.title,
-            coverImage: bookmark.imageUrl,
-            bookmarked: false,
-            badge: showUnreadBadges ? (itemCounts[bookmark.id]?.unread ?? 0) : 0,
-            badge2: showDownloadBadges ? (itemCounts[bookmark.id]?.downloads ?? 0) : 0
+    func collectionView(
+        _ collectionView: UICollectionView,
+        contextMenuConfiguration configuration: UIContextMenuConfiguration,
+        highlightPreviewForItemAt indexPath: IndexPath
+    ) -> UITargetedPreview? {
+        guard let cell = collectionView.cellForItem(at: indexPath) else { return nil }
+        let parameters = UIPreviewParameters()
+        parameters.visiblePath = UIBezierPath(
+            roundedRect: cell.bounds,
+            cornerRadius: cell.contentView.layer.cornerRadius
+        )
+        return UITargetedPreview(view: cell.contentView, parameters: parameters)
+    }
+
+    func collectionView(
+        _ collectionView: UICollectionView,
+        contextMenuConfiguration configuration: UIContextMenuConfiguration,
+        dismissalPreviewForItemAt indexPath: IndexPath
+    ) -> UITargetedPreview? {
+        self.collectionView(
+            collectionView,
+            contextMenuConfiguration: configuration,
+            highlightPreviewForItemAt: indexPath
         )
     }
+}
 
-    private func searchResultBanner(for result: PlayerLibrarySearchResult) -> some View {
-        MangaGridItem(
-            source: nil,
-            title: result.title,
-            coverImage: result.imageUrl,
-            bookmarked: false
-        )
-    }
-
-    private func refreshCounts() {
+private extension PlayerLibraryViewController {
+    func refreshCounts() {
         Task {
             await fetchCounts()
         }
     }
 
-    private func fetchCounts() async {
-        let items = libraryManager.items
+    func fetchCounts() async {
+        let items = PlayerLibraryManager.shared.items
         let counts = await withTaskGroup(of: (UUID, Int, Int)?.self) { group in
             for item in items {
                 group.addTask {
@@ -481,7 +577,6 @@ struct PlayerView: View {
                         unread = episodes.filter { !readIds.contains($0) }.count
                     }
                     let sourceName = module.metadata.sourceName
-                    // Check candidates in order: UUID+ID, UUID+Title, Name+ID, Name+Title
                     let candidates = [
                         (sourceId, animeId),
                         (sourceId, item.title),
@@ -504,18 +599,12 @@ struct PlayerView: View {
             }
             return results
         }
-        self.itemCounts = counts
-    }
-}
+        await MainActor.run {
+            self.itemCounts = counts
 
-private extension UIView {
-    func findSubview(withAccessibilityIdentifier identifier: String) -> UIView? {
-        if accessibilityIdentifier == identifier { return self }
-        for subview in subviews {
-            if let match = subview.findSubview(withAccessibilityIdentifier: identifier) {
-                return match
-            }
+            var snapshot = self.dataSource.snapshot()
+            snapshot.reconfigureItems(snapshot.itemIdentifiers)
+            self.dataSource.apply(snapshot, animatingDifferences: false)
         }
-        return nil
     }
 }

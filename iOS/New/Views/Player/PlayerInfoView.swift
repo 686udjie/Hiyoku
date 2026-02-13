@@ -710,7 +710,7 @@ private struct EpisodeCellView: View, Equatable {
             } label: {
                 content
             }
-            .buttonStyle(.plain)
+            .buttonStyle(SelectHighlightButtonStyle())
             .tint(.primary)
         }
     }

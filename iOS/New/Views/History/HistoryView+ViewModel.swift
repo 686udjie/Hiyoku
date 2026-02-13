@@ -453,13 +453,32 @@ extension HistoryView.ViewModel {
         guard let bookmark = PlayerLibraryManager.shared.items.first(where: { $0.moduleId == moduleUUID && $0.title == item.playerTitle }) else {
             return nil
         }
-        return PlayerInfoViewController(bookmark: bookmark, path: path)
+        let vc = PlayerInfoViewController(bookmark: bookmark, path: path)
+        if #available(iOS 18.0, *) {
+            vc.preferredTransition = .zoom { _ in
+                guard let root = path.navigationController?.view else { return nil }
+                return root.findSubview(withAccessibilityIdentifier: "player-history-entry-\(item.id)")
+            }
+        }
+        return vc
     }
 
     private func filterPlayerDay(entries: [PlayerHistoryManager.PlayerHistoryItem]) -> [PlayerHistoryManager.PlayerHistoryItem] {
         guard !searchQuery.isEmpty else { return entries }
         let query = searchQuery.lowercased()
         return entries.filter { $0.playerTitle.lowercased().contains(query) }
+    }
+}
+
+private extension UIView {
+    func findSubview(withAccessibilityIdentifier identifier: String) -> UIView? {
+        if accessibilityIdentifier == identifier { return self }
+        for subview in subviews {
+            if let match = subview.findSubview(withAccessibilityIdentifier: identifier) {
+                return match
+            }
+        }
+        return nil
     }
 }
 

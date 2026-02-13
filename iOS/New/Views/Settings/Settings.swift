@@ -43,19 +43,19 @@ enum Settings {
                 ))
             ),
             .init(
-                title: NSLocalizedString("PLAYER"),
-                value: .page(.init(
-                    items: playerSettings,
-                    inlineTitle: true,
-                    icon: .system(name: "tv.fill", color: "purple")
-                ))
-            ),
-            .init(
                 title: NSLocalizedString("PLAYER_LIBRARY"),
                 value: .page(.init(
                     items: [],
                     inlineTitle: true,
                     icon: .system(name: "books.vertical.fill", color: "red")
+                ))
+            ),
+            .init(
+                title: NSLocalizedString("PLAYER"),
+                value: .page(.init(
+                    items: playerSettings,
+                    inlineTitle: true,
+                    icon: .system(name: "play.tv.fill", color: "purple")
                 ))
             ),
             .init(
@@ -101,7 +101,7 @@ enum Settings {
                 value: .page(.init(
                     items: [],
                     inlineTitle: true,
-                    icon: .system(name: "tv.fill", color: "purple")
+                    icon: .system(name: "play.tv.fill", color: "purple")
                 ))
             ),
             .init(

@@ -27,7 +27,11 @@ struct ModulesView: View {
             if loading {
                 ProgressView()
                     .progressViewStyle(.circular)
-                    .tint(.secondary)
+                    .scaleEffect(0.7)
+                    .padding(.vertical, 4)
+                    .padding(.horizontal, 8)
+                    .background(Color(uiColor: .tertiarySystemFill))
+                    .clipShape(RoundedRectangle(cornerRadius: 28))
             }
         }
         .navigationTitle(NSLocalizedString("PLAYER_SOURCES"))
@@ -78,7 +82,7 @@ struct ModulesView: View {
                         .fill(Color.gray.opacity(0.2))
                         .frame(width: 40, height: 40)
                         .overlay(
-                            Image(systemName: "tv.fill")
+                            Image(systemName: "play.tv.fill")
                                 .foregroundStyle(.gray)
                         )
                 case .success(let image):
@@ -92,7 +96,7 @@ struct ModulesView: View {
                         .fill(Color.gray.opacity(0.2))
                         .frame(width: 40, height: 40)
                         .overlay(
-                            Image(systemName: "tv.fill")
+                            Image(systemName: "play.tv.fill")
                                 .foregroundStyle(.gray)
                         )
                 @unknown default:

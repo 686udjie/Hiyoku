@@ -125,7 +125,7 @@ class TabBarController: UITabBarController {
                 },
                 UITab(
                     title: NSLocalizedString("PLAYER"),
-                    image: UIImage(systemName: "books.vertical.fill"),
+                    image: UIImage(systemName: "play.tv.fill"),
                     identifier: "0.5"
                 ) { _ in
                     playerViewController
@@ -158,7 +158,7 @@ class TabBarController: UITabBarController {
             )
             playerViewController.tabBarItem = UITabBarItem(
                 title: NSLocalizedString("PLAYER", comment: ""),
-                image: UIImage(systemName: "books.vertical.fill"),
+                image: UIImage(systemName: "play.tv.fill"),
                 tag: 1
             )
             browseViewController.tabBarItem = UITabBarItem(
