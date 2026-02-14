@@ -465,8 +465,47 @@ extension PlayerInfoView {
                 if index < viewModel.sortedEpisodes.count - 1 {
                     markPreviousMenu(startingAt: index)
                 }
+                Divider()
+                Button {
+                    showShareSheet(episode: episode)
+                } label: {
+                    Label(String(localized: "SHARE"), systemImage: "square.and.arrow.up")
+                }
             }
         }
+    }
+}
+
+extension PlayerInfoView {
+    func showShareSheet(episode: PlayerEpisode) {
+        if viewModel.downloadStatus[episode.url] == .finished {
+            Task { if let urls = await viewModel.getLocalEpisodeUrls(for: episode) { showShareSheet(item: urls.video) } }
+            return
+        }
+
+        let normalized = episode.url.normalizedModuleHref()
+        var finalStr = normalized
+
+        if !normalized.starts(with: "http"), let module = viewModel.module {
+            if module.metadata.baseUrl.contains("megacloud.blog") {
+                let base = "https://hianime.to"
+                let seriesUrl = viewModel.contentUrl ?? "/watch/"
+                let full = seriesUrl.starts(with: "http") ? seriesUrl : (base + (seriesUrl.starts(with: "/") ? "" : "/") + seriesUrl)
+                finalStr = full + (full.contains("?") ? "&" : "?") + "ep=" + normalized
+            } else if let baseUrl = viewModel.module?.metadata.baseUrl {
+                finalStr = normalized.absoluteUrl(withBaseUrl: baseUrl)
+            }
+        }
+
+        if let url = URL(string: finalStr) { showShareSheet(item: url) }
+    }
+
+    func showShareSheet(item: Any) {
+        let avc = UIActivityViewController(activityItems: [item], applicationActivities: nil)
+        guard let view = path.rootViewController?.view else { return }
+        avc.popoverPresentationController?.sourceView = view
+        avc.popoverPresentationController?.sourceRect = CGRect(x: UIScreen.main.bounds.width - 30, y: 60, width: 0, height: 0)
+        path.present(avc, animated: true)
     }
 }
 
@@ -622,8 +661,48 @@ extension PlayerInfoView {
                 Task {
                     await viewModel.fetchHistory()
                 }
-            }
+            },
+            onNextEpisode: navigateToNextEpisode,
+            onPreviousEpisode: navigateToPreviousEpisode,
+            onEpisodeSelected: navigateToEpisode
         )
+    }
+
+    @MainActor
+    private func navigateToEpisode(_ episode: PlayerEpisode) {
+        Task { @MainActor in
+            guard let vc = PlayerPresenter.findTopViewController() as? PlayerViewController else { return }
+            await loadEpisode(episode, vc)
+        }
+    }
+
+    @MainActor
+    private func navigateToNextEpisode() {
+        guard let vc = PlayerPresenter.findTopViewController() as? PlayerViewController,
+              let url = vc.currentEpisode?.url,
+              let i = viewModel.sortedEpisodes.firstIndex(where: { $0.url == url }),
+              i < viewModel.sortedEpisodes.count - 1
+        else { return }
+        navigateToEpisode(viewModel.sortedEpisodes[i + 1])
+    }
+
+    @MainActor
+    private func navigateToPreviousEpisode() {
+        guard let vc = PlayerPresenter.findTopViewController() as? PlayerViewController,
+              let url = vc.currentEpisode?.url,
+              let i = viewModel.sortedEpisodes.firstIndex(where: { $0.url == url }),
+              i > 0
+        else { return }
+        navigateToEpisode(viewModel.sortedEpisodes[i - 1])
+    }
+
+    @MainActor
+    private func loadEpisode(_ e: PlayerEpisode, _ vc: PlayerViewController) async {
+        let (s, u) = await JSController.shared.fetchPlayerStreams(episodeId: e.url, module: viewModel.module!)
+        guard let i = s.first else { return }
+        vc.loadVideo(url: i.url, headers: i.headers, subtitleUrl: u)
+        vc.updateTitle("Episode \(e.number): \(e.title)")
+        vc.configure(episodes: viewModel.sortedEpisodes, current: e, title: viewModel.title)
     }
 }
 

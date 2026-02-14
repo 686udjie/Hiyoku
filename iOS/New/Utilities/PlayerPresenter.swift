@@ -40,7 +40,10 @@ class PlayerPresenter {
         episodes: [PlayerEpisode] = [],
         currentEpisode: PlayerEpisode? = nil,
         mangaId: String? = nil,
-        onDismiss: (() -> Void)? = nil
+        onDismiss: (() -> Void)? = nil,
+        onNextEpisode: (() -> Void)? = nil,
+        onPreviousEpisode: (() -> Void)? = nil,
+        onEpisodeSelected: ((PlayerEpisode) -> Void)? = nil
     ) {
         guard let topVC = findTopViewController() else {
             return
@@ -58,6 +61,9 @@ class PlayerPresenter {
         )
 
         playerVC.onDismiss = onDismiss
+        playerVC.onNextEpisode = onNextEpisode
+        playerVC.onPreviousEpisode = onPreviousEpisode
+        playerVC.onEpisodeSelected = onEpisodeSelected
 
         playerVC.modalPresentationStyle = .fullScreen
 

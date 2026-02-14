@@ -81,6 +81,12 @@ extension String {
         let trimmed = trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return trimmed }
         if let httpRange = trimmed.range(of: "http") {
+            if httpRange.lowerBound != trimmed.startIndex {
+                let prevIndex = trimmed.index(before: httpRange.lowerBound)
+                if trimmed[prevIndex] == ":" {
+                    return trimmed
+                }
+            }
             return String(trimmed[httpRange.lowerBound...])
         } else if let colonRange = trimmed.range(of: ":", options: .caseInsensitive) {
             let beforeColon = String(trimmed[..<colonRange.lowerBound])

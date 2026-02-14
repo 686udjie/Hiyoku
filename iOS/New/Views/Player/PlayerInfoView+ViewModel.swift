@@ -172,7 +172,7 @@ extension PlayerInfoView {
             }
 
             let fetchedEpisodes = await JSController.shared.fetchPlayerEpisodes(
-                contentUrl: mangaId,
+                contentUrl: contentUrl ?? "",
                 module: module
             )
 
@@ -266,7 +266,7 @@ extension PlayerInfoView {
             }
 
             if !inLibrary, let module = module {
-                await fetchEpisodesFromSource(sourceId: sourceId, mangaId: mangaId, module: module)
+                await fetchEpisodesFromSource(sourceId: sourceId, mangaId: contentUrl ?? "", module: module)
             }
 
             await loadDownloadStatus()
@@ -278,7 +278,7 @@ extension PlayerInfoView {
 
         private func fetchEpisodesFromSource(sourceId: String, mangaId: String, module: ScrapingModule) async {
             let fetchedEpisodes = await JSController.shared.fetchPlayerEpisodes(
-                contentUrl: mangaId,
+                contentUrl: mangaId, // Uses raw link if passed correctly
                 module: module
             )
 

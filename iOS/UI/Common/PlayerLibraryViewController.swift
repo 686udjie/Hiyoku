@@ -124,18 +124,30 @@ class PlayerLibraryViewController: BaseObservingViewController {
 
     private var itemCounts: [UUID: (unread: Int, downloads: Int)] = [:]
 
-    private lazy var downloadBarButton = UIBarButtonItem(
-        image: UIImage(systemName: "square.and.arrow.down"),
-        style: .plain,
-        target: self,
-        action: #selector(openDownloadQueue)
+    private func makeBarButton(systemName: String, action: Selector, titleKey: String) -> UIBarButtonItem {
+        let item = UIBarButtonItem(
+            image: UIImage(systemName: systemName),
+            style: .plain,
+            target: self,
+            action: action
+        )
+        item.title = NSLocalizedString(titleKey)
+        if #available(iOS 26.0, *) {
+            item.sharesBackground = false
+        }
+        return item
+    }
+
+    private lazy var downloadBarButton = makeBarButton(
+        systemName: "square.and.arrow.down",
+        action: #selector(openDownloadQueue),
+        titleKey: "DOWNLOAD_QUEUE"
     )
 
-    private lazy var updatesBarButton = UIBarButtonItem(
-        image: UIImage(systemName: "bell"),
-        style: .plain,
-        target: self,
-        action: #selector(openUpdates)
+    private lazy var updatesBarButton = makeBarButton(
+        systemName: "bell",
+        action: #selector(openUpdates),
+        titleKey: "MANGA_UPDATES"
     )
 
     override func configure() {
@@ -280,16 +292,13 @@ class PlayerLibraryViewController: BaseObservingViewController {
             guard let self else { return }
             Task { @MainActor in
                 let shouldShowButton = await DownloadManager.shared.hasQueuedDownloads(type: .video)
-                let index = self.navigationItem.rightBarButtonItems?.firstIndex(of: self.downloadBarButton)
-                if shouldShowButton && index == nil {
-                    // rightmost button (usually)
-                    let insertIndex = max(0, (self.navigationItem.rightBarButtonItems?.count ?? 1) - 1)
-                    self.navigationItem.rightBarButtonItems?.insert(
-                        self.downloadBarButton,
-                        at: insertIndex
-                    )
-                } else if !shouldShowButton, let index = index {
-                    self.navigationItem.rightBarButtonItems?.remove(at: index)
+                let currentItems = self.navigationItem.rightBarButtonItems ?? []
+                let containsDownload = currentItems.contains(self.downloadBarButton)
+
+                if shouldShowButton && !containsDownload {
+                    self.navigationItem.setRightBarButtonItems([self.downloadBarButton, self.updatesBarButton], animated: true)
+                } else if !shouldShowButton && containsDownload {
+                    self.navigationItem.setRightBarButtonItems([self.updatesBarButton], animated: true)
                 }
             }
         }
@@ -318,7 +327,7 @@ class PlayerLibraryViewController: BaseObservingViewController {
             let hasDownloads = await DownloadManager.shared.hasQueuedDownloads(type: .video)
             var items: [UIBarButtonItem] = [updatesBarButton]
             if hasDownloads {
-                items.append(downloadBarButton)
+                items = [downloadBarButton, updatesBarButton]
             }
             navigationItem.setRightBarButtonItems(items, animated: true)
         }

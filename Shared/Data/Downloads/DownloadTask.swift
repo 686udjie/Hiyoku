@@ -778,12 +778,24 @@ extension DownloadTask {
         }
 
         // Common video streaming headers
-        resolvedHeaders["User-Agent"] = Self.videoUserAgent
-        resolvedHeaders["Accept"] = "*/*"
-        resolvedHeaders["Accept-Language"] = "en-US,en;q=0.9"
-        resolvedHeaders["Accept-Encoding"] = "gzip, deflate, br"
-        resolvedHeaders["Connection"] = "keep-alive"
-        resolvedHeaders["Referer"] = resolvedUrl
+        if resolvedHeaders["User-Agent"] == nil {
+            resolvedHeaders["User-Agent"] = Self.videoUserAgent
+        }
+        if resolvedHeaders["Accept"] == nil {
+            resolvedHeaders["Accept"] = "*/*"
+        }
+        if resolvedHeaders["Accept-Language"] == nil {
+            resolvedHeaders["Accept-Language"] = "en-US,en;q=0.9"
+        }
+        if resolvedHeaders["Accept-Encoding"] == nil {
+            resolvedHeaders["Accept-Encoding"] = "gzip, deflate, br"
+        }
+        if resolvedHeaders["Connection"] == nil {
+            resolvedHeaders["Connection"] = "keep-alive"
+        }
+        if resolvedHeaders["Referer"] == nil {
+            resolvedHeaders["Referer"] = resolvedUrl
+        }
 
         return ResolvedVideoData(url: resolvedUrl, headers: resolvedHeaders, subtitleUrl: resolvedSubtitleUrl)
     }

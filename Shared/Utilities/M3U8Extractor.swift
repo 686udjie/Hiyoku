@@ -262,11 +262,13 @@ class M3U8Extractor {
             return url
         }
 
+        let resolvedUrl: String
         if url.hasPrefix("/") {
-            return base.scheme! + "://" + base.host! + url
+            resolvedUrl = base.scheme! + "://" + base.host! + url
         } else {
-            return base.appendingPathComponent(url).absoluteString
+            resolvedUrl = base.appendingPathComponent(url).absoluteString
         }
+        return resolvedUrl
     }
 
     private func createRequest(url: URL, headers: [String: String]) -> URLRequest {
