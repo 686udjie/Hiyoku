@@ -20,7 +20,6 @@
 		1402694F2F1A3580006DA968 /* MPVKit-GPL in Frameworks */ = {isa = PBXBuildFile; productRef = FB1CE0022EFE950300E37A6E /* MPVKit-GPL */; };
 		1424DE302F1D41380086BA0A /* SubtitleSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1424DE2F2F1D41380086BA0A /* SubtitleSettings.swift */; };
 		1424DE342F1D41710086BA0A /* VTTSubtitlesLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1424DE332F1D416F0086BA0A /* VTTSubtitlesLoader.swift */; };
-		142D150C2F23F58C00BAFC83 /* SkipDurationPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 142D150B2F23F58C00BAFC83 /* SkipDurationPickerView.swift */; };
 		145746A32F2D248B007AED94 /* DirectoryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 145746A22F2D2489007AED94 /* DirectoryManager.swift */; };
 		148D0C932F1BB37A003588D7 /* PlaceholderGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 148D0C922F1BB37A003588D7 /* PlaceholderGridView.swift */; };
 		149AEABA2F28EC2C0040D68A /* DownloadedEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 149AEAB92F28EC2A0040D68A /* DownloadedEntry.swift */; };
@@ -55,6 +54,16 @@
 		B52742E09F7819E84BBDF637 /* PlayerSourceViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = D97AF6A4C3DCE5C50512308B /* PlayerSourceViewController.swift */; };
 		E028B789564DEBE3A1E7C743 /* JSController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E008248E03BB792B7E40A0D /* JSController.swift */; };
 		ED682714BC6E65201F199C85 /* PlayerViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B13AA6664E12A701D3A7B45A /* PlayerViewController.swift */; };
+		6AAD3006140B47E198C13733CF36DA4 /* PlayerUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4904051E813746A0854B0C77F5555010 /* PlayerUI.swift */; };
+		B50588202DCF48E7A1B552C0B048ED6 /* PlayerGestures.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D2A42A292BE440E8ED1BE9FEB137C08 /* PlayerGestures.swift */; };
+		35EFB666ED8A441BACB934F3CD5E4427 /* PlayerHUD.swift in Sources */ = {isa = PBXBuildFile; fileRef = EDF473866ADE417D869193ACEFD9AD39 /* PlayerHUD.swift */; };
+		5D1CD8D12AB84BE1AE6181B657B77FC1 /* PlayerMPV.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2A6E3D0FF5A455FAE645735FF903BF1 /* PlayerMPV.swift */; };
+		06BE7197B5484021B5BFD24076CB55F9 /* PlayerActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2524BC064674429E8E7416FDAB22FD61 /* PlayerActions.swift */; };
+		8C8653DEFF834EC3A573B9818152A515 /* PlayerSubtitles.swift in Sources */ = {isa = PBXBuildFile; fileRef = FFDECA4935B341B7915C0CD6E21B46A9 /* PlayerSubtitles.swift */; };
+		017D86B5BAAE4BB09E1E23C862E71B83 /* SkipConfigViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2452F8E451894672BD063BB69337BDBA /* SkipConfigViewController.swift */; };
+		8FAC0EEF49BD4C1DAC01BF01E1532C70 /* EpisodeListViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = B7D36B235FB74B2B94DCABF5CB953EE3 /* EpisodeListViewController.swift */; };
+		4F2E320A28A7C5109BB04C9415B87C69 /* PlayerSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D4249CB10B24C78B47FB175D79D1BC8 /* PlayerSettingsView.swift */; };
+		BB647F5E96B3441D8D8CE94E0D1B9CFE /* SkipDurationPickerViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BF72FEE5A1E45D6AA32611967CC05C5 /* SkipDurationPickerViewController.swift */; };
 		F3DE874A70972EF6D3AD1C93 /* PlayerEpisode.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6C1E6B7C4382161904AE451 /* PlayerEpisode.swift */; };
 		FB02E1EB288CC1DA00B9E2DE /* LibraryViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB02E1EA288CC1DA00B9E2DE /* LibraryViewController.swift */; };
 		FB02E1F2288D7BE900B9E2DE /* MangaGridCell.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB02E1F1288D7BE900B9E2DE /* MangaGridCell.swift */; };
@@ -441,7 +450,6 @@
 		0C807DDC27D47C2D0042EE7B /* CircularProgressView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CircularProgressView.swift; sourceTree = "<group>"; };
 		1424DE2F2F1D41380086BA0A /* SubtitleSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubtitleSettings.swift; sourceTree = "<group>"; };
 		1424DE332F1D416F0086BA0A /* VTTSubtitlesLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VTTSubtitlesLoader.swift; sourceTree = "<group>"; };
-		142D150B2F23F58C00BAFC83 /* SkipDurationPickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkipDurationPickerView.swift; sourceTree = "<group>"; };
 		145746A22F2D2489007AED94 /* DirectoryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DirectoryManager.swift; sourceTree = "<group>"; };
 		148D0C922F1BB37A003588D7 /* PlaceholderGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaceholderGridView.swift; sourceTree = "<group>"; };
 		149AEAB92F28EC2A0040D68A /* DownloadedEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadedEntry.swift; sourceTree = "<group>"; };
@@ -480,6 +488,16 @@
 		A99889D40481DB61DB0F1D64 /* ModulesView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ModulesView.swift; sourceTree = "<group>"; };
 		B10F06140EF061981F6AF120 /* JavaScriptCore+Extensions.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = "JavaScriptCore+Extensions.swift"; path = "Modules/JavaScriptCore+Extensions.swift"; sourceTree = "<group>"; };
 		B13AA6664E12A701D3A7B45A /* PlayerViewController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlayerViewController.swift; sourceTree = "<group>"; };
+		4904051E813746A0854B0C77F5555010 /* PlayerUI.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlayerUI.swift; sourceTree = "<group>"; };
+		1D2A42A292BE440E8ED1BE9FEB137C08 /* PlayerGestures.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlayerGestures.swift; sourceTree = "<group>"; };
+		EDF473866ADE417D869193ACEFD9AD39 /* PlayerHUD.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlayerHUD.swift; sourceTree = "<group>"; };
+		A2A6E3D0FF5A455FAE645735FF903BF1 /* PlayerMPV.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlayerMPV.swift; sourceTree = "<group>"; };
+		2524BC064674429E8E7416FDAB22FD61 /* PlayerActions.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlayerActions.swift; sourceTree = "<group>"; };
+		FFDECA4935B341B7915C0CD6E21B46A9 /* PlayerSubtitles.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlayerSubtitles.swift; sourceTree = "<group>"; };
+		2452F8E451894672BD063BB69337BDBA /* SkipConfigViewController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SkipConfigViewController.swift; sourceTree = "<group>"; };
+		B7D36B235FB74B2B94DCABF5CB953EE3 /* EpisodeListViewController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = EpisodeListViewController.swift; sourceTree = "<group>"; };
+		0D4249CB10B24C78B47FB175D79D1BC8 /* PlayerSettingsView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlayerSettingsView.swift; sourceTree = "<group>"; };
+		0BF72FEE5A1E45D6AA32611967CC05C5 /* SkipDurationPickerViewController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SkipDurationPickerViewController.swift; sourceTree = "<group>"; };
 		C8C802C3CBD1465FA1056840 /* UserDefaultsKeys.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserDefaultsKeys.swift; sourceTree = "<group>"; };
 		D6C1E6B7C4382161904AE451 /* PlayerEpisode.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlayerEpisode.swift; sourceTree = "<group>"; };
 		D97AF6A4C3DCE5C50512308B /* PlayerSourceViewController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlayerSourceViewController.swift; sourceTree = "<group>"; };
@@ -1073,11 +1091,20 @@
 		FB05F8652964907200D1EA2D /* Source */ = {
 			isa = PBXGroup;
 			children = (
-				142D150B2F23F58C00BAFC83 /* SkipDurationPickerView.swift */,
-				FB05F8662964917A00D1EA2D /* SourceViewController.swift */,
+					FB05F8662964917A00D1EA2D /* SourceViewController.swift */,
 				FB05F86A2964BFBC00D1EA2D /* SourceViewModel.swift */,
 				D97AF6A4C3DCE5C50512308B /* PlayerSourceViewController.swift */,
 				B13AA6664E12A701D3A7B45A /* PlayerViewController.swift */,
+				4904051E813746A0854B0C77F5555010 /* PlayerUI.swift */,
+				1D2A42A292BE440E8ED1BE9FEB137C08 /* PlayerGestures.swift */,
+				EDF473866ADE417D869193ACEFD9AD39 /* PlayerHUD.swift */,
+				A2A6E3D0FF5A455FAE645735FF903BF1 /* PlayerMPV.swift */,
+				2524BC064674429E8E7416FDAB22FD61 /* PlayerActions.swift */,
+				FFDECA4935B341B7915C0CD6E21B46A9 /* PlayerSubtitles.swift */,
+				2452F8E451894672BD063BB69337BDBA /* SkipConfigViewController.swift */,
+				B7D36B235FB74B2B94DCABF5CB953EE3 /* EpisodeListViewController.swift */,
+				0D4249CB10B24C78B47FB175D79D1BC8 /* PlayerSettingsView.swift */,
+				0BF72FEE5A1E45D6AA32611967CC05C5 /* SkipDurationPickerViewController.swift */,
 			);
 			path = Source;
 			sourceTree = "<group>";
@@ -2563,8 +2590,7 @@
 				148D0C932F1BB37A003588D7 /* PlaceholderGridView.swift in Sources */,
 				FB1854662EF9B11E0063F698 /* UINavigationController+DismissGestures.swift in Sources */,
 				FB261ED52ECB8B8400743F56 /* LogEntry.swift in Sources */,
-				142D150C2F23F58C00BAFC83 /* SkipDurationPickerView.swift in Sources */,
-				FB662EDB2DA813E300007514 /* MultiSelectFilterView.swift in Sources */,
+					FB662EDB2DA813E300007514 /* MultiSelectFilterView.swift in Sources */,
 				FB72502427CBF8C00037F1C9 /* SettingsTableViewController.swift in Sources */,
 				FB6340B3278F898E0072A2A2 /* Filter.swift in Sources */,
 				FB4275162960C80000131377 /* SmallSectionHeaderConfiguration.swift in Sources */,
@@ -2647,6 +2673,16 @@
 				B52742E09F7819E84BBDF637 /* PlayerSourceViewController.swift in Sources */,
 				80CADB0A42513CE8A7131B99 /* PlayerLibraryItem.swift in Sources */,
 				ED682714BC6E65201F199C85 /* PlayerViewController.swift in Sources */,
+				6AAD3006140B47E198C13733CF36DA4 /* PlayerUI.swift in Sources */,
+				B50588202DCF48E7A1B552C0B048ED6 /* PlayerGestures.swift in Sources */,
+				35EFB666ED8A441BACB934F3CD5E4427 /* PlayerHUD.swift in Sources */,
+				5D1CD8D12AB84BE1AE6181B657B77FC1 /* PlayerMPV.swift in Sources */,
+				06BE7197B5484021B5BFD24076CB55F9 /* PlayerActions.swift in Sources */,
+				8C8653DEFF834EC3A573B9818152A515 /* PlayerSubtitles.swift in Sources */,
+				017D86B5BAAE4BB09E1E23C862E71B83 /* SkipConfigViewController.swift in Sources */,
+				8FAC0EEF49BD4C1DAC01BF01E1532C70 /* EpisodeListViewController.swift in Sources */,
+				4F2E320A28A7C5109BB04C9415B87C69 /* PlayerSettingsView.swift in Sources */,
+				BB647F5E96B3441D8D8CE94E0D1B9CFE /* SkipDurationPickerViewController.swift in Sources */,
 				44B9F1E42C5A7D8900A8B125 /* EpisodeSortOption.swift in Sources */,
 				AA435F0C7BC150F3B54E18BD /* SearchItem.swift in Sources */,
 				05F88C7D97F5FD0171D5DF8C /* PlayerInfoView.swift in Sources */,

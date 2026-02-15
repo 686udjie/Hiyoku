@@ -1,47 +1,54 @@
 //
-//  SkipDurationPickerView.swift
+//  SkipDurationPickerViewController.swift
 //  Hiyoku
 //
-//  Created by 686udjie on 01/23/26.
+//  Created by 686udjie on 02/15/26.
 //
 
 import UIKit
 
 class SkipDurationPickerViewController: UIViewController, UIPickerViewDataSource, UIPickerViewDelegate {
+    var selectedDuration: Int = 85
+
     private let pickerView = UIPickerView()
-    private let durations = Array(stride(from: 0, through: 300, by: 1))
-    var selectedDuration: Double = 85
+    private let values = Array(1...255)
+
     override func viewDidLoad() {
         super.viewDidLoad()
+        overrideUserInterfaceStyle = .dark
+        preferredContentSize = CGSize(width: 270, height: 160)
         pickerView.dataSource = self
         pickerView.delegate = self
-        pickerView.translatesAutoresizingMaskIntoConstraints = false
+        if let index = values.firstIndex(of: selectedDuration) {
+            pickerView.selectRow(index, inComponent: 0, animated: false)
+        }
         view.addSubview(pickerView)
+        pickerView.translatesAutoresizingMaskIntoConstraints = false
         NSLayoutConstraint.activate([
             pickerView.topAnchor.constraint(equalTo: view.topAnchor),
             pickerView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             pickerView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             pickerView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         ])
-        if let index = durations.firstIndex(of: Int(selectedDuration)) {
-            pickerView.selectRow(index, inComponent: 0, animated: false)
-        }
-        let height: CGFloat = 200
-        preferredContentSize = CGSize(width: 270, height: height)
     }
+
     func numberOfComponents(in pickerView: UIPickerView) -> Int {
         1
     }
+
     func pickerView(_ pickerView: UIPickerView, numberOfRowsInComponent component: Int) -> Int {
-        durations.count
+        values.count
     }
+
     func pickerView(_ pickerView: UIPickerView, titleForRow row: Int, forComponent component: Int) -> String? {
-        "\(durations[row])s"
+        "\(values[row])s"
     }
+
     func pickerView(_ pickerView: UIPickerView, didSelectRow row: Int, inComponent component: Int) {
-        selectedDuration = Double(durations[row])
+        selectedDuration = values[row]
     }
-    func getSelectedDuration() -> Double {
+
+    func getSelectedDuration() -> Int {
         selectedDuration
     }
 }
