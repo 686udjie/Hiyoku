@@ -391,6 +391,20 @@ class PlayerLibraryViewController: BaseObservingViewController {
 
     private var searchText = ""
 
+    private lazy var deleteToolbarButton: UIBarButtonItem = {
+        let item = UIBarButtonItem(
+            title: nil,
+            style: .plain,
+            target: self,
+            action: #selector(removeSelectedFromLibrary)
+        )
+        item.image = UIImage(systemName: "trash")
+        if #unavailable(iOS 26.0) {
+            item.tintColor = .systemRed
+        }
+        return item
+    }()
+
     private static let itemSpacing: CGFloat = 12
     private static let sectionSpacing: CGFloat = 6 // extra spacing betweeen sections
 
@@ -435,6 +449,20 @@ class PlayerLibraryViewController: BaseObservingViewController {
         titleKey: "MORE_BARBUTTON"
     )
 
+    override func setEditing(_ editing: Bool, animated: Bool) {
+        super.setEditing(editing, animated: animated)
+        updateNavbarItems()
+        updateToolbar()
+
+        for cell in collectionView.visibleCells {
+            if let cell = cell as? MangaGridCell {
+                cell.setEditing(editing, animated: animated)
+            } else if let cell = cell as? MangaListCell {
+                cell.setEditing(editing, animated: animated)
+            }
+        }
+    }
+
     override func configure() {
         super.configure()
 
@@ -462,6 +490,8 @@ class PlayerLibraryViewController: BaseObservingViewController {
         collectionView.alwaysBounceVertical = true
         collectionView.delaysContentTouches = false
         collectionView.showsHorizontalScrollIndicator = false
+        collectionView.allowsMultipleSelection = !ProcessInfo.processInfo.isMacCatalystApp
+        collectionView.allowsSelectionDuringEditing = true
         view.addSubview(collectionView)
 
         Task {
@@ -493,6 +523,11 @@ class PlayerLibraryViewController: BaseObservingViewController {
 
         searchObserver.store(in: &downloadObservers)
         searchResultsObserver = searchObserver
+
+        toolbarItems = [
+            deleteToolbarButton,
+            UIBarButtonItem(systemItem: .flexibleSpace)
+        ]
 
         applySnapshot(animated: false)
         updateMoreMenu()
@@ -612,6 +647,28 @@ class PlayerLibraryViewController: BaseObservingViewController {
     }
 
     func updateNavbarItems() {
+        if isEditing {
+            let allItemsSelected = (collectionView.indexPathsForSelectedItems?.count ?? 0) == dataSource.snapshot().itemIdentifiers.count
+            let selectToggle = UIBarButtonItem(
+                title: NSLocalizedString(allItemsSelected ? "DESELECT_ALL" : "SELECT_ALL"),
+                style: .plain,
+                target: self,
+                action: allItemsSelected ? #selector(deselectAllItems) : #selector(selectAllItems)
+            )
+            if #available(iOS 26.0, *) {
+                selectToggle.sharesBackground = false
+            }
+            navigationItem.leftBarButtonItem = selectToggle
+            navigationItem.rightBarButtonItems = [UIBarButtonItem(
+                barButtonSystemItem: .done,
+                target: self,
+                action: #selector(stopEditing)
+            )]
+            return
+        }
+
+        navigationItem.leftBarButtonItem = nil
+
         Task { @MainActor in
             let hasDownloads = await DownloadManager.shared.hasQueuedDownloads(type: .video)
             var items: [UIBarButtonItem] = [moreBarButton, updatesBarButton]
@@ -620,6 +677,166 @@ class PlayerLibraryViewController: BaseObservingViewController {
             }
             navigationItem.setRightBarButtonItems(items, animated: true)
         }
+    }
+
+    func updateToolbar() {
+        if isEditing {
+            if navigationController?.isToolbarHidden ?? false {
+                UIView.animate(withDuration: CATransaction.animationDuration()) {
+                    self.navigationController?.isToolbarHidden = false
+                    self.navigationController?.toolbar.alpha = 1
+                    if #available(iOS 26.0, *) {
+                        self.tabBarController?.isTabBarHidden = true
+                    }
+                }
+            }
+            let hasSelectedItems = !(collectionView.indexPathsForSelectedItems?.isEmpty ?? true)
+            toolbarItems?.first?.isEnabled = hasSelectedItems
+        } else if !(navigationController?.isToolbarHidden ?? true) {
+            UIView.animate(withDuration: CATransaction.animationDuration()) {
+                self.navigationController?.toolbar.alpha = 0
+                if #available(iOS 26.0, *) {
+                    self.tabBarController?.isTabBarHidden = false
+                }
+            } completion: { _ in
+                self.navigationController?.isToolbarHidden = true
+            }
+        }
+    }
+
+    @objc func stopEditing() {
+        setEditing(false, animated: true)
+        deselectAllItems()
+    }
+
+    @objc func selectAllItems() {
+        for item in dataSource.snapshot().itemIdentifiers {
+            if let indexPath = dataSource.indexPath(for: item) {
+                collectionView.selectItem(at: indexPath, animated: false, scrollPosition: [])
+                if let cell = collectionView.cellForItem(at: indexPath) {
+                    if let cell = cell as? MangaGridCell {
+                        cell.setSelected(true)
+                    } else if let cell = cell as? MangaListCell {
+                        cell.setSelected(true)
+                    }
+                }
+            }
+        }
+        updateNavbarItems()
+        updateToolbar()
+    }
+
+    @objc func deselectAllItems() {
+        for item in dataSource.snapshot().itemIdentifiers {
+            if let indexPath = dataSource.indexPath(for: item) {
+                collectionView.deselectItem(at: indexPath, animated: false)
+                if let cell = collectionView.cellForItem(at: indexPath) {
+                    if let cell = cell as? MangaGridCell {
+                        cell.setSelected(false)
+                    } else if let cell = cell as? MangaListCell {
+                        cell.setSelected(false)
+                    }
+                }
+            }
+        }
+        updateNavbarItems()
+        updateToolbar()
+    }
+
+    @objc private func removeSelectedFromLibrary() {
+        let selectedItems = (collectionView.indexPathsForSelectedItems ?? []).compactMap { dataSource.itemIdentifier(for: $0) }
+        let bookmarks = selectedItems.compactMap { $0.bookmark }
+        guard !bookmarks.isEmpty else { return }
+
+        let alert = UIAlertController(
+            title: NSLocalizedString("REMOVE_FROM_LIBRARY"),
+            message: nil,
+            preferredStyle: .actionSheet
+        )
+        alert.addAction(UIAlertAction(title: NSLocalizedString("CANCEL"), style: .cancel))
+        alert.addAction(UIAlertAction(title: NSLocalizedString("REMOVE_FROM_LIBRARY"), style: .destructive) { _ in
+            for bookmark in bookmarks {
+                PlayerLibraryManager.shared.removeFromLibrary(bookmark)
+            }
+            self.stopEditing()
+        })
+        alert.popoverPresentationController?.barButtonItem = toolbarItems?.first
+        present(alert, animated: true)
+    }
+
+    private func module(for bookmark: PlayerLibraryItem) -> ScrapingModule? {
+        ModuleManager.shared.modules.first(where: { $0.id == bookmark.moduleId })
+    }
+
+    private func currentSourceId(for bookmark: PlayerLibraryItem) -> String {
+        bookmark.moduleId.uuidString
+    }
+
+    private func currentMangaId(for bookmark: PlayerLibraryItem) -> String {
+        bookmark.sourceUrl.normalizedModuleHref()
+    }
+
+    private func fetchEpisodes(for bookmark: PlayerLibraryItem) async -> [PlayerEpisode] {
+        guard let module = module(for: bookmark) else { return [] }
+        return await JSController.shared.fetchPlayerEpisodes(contentUrl: bookmark.sourceUrl, module: module)
+    }
+
+    private func markAllWatched(for bookmark: PlayerLibraryItem) async {
+        let sourceId = currentSourceId(for: bookmark)
+        let moduleId = sourceId
+        let episodes = await fetchEpisodes(for: bookmark)
+        for episode in episodes {
+            let historyData = PlayerHistoryManager.EpisodeHistoryData(
+                playerTitle: bookmark.title,
+                episodeId: episode.url,
+                episodeNumber: Double(episode.number),
+                episodeTitle: episode.title,
+                sourceUrl: episode.url,
+                moduleId: moduleId,
+                progress: 100,
+                total: 100,
+                watchedDuration: 0,
+                date: Date()
+            )
+            await PlayerHistoryManager.shared.setProgress(data: historyData)
+        }
+    }
+
+    private func markAllUnwatched(for bookmark: PlayerLibraryItem) async {
+        let moduleId = currentSourceId(for: bookmark)
+        let episodes = await fetchEpisodes(for: bookmark)
+        for episode in episodes {
+            await PlayerHistoryManager.shared.removeHistory(episodeId: episode.url, moduleId: moduleId)
+        }
+    }
+
+    private func downloadEpisodes(_ episodes: [PlayerEpisode], for bookmark: PlayerLibraryItem) async {
+        guard let module = module(for: bookmark), !episodes.isEmpty else { return }
+        let seriesKey = bookmark.sourceUrl.normalizedModuleHref()
+        await DownloadManager.shared.downloadVideo(
+            seriesTitle: bookmark.title,
+            episodes: episodes,
+            sourceKey: module.id.uuidString,
+            seriesKey: seriesKey,
+            posterUrl: bookmark.imageUrl
+        )
+    }
+
+    private func downloadAll(for bookmark: PlayerLibraryItem) async {
+        let episodes = await fetchEpisodes(for: bookmark)
+        await downloadEpisodes(episodes, for: bookmark)
+    }
+
+    private func downloadUnwatched(for bookmark: PlayerLibraryItem) async {
+        let sourceId = currentSourceId(for: bookmark)
+        let mangaId = currentMangaId(for: bookmark)
+        let episodes = await fetchEpisodes(for: bookmark)
+        guard !episodes.isEmpty else { return }
+
+        let history = await CoreDataManager.shared.getPlayerReadingHistory(sourceId: sourceId, mangaId: mangaId)
+        let watchedIds = Set(history.filter { $0.value.progress > 0 && $0.value.progress == $0.value.total }.keys)
+        let unwatched = episodes.filter { !watchedIds.contains($0.url) }
+        await downloadEpisodes(unwatched, for: bookmark)
     }
 
     @objc func openUpdates() {
@@ -751,6 +968,14 @@ class PlayerLibraryViewController: BaseObservingViewController {
     }
 
     func updateMoreMenu() {
+        let selectAction = UIAction(
+            title: NSLocalizedString("SELECT"),
+            image: UIImage(systemName: "checkmark.circle")
+        ) { [weak self] _ in
+            guard let self else { return }
+            self.setEditing(true, animated: true)
+        }
+
         let layoutActions = [
             UIAction(
                 title: NSLocalizedString("LAYOUT_GRID"),
@@ -873,6 +1098,7 @@ class PlayerLibraryViewController: BaseObservingViewController {
 
         moreBarButton.menu = UIMenu(
             children: [
+                UIMenu(options: .displayInline, children: [selectAction]),
                 UIMenu(options: .displayInline, children: layoutActions),
                 UIMenu(options: .displayInline, children: [sortMenu, filterMenu])
             ]
@@ -1112,6 +1338,7 @@ extension PlayerLibraryViewController {
 
 extension PlayerLibraryViewController: UICollectionViewDelegate {
     func collectionView(_ collectionView: UICollectionView, didHighlightItemAt indexPath: IndexPath) {
+        guard !isEditing else { return }
         let cell = collectionView.cellForItem(at: indexPath)
         if let cell = cell as? MangaGridCell {
             cell.highlight()
@@ -1121,6 +1348,7 @@ extension PlayerLibraryViewController: UICollectionViewDelegate {
     }
 
     func collectionView(_ collectionView: UICollectionView, didUnhighlightItemAt indexPath: IndexPath) {
+        guard !isEditing else { return }
         let cell = collectionView.cellForItem(at: indexPath)
         if let cell = cell as? MangaGridCell {
             cell.unhighlight()
@@ -1131,6 +1359,24 @@ extension PlayerLibraryViewController: UICollectionViewDelegate {
 
     func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
         guard let item = dataSource.itemIdentifier(for: indexPath) else { return }
+
+        if isEditing {
+            let cell = collectionView.cellForItem(at: indexPath)
+            guard let cell else { return }
+            if let cell = cell as? MangaGridCell {
+                cell.setSelected(true)
+            } else if let cell = cell as? MangaListCell {
+                cell.setSelected(true)
+            }
+            if #available(iOS 17.5, *) {
+                UISelectionFeedbackGenerator().selectionChanged(at: cell.center)
+            } else {
+                UISelectionFeedbackGenerator().selectionChanged()
+            }
+            updateNavbarItems()
+            updateToolbar()
+            return
+        }
 
         guard let module = ModuleManager.shared.modules.first(where: { $0.id == item.moduleId }) else { return }
         let searchItem = SearchItem(title: item.title, imageUrl: item.imageUrl, href: item.href)
@@ -1153,6 +1399,91 @@ extension PlayerLibraryViewController: UICollectionViewDelegate {
             }
         }
         path.push(vc)
+    }
+
+    func collectionView(_ collectionView: UICollectionView, didDeselectItemAt indexPath: IndexPath) {
+        guard isEditing else { return }
+        let cell = collectionView.cellForItem(at: indexPath)
+        if let cell = cell as? MangaGridCell {
+            cell.setSelected(false)
+        } else if let cell = cell as? MangaListCell {
+            cell.setSelected(false)
+        }
+        updateNavbarItems()
+        updateToolbar()
+    }
+
+    func collectionView(_ collectionView: UICollectionView, shouldBeginMultipleSelectionInteractionAt indexPath: IndexPath) -> Bool {
+        true
+    }
+
+    func collectionView(_ collectionView: UICollectionView, didBeginMultipleSelectionInteractionAt indexPath: IndexPath) {
+        setEditing(true, animated: true)
+    }
+
+    func collectionView(
+        _ collectionView: UICollectionView,
+        contextMenuConfigurationForItemsAt indexPaths: [IndexPath],
+        point: CGPoint
+    ) -> UIContextMenuConfiguration? {
+        guard
+            !isEditing,
+            let indexPath = indexPaths.first,
+            let entry = dataSource.itemIdentifier(for: indexPath),
+            let bookmark = entry.bookmark
+        else { return nil }
+
+        return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { [weak self] _ in
+            guard let self else { return nil }
+
+            let markAllMenu = UIMenu(
+                title: NSLocalizedString("MARK_ALL"),
+                image: nil,
+                children: [
+                    UIAction(title: NSLocalizedString("WATCHED"), image: UIImage(systemName: "eye")) { _ in
+                        Task { await self.markAllWatched(for: bookmark) }
+                    },
+                    UIAction(title: NSLocalizedString("UNWATCHED"), image: UIImage(systemName: "eye.slash")) { _ in
+                        Task { await self.markAllUnwatched(for: bookmark) }
+                    }
+                ]
+            )
+
+            let downloadMenu = UIMenu(
+                title: NSLocalizedString("DOWNLOAD"),
+                image: UIImage(systemName: "arrow.down.circle"),
+                children: [
+                    UIAction(title: NSLocalizedString("ALL")) { _ in
+                        Task { await self.downloadAll(for: bookmark) }
+                    },
+                    UIAction(title: NSLocalizedString("UNWATCHED")) { _ in
+                        Task { await self.downloadUnwatched(for: bookmark) }
+                    }
+                ]
+            )
+
+            let removeAction = UIAction(
+                title: NSLocalizedString("REMOVE_FROM_LIBRARY"),
+                image: UIImage(systemName: "trash"),
+                attributes: .destructive
+            ) { _ in
+                PlayerLibraryManager.shared.removeFromLibrary(bookmark)
+            }
+
+            return UIMenu(title: "", children: [
+                markAllMenu,
+                downloadMenu,
+                UIMenu(options: .displayInline, children: [removeAction])
+            ])
+        }
+    }
+
+    func collectionView(
+        _ collectionView: UICollectionView,
+        contextMenuConfigurationForItemAt indexPath: IndexPath,
+        point: CGPoint
+    ) -> UIContextMenuConfiguration? {
+        self.collectionView(collectionView, contextMenuConfigurationForItemsAt: [indexPath], point: point)
     }
 
     func collectionView(
