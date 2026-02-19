@@ -481,23 +481,19 @@ class LibraryViewController: OldMangaCollectionViewController {
 extension LibraryViewController {
     func updateNavbarItems() {
         if isEditing {
-            let allItemsSelected = collectionView.indexPathsForSelectedItems?.count ?? 0 == dataSource.snapshot().itemIdentifiers.count
-            navigationItem.leftBarButtonItem = if allItemsSelected {
-                makeBarButton(
-                    action: #selector(deselectAllItems),
-                    titleKey: "DESELECT_ALL"
+            LibraryEditingUI.applyEditingNavbar(
+                navigationItem: navigationItem,
+                collectionView: collectionView,
+                totalItemCount: dataSource.snapshot().itemIdentifiers.count,
+                config: .init(
+                    stopEditingTarget: self,
+                    stopEditingSelector: #selector(stopEditing),
+                    selectAllTarget: self,
+                    selectAllSelector: #selector(selectAllItems),
+                    deselectAllTarget: self,
+                    deselectAllSelector: #selector(deselectAllItems)
                 )
-            } else {
-                makeBarButton(
-                    action: #selector(selectAllItems),
-                    titleKey: "SELECT_ALL"
-                )
-            }
-            navigationItem.rightBarButtonItems = [UIBarButtonItem(
-                barButtonSystemItem: .done,
-                target: self,
-                action: #selector(stopEditing)
-            )]
+            )
         } else {
             var items: [UIBarButtonItem] = [moreBarButton]
             if viewModel.isCategoryLocked() {
@@ -521,17 +517,11 @@ extension LibraryViewController {
 
     func updateToolbar() {
         if isEditing {
-            // show toolbar
-            if navigationController?.isToolbarHidden ?? false {
-                UIView.animate(withDuration: CATransaction.animationDuration()) {
-                    self.navigationController?.isToolbarHidden = false
-                    self.navigationController?.toolbar.alpha = 1
-                    if #available(iOS 26.0, *) {
-                        // hide tab bar on iOS 26 (it covers the toolbar)
-                        self.tabBarController?.isTabBarHidden = true
-                    }
-                }
-            }
+            LibraryEditingUI.updateToolbarVisibility(
+                isEditing: true,
+                navigationController: navigationController,
+                tabBarController: tabBarController
+            )
             // show add to category button if categories exist
             if viewModel.categories.isEmpty {
                 if #available(iOS 16.0, *) {
@@ -553,16 +543,11 @@ extension LibraryViewController {
             toolbarItems?.first?.isEnabled = hasSelectedItems
             toolbarItems?.last?.isEnabled = hasSelectedItems
         } else if !(self.navigationController?.isToolbarHidden ?? true) {
-            // fade out toolbar
-            UIView.animate(withDuration: CATransaction.animationDuration()) {
-                self.navigationController?.toolbar.alpha = 0
-                if #available(iOS 26.0, *) {
-                    // reshow tab bar on iOS 26
-                    self.tabBarController?.isTabBarHidden = false
-                }
-            } completion: { _ in
-                self.navigationController?.isToolbarHidden = true
-            }
+            LibraryEditingUI.updateToolbarVisibility(
+                isEditing: false,
+                navigationController: navigationController,
+                tabBarController: tabBarController
+            )
         }
     }
 
@@ -907,11 +892,6 @@ extension LibraryViewController {
 
     @available(iOS 26.0, *)
     func updateFilterMenuState() {
-        // _contextMenuInteraction only exists on ios 26+
-        // a similar thing could probably be achieved on lower versions by putting a UIButton in the bar button custom view
-        let contextMenuInteraction = moreBarButton.value(forKey: "_contextMenuInteraction") as? UIContextMenuInteraction
-        guard let contextMenuInteraction else { return }
-
         func updateFilterSubmenu(_ menu: UIMenu) -> UIMenu {
             menu.subtitle = self.filtersSubtitle()
             return menu.replacingChildren(menu.children.map { element in
@@ -923,7 +903,7 @@ extension LibraryViewController {
             })
         }
 
-        contextMenuInteraction.updateVisibleMenu { menu in
+        LibraryFilterMenuUI.updateVisibleMenu(barButtonItem: moreBarButton) { menu in
             if menu.title == NSLocalizedString("BUTTON_FILTER") {
                 updateFilterSubmenu(menu)
             } else if menu.title == LibraryViewModel.FilterMethod.source.title {
@@ -962,7 +942,7 @@ extension LibraryViewController {
                         }
 
                         if shouldShowRemoveFilter && !isShowingRemoveFilter {
-                            return menu.replacingChildren(updatedChildren + [removeFilterAction()])
+                            return menu.replacingChildren(updatedChildren + [self.removeFilterAction()])
                         } else if !shouldShowRemoveFilter && isShowingRemoveFilter {
                             return menu.replacingChildren(updatedChildren.dropLast())
                         }
@@ -972,49 +952,27 @@ extension LibraryViewController {
             }
         }
 
-        if !viewModel.filters.isEmpty {
-            moreBarButton.isSelected = true
-            moreBarButton.image = UIImage(systemName: "line.3.horizontal.decrease")?
-                .withTintColor(.white, renderingMode: .alwaysOriginal)
-        } else {
-            moreBarButton.isSelected = false
-            moreBarButton.image = UIImage(systemName: "ellipsis")
-        }
+        LibraryFilterMenuUI.applyFilterIcon(barButtonItem: moreBarButton, hasActiveFilters: !viewModel.filters.isEmpty)
     }
 
     func updateMoreMenu() {
-        let selectAction = UIAction(
-            title: NSLocalizedString("SELECT"),
-            image: UIImage(systemName: "checkmark.circle")
-        ) { [weak self] _ in
-            guard let self else { return }
-            self.setEditing(true, animated: true)
+        let selectAction = LibraryMoreMenuUI.makeSelectAction { [weak self] in
+            self?.setEditing(true, animated: true)
         }
 
-        let layoutActions = [
-            UIAction(
-                title: NSLocalizedString("LAYOUT_GRID"),
-                image: UIImage(systemName: "square.grid.2x2"),
-                state: usesListLayout ? .off : .on
-            ) { [weak self] _ in
-                guard let self, self.usesListLayout else { return }
-                self.usesListLayout = false
-                self.collectionView.setCollectionViewLayout(self.makeCollectionViewLayout(), animated: true)
-                self.collectionView.reloadData()
-                self.updateMoreMenu()
+        let layoutActions = LibraryMoreMenuUI.makeLayoutActions(
+            usesListLayout: usesListLayout,
+            setUsesListLayout: { [weak self] value in
+                self?.usesListLayout = value
             },
-            UIAction(
-                title: NSLocalizedString("LAYOUT_LIST"),
-                image: UIImage(systemName: "list.bullet"),
-                state: usesListLayout ? .on : .off
-            ) { [weak self] _ in
-                guard let self, !self.usesListLayout else { return }
-                self.usesListLayout = true
-                self.collectionView.setCollectionViewLayout(self.makeCollectionViewLayout(), animated: true)
-                self.collectionView.reloadData()
-                self.updateMoreMenu()
+            collectionView: collectionView,
+            makeCollectionViewLayout: { [weak self] in
+                self?.makeCollectionViewLayout() ?? UICollectionViewFlowLayout()
+            },
+            updateMenu: { [weak self] in
+                self?.updateMoreMenu()
             }
-        ]
+        )
 
         let sortMenu = UIMenu(
             title: NSLocalizedString("SORT_BY"),
@@ -1109,16 +1067,7 @@ extension LibraryViewController {
             ]
         )
 
-        if #available(iOS 26.0, *) {
-            if !viewModel.filters.isEmpty {
-                moreBarButton.isSelected = true
-                moreBarButton.image = UIImage(systemName: "line.3.horizontal.decrease")?
-                    .withTintColor(.white, renderingMode: .alwaysOriginal)
-            } else {
-                moreBarButton.isSelected = false
-                moreBarButton.image = UIImage(systemName: "ellipsis")
-            }
-        }
+        LibraryFilterMenuUI.applyFilterIcon(barButtonItem: moreBarButton, hasActiveFilters: !viewModel.filters.isEmpty)
     }
 }
 
@@ -1164,17 +1113,8 @@ extension LibraryViewController {
 
         if isEditing {
             let cell = collectionView.cellForItem(at: indexPath)
-            guard let cell else { return }
-            if let cell = cell as? MangaGridCell {
-                cell.setSelected(true)
-            } else if let cell = cell as? MangaListCell {
-                cell.setSelected(true)
-            }
-            if #available(iOS 17.5, *) {
-                UISelectionFeedbackGenerator().selectionChanged(at: cell.center)
-            } else {
-                UISelectionFeedbackGenerator().selectionChanged()
-            }
+            LibraryCellUI.setSelectedIfPossible(cell: cell, isSelected: true)
+            LibrarySelectionFeedback.selectionChanged(at: cell?.center)
             updateNavbarItems()
             updateToolbar()
             return
@@ -1253,11 +1193,7 @@ extension LibraryViewController {
     func collectionView(_ collectionView: UICollectionView, didDeselectItemAt indexPath: IndexPath) {
         if isEditing {
             let cell = collectionView.cellForItem(at: indexPath)
-            if let cell = cell as? MangaGridCell {
-                cell.setSelected(false)
-            } else if let cell = cell as? MangaListCell {
-                cell.setSelected(false)
-            }
+            LibraryCellUI.setSelectedIfPossible(cell: cell, isSelected: false)
             updateNavbarItems()
             updateToolbar()
         }

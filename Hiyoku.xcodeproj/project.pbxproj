@@ -104,6 +104,7 @@
 		FB0E1CD8288AEAF700B67BA9 /* OAuthClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB0E1CD7288AEAF700B67BA9 /* OAuthClient.swift */; };
 		FB0E1CDB288AEB0400B67BA9 /* OAuthResponse.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB0E1CDA288AEB0400B67BA9 /* OAuthResponse.swift */; };
 		FB123456789ABD /* PlayerLibraryViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB123456789ABC /* PlayerLibraryViewController.swift */; };
+		48E20A272F4C000100BFFED8 /* LibraryUIHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48E20A272F4C000000BFFED8 /* LibraryUIHelpers.swift */; };
 		FB14B1242DF4CF2B0067E4D4 /* ImagePicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB14B1222DF4CF290067E4D4 /* ImagePicker.swift */; };
 		FB14B1272DF4CFE90067E4D4 /* UIKitShim.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB14B1252DF4CFDC0067E4D4 /* UIKitShim.swift */; };
 		FB16E6292DF4D85800E09ED8 /* DebouncedSearch.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB16E6272DF4D85600E09ED6 /* DebouncedSearch.swift */; };
@@ -541,6 +542,7 @@
 		FB0E1CD7288AEAF700B67BA9 /* OAuthClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OAuthClient.swift; sourceTree = "<group>"; };
 		FB0E1CDA288AEB0400B67BA9 /* OAuthResponse.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OAuthResponse.swift; sourceTree = "<group>"; };
 		FB123456789ABC /* PlayerLibraryViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerLibraryViewController.swift; sourceTree = "<group>"; };
+		48E20A272F4C000000BFFED8 /* LibraryUIHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryUIHelpers.swift; sourceTree = "<group>"; };
 		FB14B1222DF4CF290067E4D4 /* ImagePicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ImagePicker.swift; sourceTree = "<group>"; };
 		FB14B1252DF4CFDC0067E4D4 /* UIKitShim.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UIKitShim.swift; sourceTree = "<group>"; };
 		FB16E6272DF4D85600E09ED6 /* DebouncedSearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DebouncedSearch.swift; sourceTree = "<group>"; };
@@ -1038,6 +1040,7 @@
 				FB9A48412968943400FFC414 /* SwiftUINavigationView.swift */,
 				FB4E57982E3529BD006EF27C /* TabBarController.swift */,
 				FB123456789ABC /* PlayerLibraryViewController.swift */,
+				48E20A272F4C000000BFFED8 /* LibraryUIHelpers.swift */,
 			);
 			path = Common;
 			sourceTree = "<group>";
@@ -2351,6 +2354,7 @@
 				FB034E982EAAFA850072EEEB /* KavitaTracker.swift in Sources */,
 				FB4E57992E3529C0006EF27C /* TabBarController.swift in Sources */,
 				FB123456789ABD /* PlayerLibraryViewController.swift in Sources */,
+				48E20A272F4C000100BFFED8 /* LibraryUIHelpers.swift in Sources */,
 				FB67EE6627F4D7BF00C468EA /* WasmGlobalStore.swift in Sources */,
 				FBE7A58F2DE1214F00CA5B60 /* ExternalSourceTableCell.swift in Sources */,
 				FB2BE5E229527A6100FAD8A7 /* ZoomableScrollView.swift in Sources */,

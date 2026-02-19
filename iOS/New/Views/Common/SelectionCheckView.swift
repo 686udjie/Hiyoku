@@ -49,6 +49,7 @@ class SelectionCheckView: UIView {
     init(style: Style = .plain, frame: CGRect = .zero) {
         self.style = style
         super.init(frame: frame)
+        tintColor = .systemBlue
         configure()
         constrain()
     }
@@ -112,6 +113,7 @@ class SelectionCheckView: UIView {
         guard isSelected != selected else { return }
         isSelected = selected
         if selected {
+            selectedView.backgroundColor = tintColor
             if #available(iOS 26.0, *) {
                 selectedView.layer.removeAllAnimations()
                 unselectedView.layer.removeAllAnimations()

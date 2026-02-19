@@ -645,25 +645,24 @@ class PlayerLibraryViewController: BaseObservingViewController {
             checkNavbarDownloadButton(notification)
         }
     }
+}
 
+extension PlayerLibraryViewController {
     func updateNavbarItems() {
         if isEditing {
-            let allItemsSelected = (collectionView.indexPathsForSelectedItems?.count ?? 0) == dataSource.snapshot().itemIdentifiers.count
-            let selectToggle = UIBarButtonItem(
-                title: NSLocalizedString(allItemsSelected ? "DESELECT_ALL" : "SELECT_ALL"),
-                style: .plain,
-                target: self,
-                action: allItemsSelected ? #selector(deselectAllItems) : #selector(selectAllItems)
+            LibraryEditingUI.applyEditingNavbar(
+                navigationItem: navigationItem,
+                collectionView: collectionView,
+                totalItemCount: dataSource.snapshot().itemIdentifiers.count,
+                config: .init(
+                    stopEditingTarget: self,
+                    stopEditingSelector: #selector(stopEditing),
+                    selectAllTarget: self,
+                    selectAllSelector: #selector(selectAllItems),
+                    deselectAllTarget: self,
+                    deselectAllSelector: #selector(deselectAllItems)
+                )
             )
-            if #available(iOS 26.0, *) {
-                selectToggle.sharesBackground = false
-            }
-            navigationItem.leftBarButtonItem = selectToggle
-            navigationItem.rightBarButtonItems = [UIBarButtonItem(
-                barButtonSystemItem: .done,
-                target: self,
-                action: #selector(stopEditing)
-            )]
             return
         }
 
@@ -681,26 +680,19 @@ class PlayerLibraryViewController: BaseObservingViewController {
 
     func updateToolbar() {
         if isEditing {
-            if navigationController?.isToolbarHidden ?? false {
-                UIView.animate(withDuration: CATransaction.animationDuration()) {
-                    self.navigationController?.isToolbarHidden = false
-                    self.navigationController?.toolbar.alpha = 1
-                    if #available(iOS 26.0, *) {
-                        self.tabBarController?.isTabBarHidden = true
-                    }
-                }
-            }
+            LibraryEditingUI.updateToolbarVisibility(
+                isEditing: true,
+                navigationController: navigationController,
+                tabBarController: tabBarController
+            )
             let hasSelectedItems = !(collectionView.indexPathsForSelectedItems?.isEmpty ?? true)
             toolbarItems?.first?.isEnabled = hasSelectedItems
         } else if !(navigationController?.isToolbarHidden ?? true) {
-            UIView.animate(withDuration: CATransaction.animationDuration()) {
-                self.navigationController?.toolbar.alpha = 0
-                if #available(iOS 26.0, *) {
-                    self.tabBarController?.isTabBarHidden = false
-                }
-            } completion: { _ in
-                self.navigationController?.isToolbarHidden = true
-            }
+            LibraryEditingUI.updateToolbarVisibility(
+                isEditing: false,
+                navigationController: navigationController,
+                tabBarController: tabBarController
+            )
         }
     }
 
@@ -713,13 +705,8 @@ class PlayerLibraryViewController: BaseObservingViewController {
         for item in dataSource.snapshot().itemIdentifiers {
             if let indexPath = dataSource.indexPath(for: item) {
                 collectionView.selectItem(at: indexPath, animated: false, scrollPosition: [])
-                if let cell = collectionView.cellForItem(at: indexPath) {
-                    if let cell = cell as? MangaGridCell {
-                        cell.setSelected(true)
-                    } else if let cell = cell as? MangaListCell {
-                        cell.setSelected(true)
-                    }
-                }
+                let cell = collectionView.cellForItem(at: indexPath)
+                LibraryCellUI.setSelectedIfPossible(cell: cell, isSelected: true)
             }
         }
         updateNavbarItems()
@@ -730,19 +717,16 @@ class PlayerLibraryViewController: BaseObservingViewController {
         for item in dataSource.snapshot().itemIdentifiers {
             if let indexPath = dataSource.indexPath(for: item) {
                 collectionView.deselectItem(at: indexPath, animated: false)
-                if let cell = collectionView.cellForItem(at: indexPath) {
-                    if let cell = cell as? MangaGridCell {
-                        cell.setSelected(false)
-                    } else if let cell = cell as? MangaListCell {
-                        cell.setSelected(false)
-                    }
-                }
+                let cell = collectionView.cellForItem(at: indexPath)
+                LibraryCellUI.setSelectedIfPossible(cell: cell, isSelected: false)
             }
         }
         updateNavbarItems()
         updateToolbar()
     }
+}
 
+extension PlayerLibraryViewController {
     @objc private func removeSelectedFromLibrary() {
         let selectedItems = (collectionView.indexPathsForSelectedItems ?? []).compactMap { dataSource.itemIdentifier(for: $0) }
         let bookmarks = selectedItems.compactMap { $0.bookmark }
@@ -859,9 +843,9 @@ class PlayerLibraryViewController: BaseObservingViewController {
         viewController.modalPresentationStyle = .pageSheet
         present(viewController, animated: true)
     }
+}
 
-    // MARK: - Menu
-
+extension PlayerLibraryViewController {
     private func filtersSubtitle() -> String? {
         guard !viewModel.filters.isEmpty else { return nil }
         var options: [String] = []
@@ -898,10 +882,6 @@ class PlayerLibraryViewController: BaseObservingViewController {
 
     @available(iOS 16.0, *)
     func updateFilterMenuState() {
-        // _contextMenuInteraction only exists on ios 16+
-        let contextMenuInteraction = moreBarButton.value(forKey: "_contextMenuInteraction") as? UIContextMenuInteraction
-        guard let contextMenuInteraction else { return }
-
         func updateFilterSubmenu(_ menu: UIMenu) -> UIMenu {
             menu.subtitle = self.filtersSubtitle()
             return menu.replacingChildren(menu.children.map { element in
@@ -913,7 +893,7 @@ class PlayerLibraryViewController: BaseObservingViewController {
             })
         }
 
-        contextMenuInteraction.updateVisibleMenu { menu in
+        LibraryFilterMenuUI.updateVisibleMenu(barButtonItem: moreBarButton) { menu in
             if menu.title == NSLocalizedString("BUTTON_FILTER") {
                 updateFilterSubmenu(menu)
             } else if menu.title == PlayerLibraryViewModel.FilterMethod.source.title {
@@ -956,50 +936,27 @@ class PlayerLibraryViewController: BaseObservingViewController {
             }
         }
 
-        // Update button appearance
-        if !viewModel.filters.isEmpty {
-            moreBarButton.isSelected = true
-            moreBarButton.image = UIImage(systemName: "line.3.horizontal.decrease")?
-                .withTintColor(.white, renderingMode: .alwaysOriginal)
-        } else {
-            moreBarButton.isSelected = false
-            moreBarButton.image = UIImage(systemName: "ellipsis")
-        }
+        LibraryFilterMenuUI.applyFilterIcon(barButtonItem: moreBarButton, hasActiveFilters: !viewModel.filters.isEmpty)
     }
 
     func updateMoreMenu() {
-        let selectAction = UIAction(
-            title: NSLocalizedString("SELECT"),
-            image: UIImage(systemName: "checkmark.circle")
-        ) { [weak self] _ in
-            guard let self else { return }
-            self.setEditing(true, animated: true)
+        let selectAction = LibraryMoreMenuUI.makeSelectAction { [weak self] in
+            self?.setEditing(true, animated: true)
         }
 
-        let layoutActions = [
-            UIAction(
-                title: NSLocalizedString("LAYOUT_GRID"),
-                image: UIImage(systemName: "square.grid.2x2"),
-                state: usesListLayout ? .off : .on
-            ) { [weak self] _ in
-                guard let self, self.usesListLayout else { return }
-                self.usesListLayout = false
-                self.collectionView.setCollectionViewLayout(self.makeCollectionViewLayout(), animated: true)
-                self.collectionView.reloadData()
-                self.updateMoreMenu()
+        let layoutActions = LibraryMoreMenuUI.makeLayoutActions(
+            usesListLayout: usesListLayout,
+            setUsesListLayout: { [weak self] value in
+                self?.usesListLayout = value
             },
-            UIAction(
-                title: NSLocalizedString("LAYOUT_LIST"),
-                image: UIImage(systemName: "list.bullet"),
-                state: usesListLayout ? .on : .off
-            ) { [weak self] _ in
-                guard let self, !self.usesListLayout else { return }
-                self.usesListLayout = true
-                self.collectionView.setCollectionViewLayout(self.makeCollectionViewLayout(), animated: true)
-                self.collectionView.reloadData()
-                self.updateMoreMenu()
+            collectionView: collectionView,
+            makeCollectionViewLayout: { [weak self] in
+                self?.makeCollectionViewLayout() ?? UICollectionViewFlowLayout()
+            },
+            updateMenu: { [weak self] in
+                self?.updateMoreMenu()
             }
-        ]
+        )
 
         let sortMenu = UIMenu(
             title: NSLocalizedString("SORT_BY"),
@@ -1104,15 +1061,7 @@ class PlayerLibraryViewController: BaseObservingViewController {
             ]
         )
 
-        // Update icon based on active filters
-        if !viewModel.filters.isEmpty {
-            moreBarButton.isSelected = true
-            moreBarButton.image = UIImage(systemName: "line.3.horizontal.decrease")?
-                .withTintColor(.white, renderingMode: .alwaysOriginal)
-        } else {
-            moreBarButton.isSelected = false
-            moreBarButton.image = UIImage(systemName: "ellipsis")
-        }
+        LibraryFilterMenuUI.applyFilterIcon(barButtonItem: moreBarButton, hasActiveFilters: !viewModel.filters.isEmpty)
     }
 }
 
@@ -1338,23 +1287,11 @@ extension PlayerLibraryViewController {
 
 extension PlayerLibraryViewController: UICollectionViewDelegate {
     func collectionView(_ collectionView: UICollectionView, didHighlightItemAt indexPath: IndexPath) {
-        guard !isEditing else { return }
-        let cell = collectionView.cellForItem(at: indexPath)
-        if let cell = cell as? MangaGridCell {
-            cell.highlight()
-        } else if let cell = cell as? MangaListCell {
-            cell.highlight()
-        }
+        LibraryCellUI.highlightCellIfPossible(collectionView: collectionView, at: indexPath, isEditing: isEditing)
     }
 
     func collectionView(_ collectionView: UICollectionView, didUnhighlightItemAt indexPath: IndexPath) {
-        guard !isEditing else { return }
-        let cell = collectionView.cellForItem(at: indexPath)
-        if let cell = cell as? MangaGridCell {
-            cell.unhighlight()
-        } else if let cell = cell as? MangaListCell {
-            cell.unhighlight()
-        }
+        LibraryCellUI.unhighlightCellIfPossible(collectionView: collectionView, at: indexPath, isEditing: isEditing)
     }
 
     func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
@@ -1362,17 +1299,8 @@ extension PlayerLibraryViewController: UICollectionViewDelegate {
 
         if isEditing {
             let cell = collectionView.cellForItem(at: indexPath)
-            guard let cell else { return }
-            if let cell = cell as? MangaGridCell {
-                cell.setSelected(true)
-            } else if let cell = cell as? MangaListCell {
-                cell.setSelected(true)
-            }
-            if #available(iOS 17.5, *) {
-                UISelectionFeedbackGenerator().selectionChanged(at: cell.center)
-            } else {
-                UISelectionFeedbackGenerator().selectionChanged()
-            }
+            LibraryCellUI.setSelectedIfPossible(cell: cell, isSelected: true)
+            LibrarySelectionFeedback.selectionChanged(at: cell?.center)
             updateNavbarItems()
             updateToolbar()
             return
@@ -1404,11 +1332,7 @@ extension PlayerLibraryViewController: UICollectionViewDelegate {
     func collectionView(_ collectionView: UICollectionView, didDeselectItemAt indexPath: IndexPath) {
         guard isEditing else { return }
         let cell = collectionView.cellForItem(at: indexPath)
-        if let cell = cell as? MangaGridCell {
-            cell.setSelected(false)
-        } else if let cell = cell as? MangaListCell {
-            cell.setSelected(false)
-        }
+        LibraryCellUI.setSelectedIfPossible(cell: cell, isSelected: false)
         updateNavbarItems()
         updateToolbar()
     }
@@ -1491,23 +1415,7 @@ extension PlayerLibraryViewController: UICollectionViewDelegate {
         contextMenuConfiguration configuration: UIContextMenuConfiguration,
         highlightPreviewForItemAt indexPath: IndexPath
     ) -> UITargetedPreview? {
-        guard let cell = collectionView.cellForItem(at: indexPath) else { return nil }
-        let parameters = UIPreviewParameters()
-
-        if let listCell = cell as? MangaListCell {
-            let padding: CGFloat = 8
-            let rect = listCell.bounds.insetBy(dx: -padding, dy: -padding)
-            parameters.visiblePath = UIBezierPath(roundedRect: rect, cornerRadius: 12)
-            return UITargetedPreview(view: listCell.contentView, parameters: parameters)
-        } else if cell is MangaGridCell {
-            parameters.visiblePath = UIBezierPath(
-                roundedRect: cell.bounds,
-                cornerRadius: cell.contentView.layer.cornerRadius
-            )
-            return UITargetedPreview(view: cell.contentView, parameters: parameters)
-        }
-
-        return nil
+        LibraryContextMenuPreviewUI.targetedPreview(collectionView: collectionView, at: indexPath)
     }
 
     func collectionView(
