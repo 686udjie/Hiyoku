@@ -23,8 +23,7 @@ extension PlayerViewController {
     }
 
     @objc internal func closeTapped() {
-        saveProgress()
-        dismiss(animated: true)
+        PlayerPresenter.shared.dismiss()
     }
 
     @objc internal func lockTapped() {
@@ -206,8 +205,8 @@ extension PlayerViewController {
     }
 
     func showError(message: String) {
-        let dismissAction = UIAlertAction(title: "OK", style: .default) { [weak self] _ in
-            self?.dismiss(animated: true)
+        let dismissAction = UIAlertAction(title: "OK", style: .default) { _ in
+            PlayerPresenter.shared.dismiss()
         }
         presentAlert(title: "Video Error", message: message, actions: [dismissAction])
     }

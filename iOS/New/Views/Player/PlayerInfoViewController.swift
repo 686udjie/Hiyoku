@@ -39,6 +39,12 @@ class PlayerInfoViewController: UIHostingController<PlayerInfoView> {
         navigationItem.largeTitleDisplayMode = .never
     }
 
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        view.setNeedsLayout()
+        view.layoutIfNeeded()
+    }
+
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }

@@ -353,9 +353,6 @@ class PlayerViewController: UIViewController, UIGestureRecognizerDelegate {
         self.allEpisodes = episodes
         self.currentEpisode = currentEpisode
         super.init(nibName: nil, bundle: nil)
-
-        // landscape presentation
-        modalPresentationStyle = .fullScreen
     }
 
     required init?(coder: NSCoder) {
@@ -364,6 +361,11 @@ class PlayerViewController: UIViewController, UIGestureRecognizerDelegate {
 
     deinit {
         stopPlayer()
+    }
+
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        overrideUserInterfaceStyle = .dark
     }
 
     override func viewDidAppear(_ animated: Bool) {
@@ -407,11 +409,38 @@ class PlayerViewController: UIViewController, UIGestureRecognizerDelegate {
         }
         NotificationCenter.default.addObserver(self, selector: #selector(subtitleSettingsDidChange), name: .subtitleSettingsDidChange, object: nil)
         updatePlayerMetadata()
+        setupGestures()
     }
 
-    override func viewWillAppear(_ animated: Bool) {
-        super.viewWillAppear(animated)
-        overrideUserInterfaceStyle = .dark
+    private func setupGestures() {
+        let pan = UIPanGestureRecognizer(target: self, action: #selector(handlePanGesture(_:)))
+        pan.delegate = self
+        view.addGestureRecognizer(pan)
+    }
+
+    @objc private func handlePanGesture(_ gesture: UIPanGestureRecognizer) {
+        let translation = gesture.translation(in: view)
+        let velocity = gesture.velocity(in: view)
+
+        switch gesture.state {
+        case .changed:
+            if translation.y > 0 {
+                view.transform = CGAffineTransform(translationX: 0, y: translation.y)
+            }
+        case .ended:
+            if translation.y > 100 || velocity.y > 500 {
+                onDismiss?()
+            } else {
+                UIView.animate(withDuration: 0.3, delay: 0, usingSpringWithDamping: 1, initialSpringVelocity: 1, options: .curveEaseOut) {
+                    self.view.transform = .identity
+                }
+            }
+        case .cancelled:
+            UIView.animate(withDuration: 0.3) {
+                self.view.transform = .identity
+            }
+        default: break
+        }
     }
 
     override var preferredStatusBarStyle: UIStatusBarStyle {
@@ -432,6 +461,10 @@ class PlayerViewController: UIViewController, UIGestureRecognizerDelegate {
 
     override var supportedInterfaceOrientations: UIInterfaceOrientationMask {
         .landscape
+    }
+
+    override var preferredInterfaceOrientationForPresentation: UIInterfaceOrientation {
+        .landscapeRight
     }
 
     override var shouldAutorotate: Bool {

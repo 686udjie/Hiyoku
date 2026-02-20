@@ -400,17 +400,19 @@ extension PlayerViewController {
         if mpv == nil && !isRunning { return }
         saveProgress()
         isRunning = false
-        let layer = displayLayer
-        DispatchQueue.main.async {
-            layer.flushAndRemoveImage()
-        }
-        if let context = renderContext {
-            mpv_render_context_free(context)
-            renderContext = nil
-        }
-        if let handle = mpv {
-            mpv_destroy(handle)
-            mpv = nil
+
+        let handle = mpv
+        let context = renderContext
+        self.mpv = nil
+        self.renderContext = nil
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            if let context = context {
+                mpv_render_context_free(context)
+            }
+            if let handle = handle {
+                mpv_destroy(handle)
+            }
         }
         pixelBufferPool = nil
     }
