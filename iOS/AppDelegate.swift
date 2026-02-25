@@ -244,7 +244,9 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     }
 
     func application(_ application: UIApplication, supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
-        PlayerPresenter.shared.orientationLock
+        UIDevice.current.userInterfaceIdiom == .phone
+            ? PlayerPresenter.shared.orientationLock
+            : .all
     }
 
 }
@@ -274,6 +276,13 @@ extension AppDelegate {
             UserDefaults.standard.set(newValue, forKey: "Library.pinTitles")
             UserDefaults.standard.removeObject(forKey: "Library.pinManga")
             UserDefaults.standard.removeObject(forKey: "Library.pinMangaType")
+        }
+
+        // reader is portrait-only on iPhone; normalize legacy orientation values there
+        if UIDevice.current.userInterfaceIdiom == .phone,
+           UserDefaults.standard.string(forKey: "Reader.orientation") != "portrait" {
+            UserDefaults.standard.set("portrait", forKey: "Reader.orientation")
+            NotificationCenter.default.post(name: .readerOrientation, object: nil)
         }
 
         UserDefaults.standard.set(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String, forKey: "currentVersion")

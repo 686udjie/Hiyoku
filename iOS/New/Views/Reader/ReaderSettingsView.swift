@@ -110,23 +110,6 @@ struct ReaderSettingsView: View {
                             ))
                         )
                     )
-                    if UIDevice.current.userInterfaceIdiom != .pad {
-                        SettingView(
-                            setting: .init(
-                                key: "Reader.orientation",
-                                title: NSLocalizedString("READER_ORIENTATION"),
-                                notification: "Reader.orientation",
-                                value: .select(.init(
-                                    values: ["device", "portrait", "landscape"],
-                                    titles: [
-                                        NSLocalizedString("FOLLOW_DEVICE"),
-                                        NSLocalizedString("PORTRAIT"),
-                                        NSLocalizedString("LANDSCAPE")
-                                    ]
-                                ))
-                            )
-                        )
-                    }
                 }
 
                 Section {

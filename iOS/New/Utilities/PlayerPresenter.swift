@@ -12,7 +12,7 @@ import AidokuRunner
 class PlayerPresenter {
     static let shared = PlayerPresenter()
 
-    var orientationLock: UIInterfaceOrientationMask = .allButUpsideDown
+    var orientationLock: UIInterfaceOrientationMask = .portrait
 
     private weak var playerVC: PlayerViewController?
 
@@ -103,9 +103,11 @@ class PlayerPresenter {
         playerVC.onEpisodeSelected = config.onEpisodeSelected
 
         self.playerVC = playerVC
-        self.orientationLock = .all
+        updateOrientationLock(.all, shouldRotate: false)
         playerVC.modalPresentationStyle = .fullScreen
-        topVC.present(playerVC, animated: true)
+        topVC.present(playerVC, animated: true) { [weak self] in
+            self?.refreshSupportedOrientations(shouldRotate: true)
+        }
     }
 
     func dismiss(animated: Bool = true) {
@@ -115,7 +117,28 @@ class PlayerPresenter {
         playerVC.stopPlayer()
 
         playerVC.dismiss(animated: animated) { [weak self] in
+            self?.updateOrientationLock(.portrait, shouldRotate: true)
             self?.playerVC = nil
+        }
+    }
+
+    private func updateOrientationLock(_ orientationLock: UIInterfaceOrientationMask, shouldRotate: Bool) {
+        self.orientationLock = orientationLock
+        refreshSupportedOrientations(shouldRotate: shouldRotate)
+    }
+
+    private func refreshSupportedOrientations(shouldRotate: Bool) {
+        if #available(iOS 16.0, *) {
+            UIApplication.shared.connectedScenes
+                .compactMap { $0 as? UIWindowScene }
+                .forEach { windowScene in
+                    windowScene.windows.forEach { window in
+                        window.rootViewController?.setNeedsUpdateOfSupportedInterfaceOrientations()
+                    }
+                }
+        }
+        if shouldRotate {
+            UIViewController.attemptRotationToDeviceOrientation()
         }
     }
 }
