@@ -45,7 +45,7 @@ enum Settings {
             .init(
                 title: NSLocalizedString("PLAYER_LIBRARY"),
                 value: .page(.init(
-                    items: [],
+                    items: playerLibrarySettings,
                     inlineTitle: true,
                     icon: .system(name: "books.vertical.fill", color: "red")
                 ))
@@ -223,6 +223,34 @@ extension Settings {
             ]))
         ),
         libraryUpdateGroup
+    ]
+
+    private static let playerLibrarySettings: [Setting] = [
+        .init(value: .group(.init(items: [
+            .init(
+                key: "PlayerLibrary.opensPlayerView",
+                title: NSLocalizedString("OPEN_PLAYER_VIEW"),
+                value: .toggle(.init())
+            ),
+            .init(
+                key: "PlayerLibrary.unreadChapterBadges",
+                title: NSLocalizedString("UNWATCHED_EPISODE_BADGES"),
+                value: .toggle(.init())
+            ),
+            .init(
+                key: "PlayerLibrary.downloadedChapterBadges",
+                title: NSLocalizedString("DOWNLOADED_EPISODE_BADGES"),
+                value: .toggle(.init())
+            ),
+            .init(
+                key: "PlayerLibrary.pinTitles",
+                title: NSLocalizedString("PIN_TITLES"),
+                value: .select(.init(
+                    values: PlayerLibraryViewModel.PinType.allCases.map(\.rawValue),
+                    titles: PlayerLibraryViewModel.PinType.allCases.map(\.title)
+                ))
+            )
+        ])))
     ]
 
     private static let libraryUpdateGroup: Setting = {

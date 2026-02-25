@@ -125,6 +125,10 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                 "Library.downloadedChapterBadges": true,
                 "Library.pinTitles": LibraryViewModel.PinType.none.rawValue,
                 "Library.lockLibrary": false,
+                "PlayerLibrary.opensPlayerView": false,
+                "PlayerLibrary.unreadChapterBadges": true,
+                "PlayerLibrary.downloadedChapterBadges": true,
+                "PlayerLibrary.pinTitles": PlayerLibraryViewModel.PinType.none.rawValue,
 
                 "Library.lockedCategories": [String](),
 
@@ -283,6 +287,16 @@ extension AppDelegate {
            UserDefaults.standard.string(forKey: "Reader.orientation") != "portrait" {
             UserDefaults.standard.set("portrait", forKey: "Reader.orientation")
             NotificationCenter.default.post(name: .readerOrientation, object: nil)
+        }
+
+        // initialize player badge settings from reader badge settings for existing installs
+        if UserDefaults.standard.object(forKey: "PlayerLibrary.unreadChapterBadges") == nil {
+            let readerUnreadBadges = UserDefaults.standard.bool(forKey: "Library.unreadChapterBadges")
+            UserDefaults.standard.set(readerUnreadBadges, forKey: "PlayerLibrary.unreadChapterBadges")
+        }
+        if UserDefaults.standard.object(forKey: "PlayerLibrary.downloadedChapterBadges") == nil {
+            let readerDownloadedBadges = UserDefaults.standard.bool(forKey: "Library.downloadedChapterBadges")
+            UserDefaults.standard.set(readerDownloadedBadges, forKey: "PlayerLibrary.downloadedChapterBadges")
         }
 
         UserDefaults.standard.set(Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String, forKey: "currentVersion")

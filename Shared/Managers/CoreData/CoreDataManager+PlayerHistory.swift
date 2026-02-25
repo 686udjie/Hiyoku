@@ -20,7 +20,16 @@ extension CoreDataManager {
     ) async -> [String: PlayerProgress] {
         await container.performBackgroundTask { context in
             let request: NSFetchRequest<PlayerHistoryObject> = PlayerHistoryObject.fetchRequest()
-            request.predicate = NSPredicate(format: "moduleId == %@", sourceId)
+            let episodeIds = Set(
+                self.getChapters(sourceId: sourceId, mangaId: mangaId, context: context)
+                    .compactMap { $0.id }
+            )
+            guard !episodeIds.isEmpty else { return [:] }
+            request.predicate = NSPredicate(
+                format: "moduleId == %@ AND episodeId IN %@",
+                sourceId,
+                Array(episodeIds)
+            )
 
             var results: [String: PlayerProgress] = [:]
 

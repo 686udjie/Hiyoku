@@ -116,11 +116,13 @@ class PlayerLibraryViewModel: ObservableObject {
         let item: PlayerLibraryItem
         var unread: Int = 0
         var downloads: Int = 0
+        var hasUpdatedEpisodes = false
 
         func hash(into hasher: inout Hasher) {
             hasher.combine(id)
             hasher.combine(unread)
             hasher.combine(downloads)
+            hasher.combine(hasUpdatedEpisodes)
             hasher.combine(item)
         }
 
@@ -128,6 +130,7 @@ class PlayerLibraryViewModel: ObservableObject {
             lhs.id == rhs.id &&
             lhs.unread == rhs.unread &&
             lhs.downloads == rhs.downloads &&
+            lhs.hasUpdatedEpisodes == rhs.hasUpdatedEpisodes &&
             lhs.item == rhs.item
         }
     }
@@ -156,6 +159,33 @@ class PlayerLibraryViewModel: ObservableObject {
             case .dateAdded: NSLocalizedString("NEWEST_FIRST", comment: "")
             }
         }
+    }
+
+    enum PinType: String, CaseIterable {
+        case none
+        case unread
+        case updatedEpisodes
+
+        var title: String {
+            switch self {
+            case .none: NSLocalizedString("PIN_DISABLED")
+            case .unread: NSLocalizedString("PIN_UNREAD")
+            case .updatedEpisodes: NSLocalizedString("PIN_UPDATED_EPISODES")
+            }
+        }
+    }
+
+    struct BadgeType: OptionSet {
+        let rawValue: Int
+
+        static let unwatched = BadgeType(rawValue: 1 << 0)
+        static let downloaded = BadgeType(rawValue: 1 << 1)
+    }
+
+    struct ItemCounts {
+        let unread: Int
+        let downloads: Int
+        let hasUpdatedEpisodes: Bool
     }
 
     struct LibraryFilter: Codable, Equatable {
@@ -187,12 +217,15 @@ class PlayerLibraryViewModel: ObservableObject {
     }
 
     @Published var items: [PlayerLibraryItemInfo] = []
+    @Published var pinnedItems: [PlayerLibraryItemInfo] = []
 
     var originalItems: [PlayerLibraryItem] = []
     @Published var sourceKeys: [String] = [] // Source names or IDs
 
     var sortMethod: SortMethod = .dateAdded
     var sortAscending: Bool = false
+    var pinType: PinType = .none
+    var badgeType: BadgeType = []
 
     var filters: [LibraryFilter] = [] {
         didSet {
@@ -209,6 +242,13 @@ class PlayerLibraryViewModel: ObservableObject {
             self.sortMethod = sortMethod
         }
         self.sortAscending = UserDefaults.standard.bool(forKey: "PlayerLibrary.sortAscending")
+        self.pinType = getPinType()
+        if UserDefaults.standard.bool(forKey: "PlayerLibrary.unreadChapterBadges") {
+            badgeType.insert(.unwatched)
+        }
+        if UserDefaults.standard.bool(forKey: "PlayerLibrary.downloadedChapterBadges") {
+            badgeType.insert(.downloaded)
+        }
 
         if let filtersData = UserDefaults.standard.data(forKey: "PlayerLibrary.filters"),
            let filters = try? JSONDecoder().decode([LibraryFilter].self, from: filtersData) {
@@ -229,6 +269,10 @@ class PlayerLibraryViewModel: ObservableObject {
     func saveSettings() {
         UserDefaults.standard.set(sortMethod.rawValue, forKey: "PlayerLibrary.sortOption")
         UserDefaults.standard.set(sortAscending, forKey: "PlayerLibrary.sortAscending")
+    }
+
+    func getPinType() -> PinType {
+        UserDefaults.standard.string(forKey: "PlayerLibrary.pinTitles").flatMap(PinType.init) ?? .none
     }
 
     private func saveFilters() {
@@ -301,7 +345,17 @@ class PlayerLibraryViewModel: ObservableObject {
             }
         }
 
-        self.items = filtered
+        switch pinType {
+        case .none:
+            self.pinnedItems = []
+            self.items = filtered
+        case .unread:
+            self.pinnedItems = filtered.filter { $0.unread > 0 }
+            self.items = filtered.filter { $0.unread == 0 }
+        case .updatedEpisodes:
+            self.pinnedItems = filtered.filter(\.hasUpdatedEpisodes)
+            self.items = filtered.filter { !$0.hasUpdatedEpisodes }
+        }
         let uniqueSources = Set(originalItems.map { $0.moduleName })
         self.sourceKeys = Array(uniqueSources).sorted()
     }
@@ -315,8 +369,14 @@ class PlayerLibraryViewModel: ObservableObject {
         await withTaskGroup(of: PlayerLibraryItemInfo?.self) { group in
             for item in items {
                 group.addTask {
-                    let (unread, downloads) = await self.fetchCount(for: item)
-                    return PlayerLibraryItemInfo(id: item.id, item: item, unread: unread, downloads: downloads)
+                    let counts = await self.fetchCount(for: item)
+                    return PlayerLibraryItemInfo(
+                        id: item.id,
+                        item: item,
+                        unread: counts.unread,
+                        downloads: counts.downloads,
+                        hasUpdatedEpisodes: counts.hasUpdatedEpisodes
+                    )
                 }
             }
 
@@ -330,10 +390,10 @@ class PlayerLibraryViewModel: ObservableObject {
         }
     }
 
-    private func fetchCount(for item: PlayerLibraryItem) async -> (Int, Int) {
+    private func fetchCount(for item: PlayerLibraryItem) async -> ItemCounts {
         guard let module = await MainActor.run(body: {
             ModuleManager.shared.modules.first(where: { $0.id == item.moduleId })
-        }) else { return (0, 0) }
+        }) else { return ItemCounts(unread: 0, downloads: 0, hasUpdatedEpisodes: false) }
 
         let sourceId = module.id.uuidString
         let animeId = item.sourceUrl.normalizedModuleHref()
@@ -367,7 +427,15 @@ class PlayerLibraryViewModel: ObservableObject {
             }
         }
 
-        return (unread, downloads)
+        let hasUpdatedEpisodes = await CoreDataManager.shared.container.performBackgroundTask { context in
+            !CoreDataManager.shared.getUnviewedMangaUpdates(
+                sourceId: sourceId,
+                mangaId: animeId,
+                context: context
+            ).isEmpty
+        }
+
+        return ItemCounts(unread: unread, downloads: downloads, hasUpdatedEpisodes: hasUpdatedEpisodes)
     }
 
     func refreshLibrary() async {
@@ -575,7 +643,7 @@ class PlayerLibraryViewController: BaseObservingViewController {
 
     private func updateEmptyState() {
         let isSearching = !searchText.isEmpty
-        let isEmpty = viewModel.items.isEmpty && !isSearching
+        let isEmpty = viewModel.items.isEmpty && viewModel.pinnedItems.isEmpty && !isSearching
         emptyStackView.isHidden = !isEmpty
     }
 
@@ -602,8 +670,6 @@ class PlayerLibraryViewController: BaseObservingViewController {
         }
 
         [
-            Notification.Name("Library.unreadChapterBadges"),
-            Notification.Name("Library.downloadedChapterBadges"),
             .playerHistoryAdded,
             .playerHistoryUpdated,
             .playerHistoryRemoved,
@@ -616,6 +682,34 @@ class PlayerLibraryViewController: BaseObservingViewController {
             .updatePlayerLibrary
         ].forEach { name in
             addObserver(forName: name, using: refreshLibrary)
+        }
+
+        addObserver(forName: Notification.Name("PlayerLibrary.unreadChapterBadges")) { [weak self] _ in
+            guard let self else { return }
+            if UserDefaults.standard.bool(forKey: "PlayerLibrary.unreadChapterBadges") {
+                self.viewModel.badgeType.insert(.unwatched)
+            } else {
+                self.viewModel.badgeType.remove(.unwatched)
+            }
+            self.reloadItems()
+        }
+
+        addObserver(forName: Notification.Name("PlayerLibrary.downloadedChapterBadges")) { [weak self] _ in
+            guard let self else { return }
+            if UserDefaults.standard.bool(forKey: "PlayerLibrary.downloadedChapterBadges") {
+                self.viewModel.badgeType.insert(.downloaded)
+            } else {
+                self.viewModel.badgeType.remove(.downloaded)
+            }
+            self.reloadItems()
+        }
+
+        addObserver(forName: Notification.Name("PlayerLibrary.pinTitles")) { [weak self] _ in
+            guard let self else { return }
+            self.viewModel.pinType = self.viewModel.getPinType()
+            Task {
+                await self.viewModel.refreshLibrary()
+            }
         }
 
         let checkNavbarDownloadButton: (Notification) -> Void = { [weak self] _ in
@@ -821,6 +915,229 @@ extension PlayerLibraryViewController {
         let watchedIds = Set(history.filter { $0.value.progress > 0 && $0.value.progress == $0.value.total }.keys)
         let unwatched = episodes.filter { !watchedIds.contains($0.url) }
         await downloadEpisodes(unwatched, for: bookmark)
+    }
+
+    @MainActor
+    private func openPlayerView(for bookmark: PlayerLibraryItem, module: ScrapingModule) async {
+        let episodes = (await fetchEpisodes(for: bookmark)).sorted { $0.number < $1.number }
+        guard !episodes.isEmpty else {
+            presentPlayerOpenError(message: "No episodes available")
+            return
+        }
+
+        let history = await getEpisodeHistory(
+            sourceId: module.id.uuidString,
+            episodeIds: Set(episodes.map(\.url))
+        )
+        guard let selectedEpisode = resolveEpisodeToPlay(from: episodes, history: history) else {
+            presentPlayerOpenError(message: "Unable to select an episode to play")
+            return
+        }
+
+        let (streamInfos, subtitleUrl) = await JSController.shared.fetchPlayerStreams(
+            episodeId: selectedEpisode.url,
+            module: module
+        )
+        guard let stream = selectStream(streamInfos) else {
+            presentPlayerOpenError(message: "Unable to find video stream for this episode")
+            return
+        }
+
+        let episodeToPlay = PlayerEpisode(
+            id: selectedEpisode.id,
+            number: selectedEpisode.number,
+            title: selectedEpisode.title,
+            url: selectedEpisode.url,
+            dateUploaded: selectedEpisode.dateUploaded,
+            scanlator: selectedEpisode.scanlator,
+            language: selectedEpisode.language,
+            subtitleUrl: subtitleUrl ?? selectedEpisode.subtitleUrl
+        )
+        let mangaId = currentMangaId(for: bookmark)
+
+        PlayerPresenter.present(
+            module: module,
+            videoUrl: stream.url,
+            videoTitle: bookmark.title,
+            headers: stream.headers,
+            subtitleUrl: episodeToPlay.subtitleUrl,
+            episodes: episodes,
+            currentEpisode: episodeToPlay,
+            mangaId: mangaId,
+            onDismiss: { [weak self] in
+                Task {
+                    await self?.viewModel.refreshLibrary()
+                }
+            },
+            onNextEpisode: { [weak self] in
+                Task { @MainActor in
+                    await self?.navigateRelativeEpisode(step: 1, module: module, episodes: episodes, title: bookmark.title)
+                }
+            },
+            onPreviousEpisode: { [weak self] in
+                Task { @MainActor in
+                    await self?.navigateRelativeEpisode(step: -1, module: module, episodes: episodes, title: bookmark.title)
+                }
+            },
+            onEpisodeSelected: { [weak self] episode in
+                Task { @MainActor in
+                    await self?.navigateToEpisode(episode, module: module, episodes: episodes, title: bookmark.title)
+                }
+            }
+        )
+    }
+
+    private func resolveEpisodeToPlay(
+        from episodes: [PlayerEpisode],
+        history: [String: PlayerProgress]
+    ) -> PlayerEpisode? {
+        if let resumed = episodes.first(where: {
+            guard let entry = history[$0.url], let total = entry.total, total > 0 else { return false }
+            return entry.progress > 0 && entry.progress < total
+        }) {
+            return resumed
+        }
+
+        if let firstUnwatched = episodes.first(where: {
+            guard let entry = history[$0.url], let total = entry.total, total > 0 else { return true }
+            return entry.progress < total
+        }) {
+            return firstUnwatched
+        }
+
+        return episodes.first
+    }
+
+    private func getEpisodeHistory(sourceId: String, episodeIds: Set<String>) async -> [String: PlayerProgress] {
+        await CoreDataManager.shared.container.performBackgroundTask { context in
+            guard !episodeIds.isEmpty else { return [:] }
+
+            let request: NSFetchRequest<PlayerHistoryObject> = PlayerHistoryObject.fetchRequest()
+            request.predicate = NSPredicate(
+                format: "moduleId == %@ AND episodeId IN %@",
+                sourceId,
+                Array(episodeIds)
+            )
+
+            do {
+                let objects = try context.fetch(request)
+                return objects.reduce(into: [String: PlayerProgress]()) { result, object in
+                    guard let episodeId = object.episodeId else { return }
+                    let progress = Int(object.progress)
+                    let total = object.total != 0 ? Int(object.total) : nil
+                    let date = Int(object.dateWatched?.timeIntervalSince1970 ?? 0)
+                    result[episodeId] = PlayerProgress(progress: progress, total: total, date: date)
+                }
+            } catch {
+                return [:]
+            }
+        }
+    }
+
+    @MainActor
+    private func navigateRelativeEpisode(step: Int, module: ScrapingModule, episodes: [PlayerEpisode], title: String) async {
+        guard
+            let vc = PlayerPresenter.findTopViewController() as? PlayerViewController,
+            let currentUrl = vc.currentEpisode?.url,
+            let currentIndex = episodes.firstIndex(where: { $0.url == currentUrl })
+        else {
+            return
+        }
+
+        let newIndex = currentIndex + step
+        guard episodes.indices.contains(newIndex) else { return }
+        await navigateToEpisode(episodes[newIndex], module: module, episodes: episodes, title: title)
+    }
+
+    @MainActor
+    private func navigateToEpisode(_ episode: PlayerEpisode, module: ScrapingModule, episodes: [PlayerEpisode], title: String) async {
+        guard let vc = PlayerPresenter.findTopViewController() as? PlayerViewController else { return }
+
+        let (streamInfos, subtitleUrl) = await JSController.shared.fetchPlayerStreams(
+            episodeId: episode.url,
+            module: module
+        )
+        guard let stream = selectStream(streamInfos) else { return }
+
+        let episodeToPlay = PlayerEpisode(
+            id: episode.id,
+            number: episode.number,
+            title: episode.title,
+            url: episode.url,
+            dateUploaded: episode.dateUploaded,
+            scanlator: episode.scanlator,
+            language: episode.language,
+            subtitleUrl: subtitleUrl ?? episode.subtitleUrl
+        )
+
+        vc.loadVideo(url: stream.url, headers: stream.headers, subtitleUrl: episodeToPlay.subtitleUrl)
+        vc.updateTitle("Episode \(episodeToPlay.number): \(episodeToPlay.title)")
+        vc.configure(episodes: episodes, current: episodeToPlay, title: title)
+    }
+
+    private func selectStream(_ streams: [StreamInfo]) -> StreamInfo? {
+        guard !streams.isEmpty else { return nil }
+
+        let preferredAudioChannel = UserDefaults.standard.string(forKey: "Player.preferredAudioChannel") ?? "SUB"
+        let audioFiltered = streams.filter { $0.title.lowercased().contains(preferredAudioChannel.lowercased()) }
+        let streamsToUse = audioFiltered.isEmpty ? streams : audioFiltered
+
+        let targetResolution: String = {
+            switch Reachability.getConnectionType() {
+            case .wifi:
+                return UserDefaults.standard.string(forKey: "Player.preferredResolutionWifi") ?? "auto"
+            case .cellular:
+                return UserDefaults.standard.string(forKey: "Player.preferredResolutionCellular") ?? "auto"
+            case .none:
+                return "auto"
+            }
+        }()
+        guard targetResolution.lowercased() != "auto" else {
+            return streamsToUse.first
+        }
+
+        guard let target = parseResolution(targetResolution) else {
+            return streamsToUse.first
+        }
+
+        let candidates = streamsToUse.compactMap { stream -> (StreamInfo, Int)? in
+            guard let resolution = parseResolution(stream.title) else { return nil }
+            return (stream, resolution)
+        }
+        guard !candidates.isEmpty else { return streamsToUse.first }
+
+        return candidates.min { lhs, rhs in
+            let lhsDiff = abs(lhs.1 - target)
+            let rhsDiff = abs(rhs.1 - target)
+            return lhsDiff != rhsDiff ? lhsDiff < rhsDiff : lhs.1 > rhs.1
+        }?.0
+    }
+
+    private func parseResolution(_ text: String) -> Int? {
+        let lowercased = text.lowercased()
+        if lowercased.contains("4k") {
+            return 2160
+        }
+
+        let pattern = "(\\d{3,4})p"
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else { return nil }
+        let range = NSRange(lowercased.startIndex..<lowercased.endIndex, in: lowercased)
+        guard
+            let match = regex.firstMatch(in: lowercased, options: [], range: range),
+            match.numberOfRanges >= 2,
+            let valueRange = Range(match.range(at: 1), in: lowercased)
+        else {
+            return nil
+        }
+
+        return Int(lowercased[valueRange])
+    }
+
+    @MainActor
+    private func presentPlayerOpenError(message: String) {
+        let alert = UIAlertController(title: "Error", message: message, preferredStyle: .alert)
+        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        present(alert, animated: true)
     }
 
     @objc func openUpdates() {
@@ -1078,6 +1395,7 @@ extension PlayerLibraryViewController: UISearchResultsUpdating {
 // MARK: - Collection View
 extension PlayerLibraryViewController {
     private enum Section: Int, CaseIterable {
+        case pinned
         case main
     }
 
@@ -1109,28 +1427,41 @@ extension PlayerLibraryViewController {
         !searchText.isEmpty
     }
 
-    private func buildEntries() -> [PlayerLibraryEntry] {
-
-        viewModel.items.map { info in
-             PlayerLibraryEntry(
-                 kind: 0,
-                 title: info.item.title,
-                 imageUrl: info.item.imageUrl,
-                 href: info.item.sourceUrl,
-                 moduleId: info.item.moduleId,
-                 bookmark: info.item,
-                 itemInfo: info
-             )
+    private func buildEntries(from items: [PlayerLibraryViewModel.PlayerLibraryItemInfo]) -> [PlayerLibraryEntry] {
+        items.map { info in
+            PlayerLibraryEntry(
+                kind: 0,
+                title: info.item.title,
+                imageUrl: info.item.imageUrl,
+                href: info.item.sourceUrl,
+                moduleId: info.item.moduleId,
+                bookmark: info.item,
+                itemInfo: info
+            )
         }
     }
 
     private func applySnapshot(animated: Bool) {
-        currentItems = buildEntries()
+        let pinnedEntries = buildEntries(from: viewModel.pinnedItems)
+        let mainEntries = buildEntries(from: viewModel.items)
+        currentItems = pinnedEntries + mainEntries
+
         var snapshot = NSDiffableDataSourceSnapshot<Section, PlayerLibraryEntry>()
-        snapshot.appendSections([.main])
-        snapshot.appendItems(currentItems, toSection: .main)
+        if !pinnedEntries.isEmpty {
+            snapshot.appendSections([.pinned, .main])
+            snapshot.appendItems(pinnedEntries, toSection: .pinned)
+        } else {
+            snapshot.appendSections([.main])
+        }
+        snapshot.appendItems(mainEntries, toSection: .main)
         dataSource.apply(snapshot, animatingDifferences: animated)
         updateEmptyState()
+    }
+
+    private func reloadItems() {
+        var snapshot = dataSource.snapshot()
+        snapshot.reconfigureItems(snapshot.itemIdentifiers)
+        dataSource.apply(snapshot, animatingDifferences: false)
     }
 
     private func makeCollectionViewLayout() -> UICollectionViewLayout {
@@ -1233,12 +1564,8 @@ extension PlayerLibraryViewController {
                 cell.configure(with: info)
 
                 if let info = item.itemInfo {
-                    cell.badgeNumber = UserDefaults.standard.bool(forKey: "Library.unreadChapterBadges")
-                        ? info.unread
-                        : 0
-                    cell.badgeNumber2 = UserDefaults.standard.bool(forKey: "Library.downloadedChapterBadges")
-                        ? info.downloads
-                        : 0
+                    cell.badgeNumber = self.viewModel.badgeType.contains(.unwatched) ? info.unread : 0
+                    cell.badgeNumber2 = self.viewModel.badgeType.contains(.downloaded) ? info.downloads : 0
                 } else {
                     cell.badgeNumber = 0
                     cell.badgeNumber2 = 0
@@ -1262,12 +1589,8 @@ extension PlayerLibraryViewController {
                 cell.title = item.title
 
                 if let info = item.itemInfo {
-                    cell.badgeNumber = UserDefaults.standard.bool(forKey: "Library.unreadChapterBadges")
-                        ? info.unread
-                        : 0
-                    cell.badgeNumber2 = UserDefaults.standard.bool(forKey: "Library.downloadedChapterBadges")
-                        ? info.downloads
-                        : 0
+                    cell.badgeNumber = self.viewModel.badgeType.contains(.unwatched) ? info.unread : 0
+                    cell.badgeNumber2 = self.viewModel.badgeType.contains(.downloaded) ? info.downloads : 0
                 } else {
                     cell.badgeNumber = 0
                     cell.badgeNumber2 = 0
@@ -1307,6 +1630,13 @@ extension PlayerLibraryViewController: UICollectionViewDelegate {
         }
 
         guard let module = ModuleManager.shared.modules.first(where: { $0.id == item.moduleId }) else { return }
+        if UserDefaults.standard.bool(forKey: "PlayerLibrary.opensPlayerView"), let bookmark = item.bookmark {
+            Task { [weak self] in
+                await self?.openPlayerView(for: bookmark, module: module)
+            }
+            return
+        }
+
         let searchItem = SearchItem(title: item.title, imageUrl: item.imageUrl, href: item.href)
         let vc: PlayerInfoViewController
         if let bookmark = item.bookmark {

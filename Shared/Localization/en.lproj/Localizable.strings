@@ -446,11 +446,15 @@
 "READER" = "Reader";
 "READER_LIBRARY_SETTINGS" = "Reader Library";
 "OPEN_READER_VIEW" = "Open Reader View";
+"OPEN_PLAYER_VIEW" = "Open Player View";
 "UNREAD_CHAPTER_BADGES" = "Unread Chapter Badges";
 "DOWNLOADED_CHAPTER_BADGES" = "Downloaded Chapter Badges";
+"UNWATCHED_EPISODE_BADGES" = "Unwatched Episode Badges";
+"DOWNLOADED_EPISODE_BADGES" = "Downloaded Episode Badges";
 "PIN_TITLES" = "Pin Titles";
 "PIN_DISABLED" = "Disabled";
 "PIN_UNREAD" = "Unread";
+"PIN_UPDATED_EPISODES" = "Updated Episodes";
 "PIN_UPDATED_CHAPTERS" = "Updated Chapters";
 "LIBRARY_UPDATING" = "Library Updating";
 "UPDATE_INTERVAL" = "Update Interval";
