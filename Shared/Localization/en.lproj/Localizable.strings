@@ -473,8 +473,10 @@
 "EVERY_2_DAYS" = "Every 2 days";
 "WEEKLY" = "Weekly";
 "WITH_UNREAD_CHAPTERS" = "With unread chapters";
+"WITH_UNWATCHED_EPISODES" = "With unwatched episodes";
 "WITH_COMPLETED_STATUS" = "With completed status";
 "THAT_HAVENT_BEEN_READ" = "That haven't been read";
+"THAT_HAVENT_BEEN_WATCHED" = "That haven't been watched";
 "NO_RESULTS_FOR_%@" = "No Results for “%@”";
 "NO_RESULTS_TEXT" = "Check the spelling or try a new search.";
 "LEARN_MORE" = "Learn more…";

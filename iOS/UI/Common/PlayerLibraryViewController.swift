@@ -12,6 +12,7 @@ import Nuke
 import AidokuRunner
 import Combine
 import CoreData
+import LocalAuthentication
 
 struct PlayerLibrarySearchResult: Identifiable {
     let id = UUID()
@@ -221,6 +222,12 @@ class PlayerLibraryViewModel: ObservableObject {
 
     var originalItems: [PlayerLibraryItem] = []
     @Published var sourceKeys: [String] = [] // Source names or IDs
+    var categories: [String] = []
+    lazy var currentCategory: String? = UserDefaults.standard.string(forKey: "PlayerLibrary.currentCategory") {
+        didSet {
+            UserDefaults.standard.set(currentCategory, forKey: "PlayerLibrary.currentCategory")
+        }
+    }
 
     var sortMethod: SortMethod = .dateAdded
     var sortAscending: Bool = false
@@ -234,6 +241,8 @@ class PlayerLibraryViewModel: ObservableObject {
     }
 
     var searchQuery: String = ""
+    private var itemCategories: [String: [String]] = UserDefaults.standard.dictionary(forKey: "PlayerLibrary.itemCategories")
+        as? [String: [String]] ?? [:]
 
     private var cancellables = Set<AnyCancellable>()
 
@@ -271,6 +280,10 @@ class PlayerLibraryViewModel: ObservableObject {
         UserDefaults.standard.set(sortAscending, forKey: "PlayerLibrary.sortAscending")
     }
 
+    private func saveItemCategories() {
+        UserDefaults.standard.set(itemCategories, forKey: "PlayerLibrary.itemCategories")
+    }
+
     func getPinType() -> PinType {
         UserDefaults.standard.string(forKey: "PlayerLibrary.pinTitles").flatMap(PinType.init) ?? .none
     }
@@ -279,6 +292,37 @@ class PlayerLibraryViewModel: ObservableObject {
         if let data = try? JSONEncoder().encode(filters) {
             UserDefaults.standard.set(data, forKey: "PlayerLibrary.filters")
         }
+    }
+
+    func refreshCategories() async {
+        categories = UserDefaults.standard.stringArray(forKey: "PlayerLibrary.categoriesList") ?? []
+        if currentCategory != nil && !categories.contains(currentCategory!) {
+            currentCategory = nil
+        }
+    }
+
+    func isCategoryLocked() -> Bool {
+        guard UserDefaults.standard.bool(forKey: "PlayerLibrary.lockLibrary") else { return false }
+        if let currentCategory {
+            return UserDefaults.standard.stringArray(forKey: "PlayerLibrary.lockedCategories")?.contains(currentCategory) ?? false
+        }
+        return true
+    }
+
+    func categories(for item: PlayerLibraryItem) -> [String] {
+        itemCategories[item.id.uuidString] ?? []
+    }
+
+    func toggleCategory(for item: PlayerLibraryItem, category: String) async {
+        var itemValues = itemCategories[item.id.uuidString] ?? []
+        if let index = itemValues.firstIndex(of: category) {
+            itemValues.remove(at: index)
+        } else {
+            itemValues.append(category)
+        }
+        itemCategories[item.id.uuidString] = itemValues
+        saveItemCategories()
+        await loadLibrary()
     }
 
     func setSort(method: SortMethod, ascending: Bool) async {
@@ -314,6 +358,12 @@ class PlayerLibraryViewModel: ObservableObject {
         let itemInfos = await fetchCounts(for: originalItems)
 
         var filtered = itemInfos
+
+        if let currentCategory {
+            filtered = filtered.filter {
+                (itemCategories[$0.item.id.uuidString] ?? []).contains(currentCategory)
+            }
+        }
 
         if !searchQuery.isEmpty {
             filtered = filtered.filter { $0.item.title.localizedCaseInsensitiveContains(searchQuery) }
@@ -449,7 +499,9 @@ class PlayerLibraryViewController: BaseObservingViewController {
     private lazy var collectionView = UICollectionView(frame: .zero, collectionViewLayout: makeCollectionViewLayout())
     private lazy var dataSource = makeDataSource()
     private var currentItems: [PlayerLibraryEntry] = []
+    private lazy var refreshControl = UIRefreshControl()
     private lazy var emptyStackView = EmptyPageStackView()
+    private lazy var lockedStackView = LockedPageStackView()
     private var libraryObserver: AnyCancellable?
     private var downloadObservers = Set<AnyCancellable>()
     private var searchResultsObserver: AnyCancellable?
@@ -458,6 +510,8 @@ class PlayerLibraryViewController: BaseObservingViewController {
     private let searchViewModel = PlayerLibrarySearchViewModel()
 
     private var searchText = ""
+    private lazy var locked = viewModel.isCategoryLocked()
+    private var ignoreOptionChange = false
 
     private lazy var deleteToolbarButton: UIBarButtonItem = {
         let item = UIBarButtonItem(
@@ -517,6 +571,12 @@ class PlayerLibraryViewController: BaseObservingViewController {
         titleKey: "MORE_BARBUTTON"
     )
 
+    private lazy var lockBarButton = makeBarButton(
+        systemName: locked ? "lock" : "lock.open",
+        action: #selector(performToggleLock),
+        titleKey: "TOGGLE_LOCK"
+    )
+
     override func setEditing(_ editing: Bool, animated: Bool) {
         super.setEditing(editing, animated: animated)
         updateNavbarItems()
@@ -560,11 +620,49 @@ class PlayerLibraryViewController: BaseObservingViewController {
         collectionView.showsHorizontalScrollIndicator = false
         collectionView.allowsMultipleSelection = !ProcessInfo.processInfo.isMacCatalystApp
         collectionView.allowsSelectionDuringEditing = true
+        refreshControl.addTarget(self, action: #selector(updateLibraryRefresh(refreshControl:)), for: .valueChanged)
+        collectionView.refreshControl = refreshControl
         view.addSubview(collectionView)
+
+        let registration = UICollectionView.SupplementaryRegistration<MangaListSelectionHeader>(
+            elementKind: UICollectionView.elementKindSectionHeader
+        ) { [weak self] header, _, _ in
+            guard let self else { return }
+            header.delegate = self
+            header.options = [NSLocalizedString("ALL")] + self.viewModel.categories
+            header.selectedOption = self.viewModel.currentCategory != nil
+                ? (self.viewModel.categories.firstIndex(of: self.viewModel.currentCategory!) ?? -1) + 1
+                : 0
+            header.updateMenu()
+            if UserDefaults.standard.bool(forKey: "PlayerLibrary.lockLibrary") {
+                let lockedCategories = UserDefaults.standard.stringArray(forKey: "PlayerLibrary.lockedCategories") ?? []
+                header.lockedOptions = [0] + lockedCategories.compactMap { category -> Int? in
+                    if let index = self.viewModel.categories.firstIndex(of: category) {
+                        return index + 1
+                    }
+                    return nil
+                }
+            } else {
+                header.lockedOptions = []
+            }
+        }
+
+        dataSource.supplementaryViewProvider = { collectionView, kind, indexPath in
+            if kind == UICollectionView.elementKindSectionHeader {
+                return collectionView.dequeueConfiguredReusableSupplementary(
+                    using: registration,
+                    for: indexPath
+                )
+            }
+            return nil
+        }
 
         Task {
             await SourceManager.shared.loadSources()
             await DownloadManager.shared.loadQueueState()
+            await self.viewModel.refreshCategories()
+            self.collectionView.collectionViewLayout = self.makeCollectionViewLayout()
+            await self.viewModel.loadLibrary()
             updateNavbarItems()
         }
 
@@ -574,6 +672,12 @@ class PlayerLibraryViewController: BaseObservingViewController {
         emptyStackView.title = NSLocalizedString("PLAYER_EMPTY", comment: "")
         emptyStackView.text = NSLocalizedString("PLAYER_ADD_CONTENT", comment: "")
         view.addSubview(emptyStackView)
+
+        lockedStackView.isHidden = true
+        lockedStackView.text = NSLocalizedString("LIBRARY_LOCKED")
+        lockedStackView.buttonText = NSLocalizedString("VIEW_LIBRARY")
+        lockedStackView.button.addTarget(self, action: #selector(performUnlock), for: .touchUpInside)
+        view.addSubview(lockedStackView)
 
         // Observe view model changes
         viewModel.$items
@@ -599,10 +703,13 @@ class PlayerLibraryViewController: BaseObservingViewController {
 
         applySnapshot(animated: false)
         updateMoreMenu()
+        updateLockState()
     }
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
+        locked = viewModel.isCategoryLocked()
+        updateLockState()
         navigationController?.setNavigationBarHidden(false, animated: false)
         navigationController?.navigationBar.prefersLargeTitles = true
         navigationItem.largeTitleDisplayMode = .always
@@ -614,6 +721,9 @@ class PlayerLibraryViewController: BaseObservingViewController {
 
     override func viewDidAppear(_ animated: Bool) {
         super.viewDidAppear(animated)
+
+        // fix refresh control snapping height
+        refreshControl.didMoveToSuperview()
 
         // hack to show search bar on initial presentation (match LibraryViewController)
         if !navigationItem.hidesSearchBarWhenScrolling {
@@ -629,6 +739,7 @@ class PlayerLibraryViewController: BaseObservingViewController {
 
         collectionView.translatesAutoresizingMaskIntoConstraints = false
         emptyStackView.translatesAutoresizingMaskIntoConstraints = false
+        lockedStackView.translatesAutoresizingMaskIntoConstraints = false
 
         NSLayoutConstraint.activate([
             collectionView.topAnchor.constraint(equalTo: view.topAnchor),
@@ -637,14 +748,23 @@ class PlayerLibraryViewController: BaseObservingViewController {
             collectionView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
 
             emptyStackView.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            emptyStackView.centerYAnchor.constraint(equalTo: view.centerYAnchor)
+            emptyStackView.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+
+            lockedStackView.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            lockedStackView.centerYAnchor.constraint(equalTo: view.centerYAnchor)
         ])
     }
 
     private func updateEmptyState() {
         let isSearching = !searchText.isEmpty
         let isEmpty = viewModel.items.isEmpty && viewModel.pinnedItems.isEmpty && !isSearching
-        emptyStackView.isHidden = !isEmpty
+        emptyStackView.title = viewModel.currentCategory == nil
+            ? NSLocalizedString("PLAYER_EMPTY")
+            : NSLocalizedString("CATEGORY_EMPTY")
+        emptyStackView.text = NSLocalizedString("PLAYER_ADD_CONTENT")
+        emptyStackView.isHidden = locked || !isEmpty
+        collectionView.isScrollEnabled = emptyStackView.isHidden && lockedStackView.isHidden
+        collectionView.refreshControl = collectionView.isScrollEnabled ? refreshControl : nil
     }
 
     override func observe() {
@@ -682,6 +802,32 @@ class PlayerLibraryViewController: BaseObservingViewController {
             .updatePlayerLibrary
         ].forEach { name in
             addObserver(forName: name, using: refreshLibrary)
+        }
+
+        addObserver(forName: .updatePlayerLibraryLock) { [weak self] _ in
+            guard let self else { return }
+            Task { @MainActor in
+                self.locked = self.viewModel.isCategoryLocked()
+                self.updateLockState()
+                self.updateHeaderLockIcons()
+            }
+        }
+
+        addObserver(forName: UIApplication.willResignActiveNotification) { [weak self] _ in
+            guard let self else { return }
+            self.locked = self.viewModel.isCategoryLocked()
+            self.updateLockState()
+        }
+
+        addObserver(forName: .updatePlayerCategories) { [weak self] _ in
+            guard let self else { return }
+            Task { @MainActor in
+                await self.viewModel.refreshCategories()
+                self.collectionView.collectionViewLayout = self.makeCollectionViewLayout()
+                self.updateHeaderCategories()
+                await self.viewModel.loadLibrary()
+                self.applySnapshot(animated: false)
+            }
         }
 
         addObserver(forName: Notification.Name("PlayerLibrary.unreadChapterBadges")) { [weak self] _ in
@@ -769,6 +915,7 @@ extension PlayerLibraryViewController {
                 items.insert(downloadBarButton, at: 1)
             }
             navigationItem.setRightBarButtonItems(items, animated: true)
+            self.updateNavbarLock()
         }
     }
 
@@ -817,6 +964,132 @@ extension PlayerLibraryViewController {
         }
         updateNavbarItems()
         updateToolbar()
+    }
+
+    @objc func updateLibraryRefresh(refreshControl: UIRefreshControl? = nil) {
+        Task {
+            // delay hiding refresh control to avoid buggy animation
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+            refreshControl?.endRefreshing()
+        }
+
+        Task {
+            await PlayerLibraryManager.shared.backgroundRefreshLibrary(category: viewModel.currentCategory)
+        }
+    }
+
+    func updateNavbarLock() {
+        guard !isEditing else { return }
+        let index = navigationItem.rightBarButtonItems?.firstIndex(of: lockBarButton)
+        if locked && index == nil {
+            if navigationItem.rightBarButtonItems?.count ?? 0 == 0 {
+                navigationItem.rightBarButtonItems = [lockBarButton]
+            } else {
+                navigationItem.rightBarButtonItems?.insert(lockBarButton, at: 1)
+            }
+        } else if !locked, let index = index {
+            navigationItem.rightBarButtonItems?.remove(at: index)
+        }
+    }
+
+    func updateHeaderLockIcons() {
+        guard let header = collectionView.supplementaryView(
+            forElementKind: UICollectionView.elementKindSectionHeader,
+            at: IndexPath(index: 0)
+        ) as? MangaListSelectionHeader else { return }
+        if UserDefaults.standard.bool(forKey: "PlayerLibrary.lockLibrary") {
+            let lockedCategories = UserDefaults.standard.stringArray(forKey: "PlayerLibrary.lockedCategories") ?? []
+            header.lockedOptions = [0] + lockedCategories.compactMap { category -> Int? in
+                if let index = viewModel.categories.firstIndex(of: category) {
+                    return index + 1
+                }
+                return nil
+            }
+        } else {
+            header.lockedOptions = []
+        }
+    }
+
+    func updateHeaderCategories() {
+        guard let header = collectionView.supplementaryView(
+            forElementKind: UICollectionView.elementKindSectionHeader,
+            at: IndexPath(index: 0)
+        ) as? MangaListSelectionHeader else { return }
+        ignoreOptionChange = true
+        header.options = [NSLocalizedString("ALL")] + viewModel.categories
+        header.setSelectedOption(
+            viewModel.currentCategory != nil
+                ? (viewModel.categories.firstIndex(of: viewModel.currentCategory!) ?? -1) + 1
+                : 0
+        )
+    }
+}
+
+// MARK: - Locking
+extension PlayerLibraryViewController {
+    func lock() {
+        locked = true
+        updateLockState()
+    }
+
+    func unlock() {
+        locked = false
+        updateLockState()
+    }
+
+    func attemptUnlock() async {
+        do {
+            let success = try await LAContext().evaluatePolicy(
+                .defaultPolicy,
+                localizedReason: NSLocalizedString("AUTH_FOR_LIBRARY")
+            )
+            guard success else { return }
+        } catch {
+            return
+        }
+
+        unlock()
+    }
+
+    @objc func performUnlock() {
+        Task {
+            await attemptUnlock()
+        }
+    }
+
+    @objc func performToggleLock() {
+        Task {
+            if locked {
+                await attemptUnlock()
+            } else {
+                lock()
+            }
+        }
+    }
+
+    func updateLockState() {
+        if locked {
+            guard emptyStackView.alpha != 0 else { return } // lock view already showing
+            collectionView.isScrollEnabled = false
+            emptyStackView.alpha = 0
+            lockedStackView.alpha = 0
+            lockedStackView.isHidden = false
+            UIView.animate(withDuration: CATransaction.animationDuration()) {
+                self.lockedStackView.alpha = 1
+            }
+        } else {
+            collectionView.isScrollEnabled = emptyStackView.isHidden
+            lockedStackView.isHidden = true
+            UIView.animate(withDuration: CATransaction.animationDuration()) {
+                self.emptyStackView.alpha = 1
+            }
+        }
+
+        lockBarButton.image = UIImage(systemName: locked ? "lock" : "lock.open")
+        updateEmptyState()
+        updateNavbarLock()
+        updateHeaderLockIcons()
+        applySnapshot(animated: false)
     }
 }
 
@@ -1444,16 +1717,18 @@ extension PlayerLibraryViewController {
     private func applySnapshot(animated: Bool) {
         let pinnedEntries = buildEntries(from: viewModel.pinnedItems)
         let mainEntries = buildEntries(from: viewModel.items)
-        currentItems = pinnedEntries + mainEntries
+        currentItems = locked ? [] : pinnedEntries + mainEntries
 
         var snapshot = NSDiffableDataSourceSnapshot<Section, PlayerLibraryEntry>()
-        if !pinnedEntries.isEmpty {
-            snapshot.appendSections([.pinned, .main])
-            snapshot.appendItems(pinnedEntries, toSection: .pinned)
-        } else {
-            snapshot.appendSections([.main])
+        if !locked {
+            if !pinnedEntries.isEmpty {
+                snapshot.appendSections([.pinned, .main])
+                snapshot.appendItems(pinnedEntries, toSection: .pinned)
+            } else {
+                snapshot.appendSections([.main])
+            }
+            snapshot.appendItems(mainEntries, toSection: .main)
         }
-        snapshot.appendItems(mainEntries, toSection: .main)
         dataSource.apply(snapshot, animatingDifferences: animated)
         updateEmptyState()
     }
@@ -1477,6 +1752,17 @@ extension PlayerLibraryViewController {
 
         let config = UICollectionViewCompositionalLayoutConfiguration()
         config.interSectionSpacing = Self.itemSpacing + Self.sectionSpacing
+        if !viewModel.categories.isEmpty {
+            let globalHeader = NSCollectionLayoutBoundarySupplementaryItem(
+                layoutSize: NSCollectionLayoutSize(
+                    widthDimension: .fractionalWidth(1),
+                    heightDimension: .absolute(40)
+                ),
+                elementKind: UICollectionView.elementKindSectionHeader,
+                alignment: .top
+            )
+            config.boundarySupplementaryItems = [globalHeader]
+        }
         layout.configuration = config
 
         return layout
@@ -1608,6 +1894,26 @@ extension PlayerLibraryViewController {
     }
 }
 
+extension PlayerLibraryViewController: MangaListSelectionHeaderDelegate {
+    nonisolated func optionSelected(_ index: Int) {
+        Task { @MainActor in
+            guard !ignoreOptionChange else {
+                ignoreOptionChange = false
+                return
+            }
+            if index == 0 {
+                viewModel.currentCategory = nil
+            } else {
+                viewModel.currentCategory = viewModel.categories[index - 1]
+            }
+            locked = viewModel.isCategoryLocked()
+            updateLockState()
+            await viewModel.loadLibrary()
+            applySnapshot(animated: false)
+        }
+    }
+}
+
 extension PlayerLibraryViewController: UICollectionViewDelegate {
     func collectionView(_ collectionView: UICollectionView, didHighlightItemAt indexPath: IndexPath) {
         LibraryCellUI.highlightCellIfPossible(collectionView: collectionView, at: indexPath, isEditing: isEditing)
@@ -1619,6 +1925,7 @@ extension PlayerLibraryViewController: UICollectionViewDelegate {
 
     func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
         guard let item = dataSource.itemIdentifier(for: indexPath) else { return }
+        guard !locked else { return }
 
         if isEditing {
             let cell = collectionView.cellForItem(at: indexPath)
@@ -1668,7 +1975,7 @@ extension PlayerLibraryViewController: UICollectionViewDelegate {
     }
 
     func collectionView(_ collectionView: UICollectionView, shouldBeginMultipleSelectionInteractionAt indexPath: IndexPath) -> Bool {
-        true
+        !locked
     }
 
     func collectionView(_ collectionView: UICollectionView, didBeginMultipleSelectionInteractionAt indexPath: IndexPath) {
@@ -1682,6 +1989,7 @@ extension PlayerLibraryViewController: UICollectionViewDelegate {
     ) -> UIContextMenuConfiguration? {
         guard
             !isEditing,
+            !locked,
             let indexPath = indexPaths.first,
             let entry = dataSource.itemIdentifier(for: indexPath),
             let bookmark = entry.bookmark
@@ -1724,11 +2032,45 @@ extension PlayerLibraryViewController: UICollectionViewDelegate {
                 PlayerLibraryManager.shared.removeFromLibrary(bookmark)
             }
 
-            return UIMenu(title: "", children: [
+            let categoriesMenu: [UIMenuElement]
+            if self.viewModel.categories.isEmpty {
+                categoriesMenu = []
+            } else {
+                let categoryActionAttributes: UIMenuElement.Attributes = if #available(iOS 16.0, *) {
+                    .keepsMenuPresented
+                } else {
+                    []
+                }
+                let categoryActions = self.viewModel.categories.map { category in
+                    UIAction(
+                        title: category,
+                        attributes: categoryActionAttributes,
+                        state: self.viewModel.categories(for: bookmark).contains(category) ? .on : .off
+                    ) { _ in
+                        Task {
+                            await self.viewModel.toggleCategory(for: bookmark, category: category)
+                            await MainActor.run {
+                                self.applySnapshot(animated: true)
+                            }
+                        }
+                    }
+                }
+                categoriesMenu = [
+                    UIMenu(
+                        title: NSLocalizedString("CATEGORIES"),
+                        image: UIImage(systemName: "folder"),
+                        children: categoryActions
+                    )
+                ]
+            }
+
+            let children: [UIMenuElement] = [
                 markAllMenu,
-                downloadMenu,
+                downloadMenu
+            ] + categoriesMenu + [
                 UIMenu(options: .displayInline, children: [removeAction])
-            ])
+            ]
+            return UIMenu(title: "", children: children)
         }
     }
 

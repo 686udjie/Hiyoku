@@ -62,6 +62,7 @@ class PlayerLibraryManager: ObservableObject {
         if !items.contains(where: { $0.id == item.id }) {
             items.append(item)
             saveLibrary()
+            assignDefaultCategoryIfNeeded(to: item)
         }
     }
 
@@ -165,14 +166,44 @@ class PlayerLibraryManager: ObservableObject {
         }
         return nil
     }
-    func checkForUpdates() async {
-        var moduleItems: [UUID: [PlayerLibraryItem]] = [:]
+    func checkForUpdates(category: String? = nil, onProgress: ((Double) -> Void)? = nil) async {
+        if UserDefaults.standard.bool(forKey: "PlayerLibrary.updateOnlyOnWifi")
+            && Reachability.getConnectionType() != .wifi
+        {
+            return
+        }
+
+        let skipOptions = UserDefaults.standard.stringArray(forKey: "PlayerLibrary.skipTitles") ?? []
+        let excludedCategories = UserDefaults.standard.stringArray(forKey: "PlayerLibrary.excludedUpdateCategories") ?? []
+        let itemCategories = UserDefaults.standard.dictionary(forKey: "PlayerLibrary.itemCategories") as? [String: [String]] ?? [:]
+
+        var itemsToUpdate: [PlayerLibraryItem] = []
         for item in items {
+            let categories = itemCategories[item.id.uuidString] ?? []
+            if let category, !categories.contains(category) {
+                continue
+            }
+            if !excludedCategories.isEmpty && excludedCategories.contains(where: categories.contains) {
+                continue
+            }
+            if !skipOptions.isEmpty, await shouldSkipUpdate(for: item, skipOptions: skipOptions) {
+                continue
+            }
+            itemsToUpdate.append(item)
+        }
+
+        var moduleItems: [UUID: [PlayerLibraryItem]] = [:]
+        for item in itemsToUpdate {
             if moduleItems[item.moduleId] == nil {
                 moduleItems[item.moduleId] = []
             }
             moduleItems[item.moduleId]?.append(item)
         }
+
+        let totalCount = max(itemsToUpdate.count, 1)
+        var completedCount = 0
+        onProgress?(0)
+
         // Fetch episodes in parallel
         let updates = await withTaskGroup(of: (PlayerLibraryItem, [PlayerEpisode]).self) { group in
             for (_, items) in moduleItems {
@@ -191,8 +222,12 @@ class PlayerLibraryManager: ObservableObject {
                 }
             }
             var results: [(PlayerLibraryItem, [PlayerEpisode])] = []
-            for await result in group where !result.1.isEmpty {
-                results.append(result)
+            for await result in group {
+                completedCount += 1
+                onProgress?(Double(completedCount) / Double(totalCount))
+                if !result.1.isEmpty {
+                    results.append(result)
+                }
             }
             return results
         }
@@ -245,8 +280,43 @@ class PlayerLibraryManager: ObservableObject {
             }
         }
         await MainActor.run {
+            UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: "PlayerLibrary.lastUpdated")
             NotificationCenter.default.post(name: .updatePlayerLibrary, object: nil)
         }
+    }
+
+    func scheduleLibraryRefresh() async {
+        let lastUpdated = Date(timeIntervalSince1970: UserDefaults.standard.double(forKey: "PlayerLibrary.lastUpdated"))
+        let interval: Double = switch UserDefaults.standard.string(forKey: "PlayerLibrary.updateInterval") {
+            case "12hours": 43200
+            case "daily": 86400
+            case "2days": 172800
+            case "weekly": 604800
+            default: 0
+        }
+        guard interval > 0 else { return }
+        if lastUpdated + interval < Date.now {
+            await backgroundRefreshLibrary()
+        }
+    }
+
+    func backgroundRefreshLibrary(category: String? = nil) async {
+#if !os(macOS)
+        let tabController = UIApplication.shared.firstKeyWindow?.rootViewController as? TabBarController
+        tabController?.showLibraryRefreshView()
+#endif
+
+        await checkForUpdates(category: category) { progress in
+#if !os(macOS)
+            tabController?.setLibraryRefreshProgress(Float(progress))
+#endif
+        }
+
+#if !os(macOS)
+        // wait briefly for final progress animation
+        try? await Task.sleep(nanoseconds: 500_000_000)
+        tabController?.hideAccessoryView()
+#endif
     }
 
     private func setupNotifications() {
@@ -257,5 +327,52 @@ class PlayerLibraryManager: ObservableObject {
             }
             .store(in: &cancellables)
         #endif
+    }
+
+    private func assignDefaultCategoryIfNeeded(to item: PlayerLibraryItem) {
+        let defaultCategory = UserDefaults.standard.string(forKey: "PlayerLibrary.defaultCategory") ?? ""
+        guard !defaultCategory.isEmpty, defaultCategory != "none" else { return }
+        let categories = UserDefaults.standard.stringArray(forKey: "PlayerLibrary.categoriesList") ?? []
+        guard categories.contains(defaultCategory) else { return }
+
+        var itemCategories = UserDefaults.standard.dictionary(forKey: "PlayerLibrary.itemCategories") as? [String: [String]] ?? [:]
+        let key = item.id.uuidString
+        let currentCategories = itemCategories[key] ?? []
+        guard !currentCategories.contains(defaultCategory) else { return }
+
+        itemCategories[key] = currentCategories + [defaultCategory]
+        UserDefaults.standard.set(itemCategories, forKey: "PlayerLibrary.itemCategories")
+    }
+
+    private func shouldSkipUpdate(for item: PlayerLibraryItem, skipOptions: [String]) async -> Bool {
+        guard !skipOptions.isEmpty else { return false }
+
+        let sourceId = item.moduleId.uuidString
+        let mangaId = item.sourceUrl.normalizedModuleHref()
+
+        let episodeIds = await CoreDataManager.shared.container.performBackgroundTask { context in
+            CoreDataManager.shared.getChapters(sourceId: sourceId, mangaId: mangaId, context: context)
+                .compactMap { $0.id }
+        }
+
+        let history = await CoreDataManager.shared.getPlayerReadingHistory(sourceId: sourceId, mangaId: mangaId)
+        let watchedIds = Set(history.filter { $0.value.progress > 0 && $0.value.progress == $0.value.total }.keys)
+        let startedIds = Set(history.filter { $0.value.progress > 0 }.keys)
+
+        let hasUnwatched = episodeIds.contains { !watchedIds.contains($0) }
+        let completed = !episodeIds.isEmpty && episodeIds.allSatisfy { watchedIds.contains($0) }
+        let notStarted = startedIds.isEmpty
+
+        if skipOptions.contains("hasUnread") && hasUnwatched {
+            return true
+        }
+        if skipOptions.contains("completed") && completed {
+            return true
+        }
+        if skipOptions.contains("notStarted") && notStarted {
+            return true
+        }
+
+        return false
     }
 }

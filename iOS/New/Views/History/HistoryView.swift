@@ -30,14 +30,29 @@ struct HistoryView: View {
     @State private var triggerLoadMoreVisibleCheck = false
     @State private var loadTask: Task<(), Never>?
 
-    @State private var locked = UserDefaults.standard.bool(forKey: "History.lockHistory")
+    @State private var locked: Bool
 
     @State private var listSelection: String? // fix for list highlighting being buggy
 
     @EnvironmentObject private var path: NavigationCoordinator
+    private let initialKind: HistoryKind
 
     init(initialKind: HistoryKind = .reader) {
+        self.initialKind = initialKind
         self._selectedKind = State(initialValue: initialKind)
+        self._locked = State(
+            initialValue: UserDefaults.standard.bool(
+                forKey: initialKind == .player ? "PlayerHistory.lockHistory" : "History.lockHistory"
+            )
+        )
+    }
+
+    private var historyLockKey: String {
+        initialKind == .player ? "PlayerHistory.lockHistory" : "History.lockHistory"
+    }
+
+    private var historyLockNotification: Notification.Name {
+        initialKind == .player ? .playerHistoryLockSetting : .historyLockSetting
     }
 
     var body: some View {
@@ -69,7 +84,7 @@ struct HistoryView: View {
             .navigationBarTitleDisplayMode(.large)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    if UserDefaults.standard.bool(forKey: "History.lockHistory") {
+                    if UserDefaults.standard.bool(forKey: historyLockKey) {
                         SwiftUI.Button {
                             if locked {
                                 Task {
@@ -77,8 +92,8 @@ struct HistoryView: View {
                                 }
                             } else {
                                 locked = true
-                                UserDefaults.standard.set(true, forKey: "History.lockHistory")
-                                NotificationCenter.default.post(name: .historyLockSetting, object: nil)
+                                UserDefaults.standard.set(true, forKey: historyLockKey)
+                                NotificationCenter.default.post(name: historyLockNotification, object: nil)
                             }
                         } label: {
                             Image(systemName: locked ? "lock" : "lock.open")
@@ -136,13 +151,14 @@ struct HistoryView: View {
                 Text("This will remove the selected player history entry.")
             }
         let step5 = step4
-            .onReceive(NotificationCenter.default.publisher(for: .historyLockSetting)) { _ in
-                locked = UserDefaults.standard.bool(forKey: "History.lockHistory")
+            .onReceive(NotificationCenter.default.publisher(for: historyLockNotification)) { _ in
+                locked = UserDefaults.standard.bool(forKey: historyLockKey)
             }
             .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
-                locked = UserDefaults.standard.bool(forKey: "History.lockHistory")
+                locked = UserDefaults.standard.bool(forKey: historyLockKey)
             }
             .onAppear {
+                locked = UserDefaults.standard.bool(forKey: historyLockKey)
                 Task { await viewModel.loadPlayerHistory() }
             }
             .onChange(of: searchText) { _ in
@@ -329,8 +345,8 @@ struct HistoryView: View {
         }
 
         locked = false
-        UserDefaults.standard.set(false, forKey: "History.lockHistory")
-        NotificationCenter.default.post(name: .historyLockSetting, object: nil)
+        UserDefaults.standard.set(false, forKey: historyLockKey)
+        NotificationCenter.default.post(name: historyLockNotification, object: nil)
     }
 }
 

@@ -129,6 +129,18 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                 "PlayerLibrary.unreadChapterBadges": true,
                 "PlayerLibrary.downloadedChapterBadges": true,
                 "PlayerLibrary.pinTitles": PlayerLibraryViewModel.PinType.none.rawValue,
+                "PlayerLibrary.lockLibrary": false,
+                "PlayerLibrary.defaultCategory": "",
+                "PlayerLibrary.lockedCategories": [String](),
+                "PlayerLibrary.categoriesList": [String](),
+                "PlayerLibrary.lastUpdated": Date.distantPast.timeIntervalSince1970,
+                "PlayerLibrary.updateInterval": "daily",
+                "PlayerLibrary.skipTitles": ["hasUnread", "completed", "notStarted"],
+                "PlayerLibrary.excludedUpdateCategories": [String](),
+                "PlayerLibrary.updateOnlyOnWifi": true,
+                "PlayerLibrary.refreshMetadata": false,
+                "PlayerLibrary.backgroundRefresh": true,
+                "PlayerHistory.lockHistory": false,
 
                 "Library.lockedCategories": [String](),
 
@@ -228,7 +240,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
         Task {
             await MangaManager.shared.scheduleLibraryRefresh()
             await DownloadManager.shared.refresh()
-            await PlayerLibraryManager.shared.checkForUpdates()
+            await PlayerLibraryManager.shared.scheduleLibraryRefresh()
         }
 
         return true

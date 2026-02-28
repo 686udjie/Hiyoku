@@ -69,6 +69,7 @@ extension Notification.Name {
     static let portraitRowsSetting = Self("General.portraitRows")
     static let landscapeRowsSetting = Self("General.landscapeRows")
     static let historyLockSetting = Self("History.lockHistory")
+    static let playerHistoryLockSetting = Self("PlayerHistory.lockHistory")
 
     // modules
     static let modulesSyncDidComplete = Self("modulesSyncDidComplete")
@@ -82,6 +83,8 @@ extension Notification.Name {
 
     // player library
     static let updatePlayerLibrary = Self("updatePlayerLibrary")
+    static let updatePlayerLibraryLock = Self("updatePlayerLibraryLock")
+    static let updatePlayerCategories = Self("updatePlayerCategories")
     static let addToPlayerLibrary = Self("addToPlayerLibrary")
     static let removeFromPlayerLibrary = Self("removeFromPlayerLibrary")
 }

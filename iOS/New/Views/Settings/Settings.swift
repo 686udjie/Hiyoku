@@ -196,7 +196,7 @@ extension Settings {
             ),
             .init(
                 key: "History.lockHistory",
-                title: NSLocalizedString("LOCK_HISTORY"),
+                title: NSLocalizedString("LOCK_HISTORY_TAB"),
                 value: .toggle(.init(authToDisable: true))
             )
         ]))),
@@ -250,7 +250,43 @@ extension Settings {
                     titles: PlayerLibraryViewModel.PinType.allCases.map(\.title)
                 ))
             )
-        ])))
+        ]))),
+        .init(value: .group(.init(items: [
+            .init(
+                key: "PlayerLibrary.lockLibrary",
+                title: NSLocalizedString("LOCK_LIBRARY"),
+                notification: "updatePlayerLibraryLock",
+                value: .toggle(.init(authToDisable: true))
+            ),
+            .init(
+                key: "PlayerHistory.lockHistory",
+                title: NSLocalizedString("LOCK_HISTORY_TAB"),
+                value: .toggle(.init(authToDisable: true))
+            )
+        ]))),
+        .init(
+            title: NSLocalizedString("CATEGORIES"),
+            value: .group(.init(items: [
+                .init(
+                    key: "PlayerLibrary.categories",
+                    title: NSLocalizedString("CATEGORIES"),
+                    value: .page(.init(items: []))
+                ),
+                .init(
+                    key: "PlayerLibrary.defaultCategory",
+                    title: NSLocalizedString("DEFAULT_CATEGORY"),
+                    value: .custom
+                ),
+                .init(
+                    key: "PlayerLibrary.lockedCategories",
+                    title: NSLocalizedString("LOCKED_CATEGORIES"),
+                    notification: "updatePlayerLibraryLock",
+                    requires: "PlayerLibrary.lockLibrary",
+                    value: .custom
+                )
+            ]))
+        ),
+        playerLibraryUpdateGroup
     ]
 
     private static let libraryUpdateGroup: Setting = {
@@ -275,9 +311,9 @@ extension Settings {
                 value: .multiselect(.init(
                     values: ["hasUnread", "completed", "notStarted"],
                     titles: [
-                        NSLocalizedString("WITH_UNREAD_CHAPTERS"),
+                        NSLocalizedString("WITH_UNWATCHED_EPISODES"),
                         NSLocalizedString("WITH_COMPLETED_STATUS"),
-                        NSLocalizedString("THAT_HAVENT_BEEN_READ")
+                        NSLocalizedString("THAT_HAVENT_BEEN_WATCHED")
                     ]
                 ))
             ),
@@ -317,6 +353,72 @@ extension Settings {
                 value: .group(.init(
                     items: baseItems
                 ))
+            )
+        }
+    }()
+
+    private static let playerLibraryUpdateGroup: Setting = {
+        var baseItems: [Setting] = [
+            .init(
+                key: "PlayerLibrary.updateInterval",
+                title: NSLocalizedString("UPDATE_INTERVAL"),
+                value: .select(.init(
+                    values: ["never", "12hours", "daily", "2days", "weekly"],
+                    titles: [
+                        NSLocalizedString("NEVER"),
+                        NSLocalizedString("EVERY_12_HOURS"),
+                        NSLocalizedString("DAILY"),
+                        NSLocalizedString("EVERY_2_DAYS"),
+                        NSLocalizedString("WEEKLY")
+                    ]
+                ))
+            ),
+            .init(
+                key: "PlayerLibrary.skipTitles",
+                title: NSLocalizedString("SKIP_TITLES"),
+                value: .multiselect(.init(
+                    values: ["hasUnread", "completed", "notStarted"],
+                    titles: [
+                        NSLocalizedString("WITH_UNREAD_CHAPTERS"),
+                        NSLocalizedString("WITH_COMPLETED_STATUS"),
+                        NSLocalizedString("THAT_HAVENT_BEEN_READ")
+                    ]
+                ))
+            ),
+            .init(
+                key: "PlayerLibrary.excludedUpdateCategories",
+                title: NSLocalizedString("EXCLUDED_CATEGORIES"),
+                value: .custom
+            ),
+            .init(
+                key: "PlayerLibrary.updateOnlyOnWifi",
+                title: NSLocalizedString("ONLY_UPDATE_ON_WIFI"),
+                value: .toggle(.init())
+            ),
+            .init(
+                key: "PlayerLibrary.refreshMetadata",
+                title: NSLocalizedString("REFRESH_METADATA"),
+                value: .toggle(.init())
+            )
+        ]
+        if #available(iOS 26.0, *), !ProcessInfo.processInfo.isMacCatalystApp {
+            return .init(
+                title: NSLocalizedString("LIBRARY_UPDATING"),
+                value: .group(.init(
+                    footer: NSLocalizedString("BACKGROUND_REFRESH_TEXT"),
+                    items: baseItems + [
+                        .init(
+                            key: "PlayerLibrary.backgroundRefresh",
+                            title: NSLocalizedString("BACKGROUND_REFRESH"),
+                            value: .toggle(.init())
+                        )
+                    ]
+                ))
+            )
+        } else {
+            return .init(
+                title: NSLocalizedString("LIBRARY_UPDATING"),
+                value: .group(.init(items: baseItems))
             )
         }
     }()

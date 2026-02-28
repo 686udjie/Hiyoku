@@ -12,6 +12,7 @@ import WebKit
 
 struct SettingsView: View {
     @State private var categories: [String]
+    @State private var playerCategories: [String]
 
     @State private var searchText: String = ""
     @State private var searchResult: SettingSearchResult?
@@ -22,6 +23,7 @@ struct SettingsView: View {
 
     init() {
         self._categories = State(initialValue: CoreDataManager.shared.getCategoryTitles())
+        self._playerCategories = State(initialValue: UserDefaults.standard.stringArray(forKey: "PlayerLibrary.categoriesList") ?? [])
     }
 }
 
@@ -133,6 +135,178 @@ extension SettingsView {
                 UserDefaults.standard.removeObject(forKey: "Library.defaultCategory")
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .updatePlayerCategories)) { _ in
+            playerCategories = UserDefaults.standard.stringArray(forKey: "PlayerLibrary.categoriesList") ?? []
+            if
+                let selected = UserDefaults.standard.string(forKey: "PlayerLibrary.defaultCategory"),
+                !selected.isEmpty && selected != "none" && !playerCategories.contains(selected)
+            {
+                UserDefaults.standard.removeObject(forKey: "PlayerLibrary.defaultCategory")
+            }
+        }
+    }
+}
+
+private struct PlayerCategoriesView: View {
+    @State private var categories: [String]
+
+    @State private var showRenameFailedAlert = false
+
+    init() {
+        self._categories = State(initialValue: UserDefaults.standard.stringArray(forKey: "PlayerLibrary.categoriesList") ?? [])
+    }
+
+    var body: some View {
+        List {
+            ForEach(categories, id: \.self) { category in
+                Text(category)
+                    .swipeActions {
+                        Button(role: .destructive) {
+                            onDelete(at: IndexSet(integer: categories.firstIndex(of: category)!))
+                        } label: {
+                            Label(NSLocalizedString("DELETE"), systemImage: "trash")
+                        }
+                        Button {
+                            showRenamePrompt(targetRenameCategory: category)
+                        } label: {
+                            Label(NSLocalizedString("RENAME"), systemImage: "pencil")
+                        }
+                        .tint(.indigo)
+                    }
+            }
+            .onDelete(perform: onDelete)
+            .onMove(perform: onMove)
+        }
+        .animation(.default, value: categories)
+        .environment(\.editMode, Binding.constant(.active))
+        .navigationTitle(NSLocalizedString("CATEGORIES"))
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    showAddPrompt()
+                } label: {
+                    Image(systemName: "plus")
+                }
+            }
+        }
+        .alert(NSLocalizedString("RENAME_CATEGORY_FAIL"), isPresented: $showRenameFailedAlert) {
+            Button(NSLocalizedString("OK"), role: .cancel) {}
+        } message: {
+            Text(NSLocalizedString("RENAME_CATEGORY_FAIL_INFO"))
+        }
+    }
+
+    private func saveAndNotify() {
+        UserDefaults.standard.set(categories, forKey: "PlayerLibrary.categoriesList")
+        NotificationCenter.default.post(name: .updatePlayerCategories, object: nil)
+    }
+
+    func onDelete(at offsets: IndexSet) {
+        for offset in offsets.sorted(by: >) {
+            let removedCategory = categories[offset]
+            categories.remove(at: offset)
+
+            var locked = UserDefaults.standard.stringArray(forKey: "PlayerLibrary.lockedCategories") ?? []
+            locked.removeAll(where: { $0 == removedCategory })
+            UserDefaults.standard.set(locked, forKey: "PlayerLibrary.lockedCategories")
+
+            if UserDefaults.standard.string(forKey: "PlayerLibrary.defaultCategory") == removedCategory {
+                UserDefaults.standard.removeObject(forKey: "PlayerLibrary.defaultCategory")
+            }
+
+            var itemCategories = UserDefaults.standard.dictionary(forKey: "PlayerLibrary.itemCategories") as? [String: [String]] ?? [:]
+            itemCategories = itemCategories.mapValues { values in
+                values.filter { $0 != removedCategory }
+            }
+            UserDefaults.standard.set(itemCategories, forKey: "PlayerLibrary.itemCategories")
+        }
+        saveAndNotify()
+    }
+
+    func onMove(from source: IndexSet, to destination: Int) {
+        categories.move(fromOffsets: source, toOffset: destination)
+        saveAndNotify()
+    }
+
+    func showAddPrompt() {
+        var alertTextField: UITextField?
+        (UIApplication.shared.delegate as? AppDelegate)?.presentAlert(
+            title: NSLocalizedString("CATEGORY_ADD"),
+            message: NSLocalizedString("CATEGORY_ADD_TEXT"),
+            actions: [
+                UIAlertAction(title: NSLocalizedString("CANCEL"), style: .cancel),
+                UIAlertAction(title: NSLocalizedString("OK"), style: .default) { _ in
+                    guard let text = alertTextField?.text?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else { return }
+                    addCategory(title: text)
+                }
+            ],
+            textFieldHandlers: [
+                { textField in
+                    textField.placeholder = NSLocalizedString("CATEGORY_NAME")
+                    textField.autocorrectionType = .no
+                    textField.returnKeyType = .done
+                    alertTextField = textField
+                }
+            ],
+            textFieldDisablesLastActionWhenEmpty: true
+        )
+    }
+
+    func showRenamePrompt(targetRenameCategory: String) {
+        var alertTextField: UITextField?
+        (UIApplication.shared.delegate as? AppDelegate)?.presentAlert(
+            title: NSLocalizedString("RENAME_CATEGORY"),
+            message: NSLocalizedString("RENAME_CATEGORY_INFO"),
+            actions: [
+                UIAlertAction(title: NSLocalizedString("CANCEL"), style: .cancel),
+                UIAlertAction(title: NSLocalizedString("OK"), style: .default) { _ in
+                    guard let text = alertTextField?.text?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else { return }
+                    renameCategory(title: targetRenameCategory, newTitle: text)
+                }
+            ],
+            textFieldHandlers: [
+                { textField in
+                    textField.placeholder = NSLocalizedString("CATEGORY_NAME")
+                    textField.autocorrectionType = .no
+                    textField.returnKeyType = .done
+                    alertTextField = textField
+                }
+            ],
+            textFieldDisablesLastActionWhenEmpty: true
+        )
+    }
+
+    func addCategory(title: String) {
+        guard !title.isEmpty, title.lowercased() != "none", !categories.contains(title) else { return }
+        categories.append(title)
+        saveAndNotify()
+    }
+
+    func renameCategory(title: String, newTitle: String) {
+        guard !(newTitle.lowercased() == "none" || categories.contains(newTitle) || newTitle.isEmpty) else {
+            showRenameFailedAlert = true
+            return
+        }
+        guard let index = categories.firstIndex(of: title) else { return }
+        categories[index] = newTitle
+
+        if UserDefaults.standard.string(forKey: "PlayerLibrary.defaultCategory") == title {
+            UserDefaults.standard.set(newTitle, forKey: "PlayerLibrary.defaultCategory")
+        }
+
+        var locked = UserDefaults.standard.stringArray(forKey: "PlayerLibrary.lockedCategories") ?? []
+        if let oldIndex = locked.firstIndex(of: title) {
+            locked[oldIndex] = newTitle
+            UserDefaults.standard.set(locked, forKey: "PlayerLibrary.lockedCategories")
+        }
+
+        var itemCategories = UserDefaults.standard.dictionary(forKey: "PlayerLibrary.itemCategories") as? [String: [String]] ?? [:]
+        itemCategories = itemCategories.mapValues { values in
+            values.map { $0 == title ? newTitle : $0 }
+        }
+        UserDefaults.standard.set(itemCategories, forKey: "PlayerLibrary.itemCategories")
+
+        saveAndNotify()
     }
 }
 
@@ -266,6 +440,8 @@ extension SettingsView {
     func pageContentHandler(_ key: String) -> (some View)? {
         if key == "Library.categories" {
             CategoriesView()
+        } else if key == "PlayerLibrary.categories" {
+            PlayerCategoriesView()
         } else if key == "Reader.tapZones" {
             TapZonesSelectView()
         } else if key == "Reader.upscalingModels" {
@@ -303,10 +479,36 @@ extension SettingsView {
                 return setting
             }()
             SettingView(setting: newSetting)
+        } else if setting.key == "PlayerLibrary.defaultCategory" {
+            let newSetting = {
+                var setting = setting
+                setting.value = .select(.init(
+                    values: ["", "none"] + playerCategories,
+                    titles: [
+                        NSLocalizedString("ALWAYS_ASK"), NSLocalizedString("NONE")
+                    ] + playerCategories
+                ))
+                return setting
+            }()
+            SettingView(setting: newSetting)
         } else if setting.key == "Library.lockedCategories" {
             let newSetting = {
                 var setting = setting
                 setting.value = .multiselect(.init(values: categories, authToOpen: true))
+                return setting
+            }()
+            SettingView(setting: newSetting)
+        } else if setting.key == "PlayerLibrary.lockedCategories" {
+            let newSetting = {
+                var setting = setting
+                setting.value = .multiselect(.init(values: playerCategories, authToOpen: true))
+                return setting
+            }()
+            SettingView(setting: newSetting)
+        } else if setting.key == "PlayerLibrary.excludedUpdateCategories" {
+            let newSetting = {
+                var setting = setting
+                setting.value = .multiselect(.init(values: playerCategories))
                 return setting
             }()
             SettingView(setting: newSetting)
