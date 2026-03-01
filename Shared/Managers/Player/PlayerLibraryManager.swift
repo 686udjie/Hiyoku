@@ -17,6 +17,49 @@ class PlayerLibraryManager: ObservableObject {
 
     @Published var items: [PlayerLibraryItem] = []
 
+    struct ItemCounts {
+        let unread: Int
+        let downloads: Int
+        let hasUpdatedEpisodes: Bool
+    }
+    func fetchLibraryCounts(for items: [PlayerLibraryItem]) async -> [UUID: ItemCounts] {
+        await withTaskGroup(of: (UUID, ItemCounts).self) { group in
+            for item in items {
+                group.addTask {
+                    let counts = await self.fetchCount(for: item)
+                    return (item.id, counts)
+                }
+            }
+            var results: [UUID: ItemCounts] = [:]
+            for await (id, counts) in group {
+                results[id] = counts
+            }
+            return results
+        }
+    }
+
+    func fetchCount(for item: PlayerLibraryItem) async -> ItemCounts {
+        let sourceId = item.moduleId.uuidString
+        let mangaId = item.sourceUrl.normalizedModuleHref()
+        let downloads = await DownloadManager.shared.downloadsCount(for: MangaIdentifier(sourceKey: sourceId, mangaKey: mangaId))
+
+        return await CoreDataManager.shared.container.performBackgroundTask { context in
+            let episodes = CoreDataManager.shared.getChapters(sourceId: sourceId, mangaId: mangaId, context: context)
+            let episodeIds = episodes.compactMap { $0.id }
+            let history = CoreDataManager.shared.getPlayerReadingHistorySync(sourceId: sourceId, mangaId: mangaId, context: context)
+            let watchedIds = Set(history.filter {
+                let progress = $0.value.progress
+                let total = $0.value.total ?? 0
+                return progress > 0 && progress == total
+            }.keys)
+            let unread = episodeIds.count - watchedIds.count
+            let updateRequest: NSFetchRequest<MangaUpdateObject> = MangaUpdateObject.fetchRequest()
+            updateRequest.predicate = NSPredicate(format: "sourceId == %@ AND mangaId == %@", sourceId, mangaId)
+            let hasUpdates = ((try? context.count(for: updateRequest)) ?? 0) > 0
+            return ItemCounts(unread: max(0, unread), downloads: downloads, hasUpdatedEpisodes: hasUpdates)
+        }
+    }
+
     private let libraryKey = "PlayerLibrary"
     private let legacyBookmarksKey = "PlayerBookmarks"
     private var cancellables = Set<AnyCancellable>()

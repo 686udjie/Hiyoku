@@ -21,6 +21,10 @@ class BaseObservingViewController: BaseViewController {
         addObserver(forName: NSNotification.Name(name), object: object, using: block)
     }
 
+    func addObservers(forNames names: [NSNotification.Name], using block: @escaping (Notification) -> Void) {
+        names.forEach { addObserver(forName: $0, using: block) }
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
         observe()

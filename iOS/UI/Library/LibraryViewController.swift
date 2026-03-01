@@ -641,7 +641,7 @@ extension LibraryViewController {
                 }
             ] : [],
             continueActionName: NSLocalizedString("REMOVE_FROM_LIBRARY"),
-            sourceItem: toolbarItems?.first
+            sourceItem: toolbarItems?.first as Any
         ) {
             Task {
                 let identifiers = selectedItems.compactMap { self.dataSource.itemIdentifier(for: $0) }
@@ -1266,7 +1266,7 @@ extension LibraryViewController {
                     image: UIImage(systemName: "folder.badge.gearshape"),
                     attributes: singleAttributes
                 ) { _ in
-                    let manga = manga.toManga()
+                    let manga = mangaInfo[0].toManga()
                     self.present(
                         UINavigationController(
                             rootViewController: CategorySelectViewController(
@@ -1364,7 +1364,7 @@ extension LibraryViewController {
                 }
             }
 
-            if manga.sourceId != LocalSourceRunner.sourceKey && SourceManager.shared.hasSourceInstalled(id: manga.sourceId) {
+            if mangaInfo[0].sourceId != LocalSourceRunner.sourceKey && SourceManager.shared.hasSourceInstalled(id: mangaInfo[0].sourceId) {
                 bottomMenuChildren.append(UIMenu(
                     title: NSLocalizedString("DOWNLOAD"),
                     image: UIImage(systemName: "arrow.down.circle"),

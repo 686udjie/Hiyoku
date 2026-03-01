@@ -14,38 +14,45 @@ struct PlayerProgress {
 }
 
 extension CoreDataManager {
+    func getPlayerReadingHistorySync(
+        sourceId: String,
+        mangaId: String,
+        context: NSManagedObjectContext
+    ) -> [String: PlayerProgress] {
+        let episodeIds = Set(
+            self.getChapters(sourceId: sourceId, mangaId: mangaId, context: context)
+                .compactMap { $0.id }
+        )
+        guard !episodeIds.isEmpty else { return [:] }
+        let request: NSFetchRequest<PlayerHistoryObject> = PlayerHistoryObject.fetchRequest()
+        request.predicate = NSPredicate(
+            format: "moduleId == %@ AND episodeId IN %@",
+            sourceId,
+            Array(episodeIds)
+        )
+
+        var results: [String: PlayerProgress] = [:]
+        do {
+            let historyObjects = try context.fetch(request)
+            for obj in historyObjects {
+                if let episodeId = obj.episodeId as String?, let dateWatched = obj.dateWatched {
+                    let progress = Int(obj.progress)
+                    let total = obj.total != 0 ? Int(obj.total) : nil
+                    let date = Int(dateWatched.timeIntervalSince1970)
+                    results[episodeId] = PlayerProgress(progress: progress, total: total, date: date)
+                }
+            }
+        } catch { }
+
+        return results
+    }
+
     func getPlayerReadingHistory(
         sourceId: String,
         mangaId: String
     ) async -> [String: PlayerProgress] {
         await container.performBackgroundTask { context in
-            let request: NSFetchRequest<PlayerHistoryObject> = PlayerHistoryObject.fetchRequest()
-            let episodeIds = Set(
-                self.getChapters(sourceId: sourceId, mangaId: mangaId, context: context)
-                    .compactMap { $0.id }
-            )
-            guard !episodeIds.isEmpty else { return [:] }
-            request.predicate = NSPredicate(
-                format: "moduleId == %@ AND episodeId IN %@",
-                sourceId,
-                Array(episodeIds)
-            )
-
-            var results: [String: PlayerProgress] = [:]
-
-            do {
-                let historyObjects = try context.fetch(request)
-                for obj in historyObjects {
-                    if let episodeId = obj.episodeId as String?, let dateWatched = obj.dateWatched {
-                        let progress = Int(obj.progress)
-                        let total = obj.total != 0 ? Int(obj.total) : nil
-                        let date = Int(dateWatched.timeIntervalSince1970)
-                        results[episodeId] = PlayerProgress(progress: progress, total: total, date: date)
-                    }
-                }
-            } catch { }
-
-            return results
+            self.getPlayerReadingHistorySync(sourceId: sourceId, mangaId: mangaId, context: context)
         }
     }
 

@@ -104,19 +104,6 @@ class LibraryViewModel {
         }
     }
 
-    struct BadgeType: OptionSet {
-        let rawValue: Int
-
-        static let unread = BadgeType(rawValue: 1 << 0)
-        static let downloaded = BadgeType(rawValue: 1 << 1)
-    }
-
-    struct LibraryFilter: Codable {
-        var type: FilterMethod
-        var value: String?
-        var exclude: Bool
-    }
-
     enum FilterMethod: Int, Codable, CaseIterable {
         case downloaded
         case tracking
@@ -159,65 +146,82 @@ class LibraryViewModel {
             }
         }
     }
+    let core = LibraryCore(prefix: "Library")
 
-    lazy var pinType: PinType = getPinType()
-    lazy var sortMethod = SortMethod(rawValue: UserDefaults.standard.integer(forKey: "Library.sortOption")) ?? .lastOpened
-    lazy var sortAscending = UserDefaults.standard.bool(forKey: "Library.sortAscending")
-    lazy var badgeType: BadgeType = {
-        var type: BadgeType = []
-        if UserDefaults.standard.bool(forKey: "Library.unreadChapterBadges") {
-            type.insert(.unread)
-        }
-        if UserDefaults.standard.bool(forKey: "Library.downloadedChapterBadges") {
-            type.insert(.downloaded)
-        }
-        return type
-    }()
+    lazy var pinType: PinType = core.loadPinType(defaultValue: .none)
+    lazy var sortMethod = SortMethod(rawValue: core.loadSortOption()) ?? .lastOpened
+    lazy var sortAscending = core.loadSortAscending()
+    lazy var badgeType = core.loadBadgeType()
 
-    var filters: [LibraryFilter] {
+    var filters: [LibraryFilter<FilterMethod>] {
         didSet {
-            saveFilters()
+            core.saveFilters(filters)
         }
     }
 
     var categories: [String] = []
-    lazy var currentCategory: String? = UserDefaults.standard.string(forKey: "Library.currentCategory") {
+    lazy var currentCategory: String? = core.loadCurrentCategory() {
         didSet {
-            UserDefaults.standard.set(currentCategory, forKey: "Library.currentCategory")
+            core.saveCurrentCategory(currentCategory)
         }
     }
     private(set) var actuallyEmpty = true
 
     init() {
-        let filtersData = UserDefaults.standard.data(forKey: "Library.filters")
-        if let filtersData {
-            let filters = try? JSONDecoder().decode([LibraryFilter].self, from: filtersData)
-            self.filters = filters ?? []
-        } else {
-            self.filters = []
+        self.filters = core.loadFilters()
+    }
+
+    // MARK: - Batch Actions
+
+    func markAllRead(mangaInfo: [MangaInfo]) async {
+        for info in mangaInfo {
+            let manga = info.toManga()
+            let chapters = await CoreDataManager.shared.getChapters(sourceId: manga.sourceId, mangaId: manga.id)
+            await HistoryManager.shared.addHistory(
+                sourceId: manga.sourceId,
+                mangaId: manga.id,
+                chapters: chapters.map { $0.toNew() }
+            )
+        }
+    }
+
+    func markAllUnread(mangaInfo: [MangaInfo]) async {
+        for info in mangaInfo {
+            let manga = info.toManga()
+            let chapters = await CoreDataManager.shared.getChapters(sourceId: manga.sourceId, mangaId: manga.id)
+            await HistoryManager.shared.removeHistory(
+                sourceId: manga.sourceId,
+                mangaId: manga.id,
+                chapterIds: chapters.map { $0.id }
+            )
+        }
+    }
+
+    func downloadBatch(mangaInfo: [MangaInfo], unreadOnly: Bool) async {
+        for info in mangaInfo {
+            if unreadOnly {
+                await DownloadManager.shared.downloadUnread(manga: info.toManga().toNew())
+            } else {
+                await DownloadManager.shared.downloadAll(manga: info.toManga().toNew())
+            }
         }
     }
 }
 
 extension LibraryViewModel {
     func isCategoryLocked() -> Bool {
-        guard UserDefaults.standard.bool(forKey: "Library.lockLibrary") else { return false }
-        if let currentCategory = currentCategory {
-            return UserDefaults.standard.stringArray(forKey: "Library.lockedCategories")?.contains(currentCategory) ?? false
-        }
-        return true
+        core.isCategoryLocked(currentCategory: currentCategory)
     }
 
     func getPinType() -> PinType {
-        UserDefaults.standard.string(forKey: "Library.pinTitles").flatMap(PinType.init) ?? .none
+        core.loadPinType(defaultValue: .none)
     }
 
     func refreshCategories() async {
         categories = await CoreDataManager.shared.container.performBackgroundTask { @Sendable context in
             CoreDataManager.shared.getCategories(context: context).map { $0.title ?? "" }
         }
-        if currentCategory != nil && !categories.contains(currentCategory!) {
-            currentCategory = nil
+        if core.validateCurrentCategory(categories: categories, currentCategory: &currentCategory) {
             await loadLibrary()
         }
     }
@@ -241,7 +245,7 @@ extension LibraryViewModel {
             var pinnedManga: [MangaInfo] = []
             var manga: [MangaInfo] = []
             var sourceKeys: Set<String> = []
-            var unappliedFilters: [LibraryFilter] = []
+            var unappliedFilters: [LibraryFilter<FilterMethod>] = []
 
             let request = LibraryMangaObject.fetchRequest()
             if let currentCategory {
@@ -641,34 +645,17 @@ extension LibraryViewModel {
         }
         if sortAscending != ascending {
             sortAscending = ascending
-            UserDefaults.standard.set(sortAscending, forKey: "Library.sortAscending")
         }
         if sortMethod != method {
             sortMethod = method
-            UserDefaults.standard.set(sortMethod.rawValue, forKey: "Library.sortOption")
         }
+        core.saveSort(methodRawValue: sortMethod.rawValue, ascending: sortAscending)
         await sortLibrary()
     }
 
     func toggleFilter(method: FilterMethod, value: String? = nil) async {
-        let filterIndex = filters.firstIndex(where: { $0.type == method && $0.value == value })
-        if let filterIndex {
-            if filters[filterIndex].exclude {
-                filters.remove(at: filterIndex)
-            } else {
-                filters[filterIndex].exclude = true
-            }
-        } else {
-            filters.append(LibraryFilter(type: method, value: value, exclude: false))
-        }
+        core.toggleFilter(filters: &filters, method: method, value: value)
         await loadLibrary()
-    }
-
-    private func saveFilters() {
-        let filtersData = try? JSONEncoder().encode(filters)
-        if let filtersData {
-            UserDefaults.standard.set(filtersData, forKey: "Library.filters")
-        }
     }
 
     func search(query: String) async {
