@@ -241,6 +241,12 @@ class ReaderViewController: BaseObservingViewController {
         addObserver(forName: "Reader.cropBorders", using: reloadBlock)
         addObserver(forName: "Reader.liveText", using: reloadBlock)
         addObserver(forName: "Reader.tapZones", using: reloadBlock)
+        addObserver(forName: .downloadRemoved, using: { [weak self] _ in
+            guard self != nil else { return }
+            Task {
+                await MangaManager.shared.refreshLibrary()
+            }
+        })
         addObserver(forName: UIScene.willDeactivateNotification) { [weak self] _ in
             guard let self else { return }
             Task {

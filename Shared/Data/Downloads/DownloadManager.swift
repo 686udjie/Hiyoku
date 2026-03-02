@@ -9,6 +9,12 @@ import AidokuRunner
 import Foundation
 import ZIPFoundation
 
+struct QueuedDownloadStatus: Sendable {
+    let status: DownloadStatus
+    let progress: Int
+    let total: Int
+}
+
 // global class to manage downloads
 actor DownloadManager {
     static let shared = DownloadManager()
@@ -50,7 +56,7 @@ actor DownloadManager {
     }
 
     func getDownloadedPages(for chapter: ChapterIdentifier) async -> [AidokuRunner.Page] {
-        let directory = cache.directory(for: chapter)
+        let directory = await cache.getDirectory(for: chapter)
 
         let archiveURL = directory.appendingPathExtension("cbz")
         if archiveURL.exists {
@@ -118,7 +124,6 @@ actor DownloadManager {
         let keys = await getDownloadedChapterKeys(for: identifier)
         return keys.count
     }
-
     func hasQueuedDownloads(type: DownloadType? = nil) async -> Bool {
         await queue.hasQueuedDownloads(type: type)
     }
@@ -139,8 +144,8 @@ actor DownloadManager {
         return URL(string: "shareddocuments://\(path)")
     }
 
-    func getCompressedFile(for chapter: ChapterIdentifier) -> URL? {
-        let chapterDirectory = cache.directory(for: chapter)
+    func getCompressedFile(for chapter: ChapterIdentifier) async -> URL? {
+        let chapterDirectory = await cache.getDirectory(for: chapter)
         let chapterFile = chapterDirectory.appendingPathExtension("cbz")
         if chapterFile.exists {
             return chapterFile
@@ -262,16 +267,17 @@ extension DownloadManager {
 
     /// Remove downloads for specified chapters.
     func delete(chapters: [ChapterIdentifier]) async {
+        await refreshCacheSynchronously()
         for chapter in chapters {
-            let directory = cache.directory(for: chapter)
+            let manga = chapter.mangaIdentifier
+            await cache.remove(chapter: chapter)
+            let directory = await cache.getDirectory(for: chapter)
             let archiveURL = directory.appendingPathExtension("cbz")
             directory.removeItem()
             archiveURL.removeItem()
-            await cache.remove(chapter: chapter)
 
             // check if all chapters have been removed (then remove manga directory)
-            let manga = chapter.mangaIdentifier
-            let hasRemainingChapters = cache.directory(for: manga)
+            let hasRemainingChapters = (await cache.getMangaDirectory(for: manga))
                 .contents
                 .contains {
                     ($0.isDirectory || $0.pathExtension == "cbz") && !$0.lastPathComponent.hasPrefix(".tmp")
@@ -282,8 +288,6 @@ extension DownloadManager {
 
             NotificationCenter.default.post(name: .downloadRemoved, object: chapter)
         }
-        // Invalidate cache for UI
-        invalidateDownloadedMangaCache()
     }
 
     /// Remove all downloads from a manga.
@@ -413,8 +417,10 @@ extension DownloadManager {
 
         var keys = Set<String>()
         for seriesDir in seriesDirectories {
-            let subItems = seriesDir.contents.filter { !$0.lastPathComponent.hasPrefix(".") }
-            for item in subItems {
+            let subItems = try? FileManager.default.contentsOfDirectory(at: seriesDir,
+                                                                        includingPropertiesForKeys: [.isDirectoryKey, .nameKey],
+                                                                        options: [.skipsHiddenFiles])
+            for item in subItems ?? [] {
                 guard item.isDirectory || item.pathExtension == "cbz" else { continue }
                 if item.isDirectory {
                     guard isCompletedDownloadDirectory(item) else { continue }
@@ -842,6 +848,13 @@ extension DownloadManager {
         Task { @MainActor in
             cache.refresh()
         }
+    }
+    private func refreshCacheSynchronously() async {
+        lastCacheUpdate = .distantPast
+        await MainActor.run {
+            cache.refresh()
+        }
+        try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 seconds
     }
 }
 

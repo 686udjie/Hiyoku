@@ -326,6 +326,10 @@ extension PlayerInfoView {
             await applyVideoDownloadFallbacks()
         }
 
+        func refreshDownloadStatus() async {
+            await loadDownloadStatus()
+        }
+
         private func applyVideoDownloadFallbacks() async {
             guard let sourceId = currentSourceId else { return }
             let moduleName = module?.metadata.sourceName

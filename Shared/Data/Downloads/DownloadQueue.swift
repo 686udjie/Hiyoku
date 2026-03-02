@@ -273,6 +273,69 @@ actor DownloadQueue {
         return !queue.isEmpty
     }
 
+    func getQueuedDownload(for chapter: ChapterIdentifier) -> Download? {
+        if let exactDownload = queue[chapter.sourceKey]?.first(where: { $0.chapterIdentifier == chapter }) {
+            return exactDownload
+        }
+
+        let sourceCandidates = uniqueStrings([
+            chapter.sourceKey,
+            chapter.sourceKey.normalizedModuleHref(),
+            chapter.sourceKey.directoryName
+        ])
+        let normalizedMangaKey = chapter.mangaKey.normalizedModuleHref()
+        let normalizedChapterKey = chapter.chapterKey.normalizedModuleHref()
+        let directoryMangaKey = chapter.mangaKey.directoryName
+        let directoryChapterKey = chapter.chapterKey.directoryName
+
+        for sourceKey in sourceCandidates {
+            guard let downloads = queue[sourceKey] else { continue }
+
+            if let aliasMatch = downloads.first(where: { download in
+                matchesNormalized(
+                    download.chapterIdentifier,
+                    mangaKey: normalizedMangaKey,
+                    chapterKey: normalizedChapterKey
+                )
+            }) {
+                return aliasMatch
+            }
+
+            if let directoryMatch = downloads.first(where: { download in
+                matchesDirectoryName(
+                    download.chapterIdentifier,
+                    mangaKey: directoryMangaKey,
+                    chapterKey: directoryChapterKey
+                )
+            }) {
+                return directoryMatch
+            }
+        }
+
+        return nil
+    }
+
+    private func uniqueStrings(_ values: [String]) -> [String] {
+        var seen = Set<String>()
+        var result: [String] = []
+        for value in values where !value.isEmpty {
+            if seen.insert(value).inserted {
+                result.append(value)
+            }
+        }
+        return result
+    }
+
+    private func matchesNormalized(_ identifier: ChapterIdentifier, mangaKey: String, chapterKey: String) -> Bool {
+        identifier.mangaKey.normalizedModuleHref() == mangaKey
+            && identifier.chapterKey.normalizedModuleHref() == chapterKey
+    }
+
+    private func matchesDirectoryName(_ identifier: ChapterIdentifier, mangaKey: String, chapterKey: String) -> Bool {
+        identifier.mangaKey.directoryName == mangaKey
+            && identifier.chapterKey.directoryName == chapterKey
+    }
+
     func isRunning() async -> Bool {
         for task in tasks where await task.value.running {
             return true

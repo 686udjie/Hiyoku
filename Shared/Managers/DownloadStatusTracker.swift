@@ -26,7 +26,7 @@ class DownloadStatusTracker: ObservableObject {
 
     func loadStatus(for chapterKeys: [String]) async {
         let identifier = MangaIdentifier(sourceKey: sourceId, mangaKey: mangaId)
-        let downloadedKeys = await DownloadManager.shared.getDownloadedChapterKeys(for: identifier)
+        let downloadedKeys = Set(await DownloadManager.shared.getDownloadedChapterKeys(for: identifier))
         for key in chapterKeys {
             if downloadedKeys.contains(key) {
                 downloadStatus[key] = .finished
@@ -38,9 +38,22 @@ class DownloadStatusTracker: ObservableObject {
                 mangaKey: mangaId,
                 chapterKey: key
             )
+
+            let fullQueue = await DownloadManager.shared.getDownloadQueue()
+            let queuedDownload = fullQueue[chapterIdentifier.sourceKey]?.first(where: { $0.chapterIdentifier == chapterIdentifier })
+            if let queuedDownload = queuedDownload {
+                let queuedStatus = QueuedDownloadStatus(
+                    status: queuedDownload.status,
+                    progress: queuedDownload.progress,
+                    total: queuedDownload.total
+                )
+                applyQueuedStatus(queuedStatus, for: key)
+                continue
+            }
+
             let status = DownloadManager.shared.getDownloadStatus(for: chapterIdentifier)
             downloadStatus[key] = status
-            if status == .finished {
+            if status == .finished || status == .none {
                 downloadProgress.removeValue(forKey: key)
             }
         }
@@ -57,10 +70,13 @@ class DownloadStatusTracker: ObservableObject {
             .sink { [weak self] download in
                 guard let self = self else { return }
                 let key = download.chapterIdentifier.chapterKey
-                // im sorry ik this is shit i js don't know why ts not showing
                 if self.downloadStatus[key] == .finished { return }
                 self.downloadStatus[key] = .downloading
-                self.downloadProgress[key] = Float(download.progress) / Float(download.total)
+                if download.total > 0 {
+                    self.downloadProgress[key] = Float(download.progress) / Float(download.total)
+                } else {
+                    self.downloadProgress[key] = 0
+                }
             }
             .store(in: &cancellables)
 
@@ -109,6 +125,27 @@ class DownloadStatusTracker: ObservableObject {
         } else if let manga = notification.object as? MangaIdentifier, manga.sourceKey == sourceId && manga.mangaKey == mangaId {
             downloadProgress.removeAll()
             downloadStatus.keys.forEach { downloadStatus[$0] = DownloadStatus.none }
+        }
+    }
+
+    private func applyQueuedStatus(_ queuedStatus: QueuedDownloadStatus, for key: String) {
+        switch queuedStatus.status {
+        case .downloading:
+            downloadStatus[key] = .downloading
+            if queuedStatus.total > 0 {
+                downloadProgress[key] = Float(queuedStatus.progress) / Float(queuedStatus.total)
+            } else {
+                downloadProgress[key] = 0
+            }
+        case .queued, .paused:
+            downloadStatus[key] = .queued
+            downloadProgress[key] = 0
+        case .finished:
+            downloadStatus[key] = .finished
+            downloadProgress.removeValue(forKey: key)
+        case .none, .cancelled, .failed:
+            downloadStatus[key] = DownloadStatus.none
+            downloadProgress.removeValue(forKey: key)
         }
     }
 }

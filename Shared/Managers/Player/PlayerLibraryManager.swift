@@ -339,27 +339,8 @@ class PlayerLibraryManager: ObservableObject {
         }
         guard interval > 0 else { return }
         if lastUpdated + interval < Date.now {
-            await backgroundRefreshLibrary()
+            await checkForUpdates(category: nil) { _ in }
         }
-    }
-
-    func backgroundRefreshLibrary(category: String? = nil) async {
-#if !os(macOS)
-        let tabController = UIApplication.shared.firstKeyWindow?.rootViewController as? TabBarController
-        tabController?.showLibraryRefreshView()
-#endif
-
-        await checkForUpdates(category: category) { progress in
-#if !os(macOS)
-            tabController?.setLibraryRefreshProgress(Float(progress))
-#endif
-        }
-
-#if !os(macOS)
-        // wait briefly for final progress animation
-        try? await Task.sleep(nanoseconds: 500_000_000)
-        tabController?.hideAccessoryView()
-#endif
     }
 
     private func setupNotifications() {

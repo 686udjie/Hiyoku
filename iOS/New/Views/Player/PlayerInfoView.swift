@@ -137,6 +137,11 @@ struct PlayerInfoView: View {
                 await viewModel.fetchEpisodes()
                 episodesLoaded = true
             }
+            .onAppear {
+                Task {
+                    await viewModel.refreshDownloadStatus()
+                }
+            }
     }
 
     @ToolbarContentBuilder

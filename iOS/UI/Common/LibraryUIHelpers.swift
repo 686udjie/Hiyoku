@@ -7,6 +7,68 @@
 
 import UIKit
 import AidokuRunner
+import Combine
+
+// MARK: - Root Navbar UI
+
+enum LibraryRootNavbarUI {
+    enum ButtonRole {
+        case more, lock, updates, download, selectToggle
+    }
+
+    static func configureButton(_ item: UIBarButtonItem, role: ButtonRole) {
+        if #available(iOS 26.0, *) {
+            switch role {
+            case .updates, .download, .selectToggle:
+                item.sharesBackground = false
+            case .more, .lock:
+                break
+            }
+        }
+    }
+
+    private static func rightBarItemsMatch(
+        current: [UIBarButtonItem]?,
+        desired: [UIBarButtonItem]
+    ) -> Bool {
+        guard let current else { return desired.isEmpty }
+        guard current.count == desired.count else { return false }
+        return zip(current, desired).allSatisfy { $0 === $1 }
+    }
+
+    static func applyNonEditingNavbar(
+        navigationItem: UINavigationItem,
+        items: [UIBarButtonItem]
+    ) {
+        navigationItem.leftBarButtonItem = nil
+        if !rightBarItemsMatch(current: navigationItem.rightBarButtonItems, desired: items) {
+            navigationItem.rightBarButtonItems = items
+        }
+    }
+
+    static func setDownloadVisibility(
+        navigationItem: UINavigationItem,
+        downloadButton: UIBarButtonItem,
+        trailingButton: UIBarButtonItem,
+        visible: Bool
+    ) {
+        var items = navigationItem.rightBarButtonItems ?? []
+        if let existingIndex = items.firstIndex(of: downloadButton) {
+            if !visible {
+                items.remove(at: existingIndex)
+            }
+        } else if visible {
+            if let trailingIndex = items.firstIndex(of: trailingButton) {
+                items.insert(downloadButton, at: trailingIndex)
+            } else {
+                items.append(downloadButton)
+            }
+        }
+        if !rightBarItemsMatch(current: navigationItem.rightBarButtonItems, desired: items) {
+            navigationItem.rightBarButtonItems = items
+        }
+    }
+}
 
 // MARK: - Editing/Multi-Select UI
 

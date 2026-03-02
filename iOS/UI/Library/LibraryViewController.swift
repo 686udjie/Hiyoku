@@ -18,26 +18,33 @@ class LibraryViewController: OldMangaCollectionViewController {
         systemName: "square.and.arrow.down",
         action: #selector(openDownloadQueue),
         titleKey: "DOWNLOAD_QUEUE",
-        sharesBackground: false
+        role: .download
     )
     private lazy var lockBarButton = makeBarButton(
         systemName: locked ? "lock" : "lock.open",
         action: #selector(performToggleLock),
-        titleKey: "TOGGLE_LOCK"
+        titleKey: "TOGGLE_LOCK",
+        role: .lock
     )
     private lazy var moreBarButton =  makeBarButton(
         systemName: "ellipsis",
         action: nil,
-        titleKey: "MORE_BARBUTTON"
+        titleKey: "MORE_BARBUTTON",
+        role: .more
     )
     private lazy var mangaUpdatesButton = makeBarButton(
         systemName: "bell",
         action: #selector(openMangaUpdates),
         titleKey: "MANGA_UPDATES",
-        sharesBackground: false
+        role: .updates
     )
 
-    private func makeBarButton(systemName: String? = nil, action: Selector?, titleKey: String, sharesBackground: Bool = true) -> UIBarButtonItem {
+    private func makeBarButton(
+        systemName: String? = nil,
+        action: Selector?,
+        titleKey: String,
+        role: LibraryRootNavbarUI.ButtonRole
+    ) -> UIBarButtonItem {
         let item = UIBarButtonItem(
             image: systemName.flatMap { UIImage(systemName: $0) },
             style: .plain,
@@ -45,9 +52,7 @@ class LibraryViewController: OldMangaCollectionViewController {
             action: action
         )
         item.title = NSLocalizedString(titleKey)
-        if #available(iOS 26.0, *), !sharesBackground {
-            item.sharesBackground = false
-        }
+        LibraryRootNavbarUI.configureButton(item, role: role)
         return item
     }
 
@@ -244,16 +249,12 @@ class LibraryViewController: OldMangaCollectionViewController {
             Task { @MainActor in
                 guard !self.isEditing else { return }
                 let shouldShowButton = await DownloadManager.shared.hasQueuedDownloads(type: .manga)
-                let index = self.navigationItem.rightBarButtonItems?.firstIndex(of: self.downloadBarButton)
-                if shouldShowButton && index == nil {
-                    // rightmost button
-                    self.navigationItem.rightBarButtonItems?.insert(
-                        self.downloadBarButton,
-                        at: (self.navigationItem.rightBarButtonItems?.count ?? 1) - 1
-                    )
-                } else if !shouldShowButton, let index = index {
-                    self.navigationItem.rightBarButtonItems?.remove(at: index)
-                }
+                LibraryRootNavbarUI.setDownloadVisibility(
+                    navigationItem: self.navigationItem,
+                    downloadButton: self.downloadBarButton,
+                    trailingButton: self.mangaUpdatesButton,
+                    visible: shouldShowButton
+                )
             }
         }
         addObserver(forName: .downloadsQueued, using: checkNavbarDownloadButton)
@@ -500,17 +501,20 @@ extension LibraryViewController {
                 items.append(lockBarButton)
             }
             items.append(mangaUpdatesButton)
-            navigationItem.rightBarButtonItems = items
-            navigationItem.leftBarButtonItem = nil
-            Task { @MainActor in
-                if await DownloadManager.shared.hasQueuedDownloads(type: .manga) {
-                    let index = (navigationItem.rightBarButtonItems?.count ?? 1) - 1
-                    guard !(navigationItem.rightBarButtonItems?.contains(downloadBarButton) ?? true) else { return }
-                    navigationItem.rightBarButtonItems?.insert(
-                        downloadBarButton,
-                        at: index
-                    )
-                }
+            LibraryRootNavbarUI.applyNonEditingNavbar(
+                navigationItem: navigationItem,
+                items: items
+            )
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                let shouldShowButton = await DownloadManager.shared.hasQueuedDownloads(type: .manga)
+                guard !self.isEditing else { return }
+                LibraryRootNavbarUI.setDownloadVisibility(
+                    navigationItem: self.navigationItem,
+                    downloadButton: self.downloadBarButton,
+                    trailingButton: self.mangaUpdatesButton,
+                    visible: shouldShowButton
+                )
             }
         }
     }
@@ -770,23 +774,9 @@ extension LibraryViewController {
             ? NSLocalizedString("LIBRARY_LOCKED")
             : NSLocalizedString("CATEGORY_LOCKED")
 
-        updateNavbarLock()
+        updateNavbarItems()
         updateHeaderLockIcons()
         updateDataSource()
-    }
-
-    func updateNavbarLock() {
-        guard !isEditing else { return }
-        let index = navigationItem.rightBarButtonItems?.firstIndex(of: lockBarButton)
-        if locked && index == nil {
-            if navigationItem.rightBarButtonItems?.count ?? 0 == 0 {
-                navigationItem.rightBarButtonItems = [lockBarButton]
-            } else {
-                navigationItem.rightBarButtonItems?.insert(lockBarButton, at: 1)
-            }
-        } else if !locked, let index = index {
-            navigationItem.rightBarButtonItems?.remove(at: index)
-        }
     }
 
     func updateHeaderLockIcons() {
