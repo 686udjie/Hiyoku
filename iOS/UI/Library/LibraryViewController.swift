@@ -247,13 +247,12 @@ class LibraryViewController: OldMangaCollectionViewController {
         let checkNavbarDownloadButton: (Notification) -> Void = { [weak self] _ in
             guard let self else { return }
             Task { @MainActor in
-                guard !self.isEditing else { return }
-                let shouldShowButton = await DownloadManager.shared.hasQueuedDownloads(type: .manga)
-                LibraryRootNavbarUI.setDownloadVisibility(
+                LibraryCellUI.handleDownloadNotification(
                     navigationItem: self.navigationItem,
                     downloadButton: self.downloadBarButton,
                     trailingButton: self.mangaUpdatesButton,
-                    visible: shouldShowButton
+                    downloadType: .manga,
+                    isEditing: self.isEditing
                 )
             }
         }
@@ -507,13 +506,12 @@ extension LibraryViewController {
             )
             Task { @MainActor [weak self] in
                 guard let self else { return }
-                let shouldShowButton = await DownloadManager.shared.hasQueuedDownloads(type: .manga)
-                guard !self.isEditing else { return }
-                LibraryRootNavbarUI.setDownloadVisibility(
+                LibraryCellUI.handleDownloadNotification(
                     navigationItem: self.navigationItem,
                     downloadButton: self.downloadBarButton,
                     trailingButton: self.mangaUpdatesButton,
-                    visible: shouldShowButton
+                    downloadType: .manga,
+                    isEditing: self.isEditing
                 )
             }
         }

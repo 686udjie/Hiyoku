@@ -248,6 +248,25 @@ enum LibraryCellUI {
             }
         }
     }
+    // MARK: - Shared Download Notification Handling
+    static func handleDownloadNotification(
+        navigationItem: UINavigationItem,
+        downloadButton: UIBarButtonItem,
+        trailingButton: UIBarButtonItem,
+        downloadType: DownloadType,
+        isEditing: Bool
+    ) {
+        Task { @MainActor in
+            let shouldShowButton = await DownloadManager.shared.hasQueuedDownloads(type: downloadType)
+            guard !isEditing else { return }
+            LibraryRootNavbarUI.setDownloadVisibility(
+                navigationItem: navigationItem,
+                downloadButton: downloadButton,
+                trailingButton: trailingButton,
+                visible: shouldShowButton
+            )
+        }
+    }
     static func fetchDownloadCount(for identifier: MangaIdentifier, title: String? = nil) async -> Int {
         var count = await DownloadManager.shared.downloadsCount(for: identifier)
         if count == 0, let title {

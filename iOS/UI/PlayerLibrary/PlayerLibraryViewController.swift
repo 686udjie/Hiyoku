@@ -211,7 +211,6 @@ class PlayerLibraryViewController: OldMangaCollectionViewController {
     }
 
     deinit {
-        navbarDownloadTask?.cancel()
     }
 
     // MARK: Observers
@@ -219,16 +218,16 @@ class PlayerLibraryViewController: OldMangaCollectionViewController {
         super.observe()
 
         addObserver(forName: .downloadsQueued) { [weak self] _ in
-            self?.queueDownloadNavbarRefresh()
+            self?.handleDownloadNotification(notification: Notification(name: .downloadsQueued))
         }
         addObserver(forName: .downloadCancelled) { [weak self] _ in
-            self?.queueDownloadNavbarRefresh()
+            self?.handleDownloadNotification(notification: Notification(name: .downloadCancelled))
         }
         addObserver(forName: .downloadsCancelled) { [weak self] _ in
-            self?.queueDownloadNavbarRefresh()
+            self?.handleDownloadNotification(notification: Notification(name: .downloadsCancelled))
         }
         addObserver(forName: .downloadFinished) { [weak self] notification in
-            self?.queueDownloadNavbarRefresh()
+            self?.handleDownloadNotification(notification: notification)
             self?.handleDownloadCountUpdate(notification: notification)
         }
         addObserver(forName: .downloadRemoved, using: handleDownloadCountUpdate)
@@ -305,6 +304,18 @@ class PlayerLibraryViewController: OldMangaCollectionViewController {
         }
     }
 
+    private func handleDownloadNotification(notification: Notification) {
+        Task { @MainActor in
+            LibraryCellUI.handleDownloadNotification(
+                navigationItem: navigationItem,
+                downloadButton: downloadBarButton,
+                trailingButton: updatesBarButton,
+                downloadType: .video,
+                isEditing: isEditing
+            )
+        }
+    }
+
     private func handleDownloadCountUpdate(notification: Notification) {
         LibraryCellUI.handleDownloadCountUpdate(notification: notification) { [weak self] identifier in
             await self?.viewModel.updateDownloadCount(for: identifier)
@@ -315,40 +326,11 @@ class PlayerLibraryViewController: OldMangaCollectionViewController {
     }
 
     // MARK: Navbar
-    private var navbarDownloadTask: Task<Void, Never>?
-
-    private func queueDownloadNavbarRefresh() {
-        _ = Task<Void, Never> { @MainActor [weak self] in
-            self?.refreshDownloadButtonVisibility()
-        }
-    }
-
-    @MainActor
-    private func refreshDownloadButtonVisibility() {
-        navbarDownloadTask?.cancel()
-        navbarDownloadTask = Task { @MainActor [weak self] in
-            guard let self = self else { return }
-            // Ignore stale notification updates when the view is not visible.
-            guard self.isViewLoaded, self.view.window != nil, !self.isEditing else { return }
-            let shouldShowButton = await DownloadManager.shared.hasQueuedDownloads(type: .video)
-            guard !Task.isCancelled else { return }
-            guard self.isViewLoaded, self.view.window != nil, !self.isEditing else { return }
-            LibraryRootNavbarUI.setDownloadVisibility(
-                navigationItem: self.navigationItem,
-                downloadButton: self.downloadBarButton,
-                trailingButton: self.updatesBarButton,
-                visible: shouldShowButton
-            )
-        }
-    }
-
     func updateNavbarItems() {
         guard Thread.isMainThread else {
             _ = Task<Void, Never> { @MainActor [weak self] in self?.updateNavbarItems() }
             return
         }
-
-        navbarDownloadTask?.cancel()
 
         if isEditing {
             LibraryEditingUI.applyEditingNavbar(
@@ -376,7 +358,6 @@ class PlayerLibraryViewController: OldMangaCollectionViewController {
             navigationItem: navigationItem,
             items: items
         )
-        refreshDownloadButtonVisibility()
     }
 
     // MARK: Toolbar
