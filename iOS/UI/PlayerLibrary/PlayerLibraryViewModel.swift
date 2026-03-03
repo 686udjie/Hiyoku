@@ -154,7 +154,7 @@ class PlayerLibraryViewModel: ObservableObject {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] items in
                 self?.originalItems = items
-                Task {
+                Task { @MainActor in
                     await self?.loadLibrary()
                 }
             }
@@ -214,6 +214,112 @@ class PlayerLibraryViewModel: ObservableObject {
 
     func filterState(for method: FilterMethod, value: String? = nil) -> UIMenuElement.State {
         core.filterState(filters: filters, method: method, value: value)
+    }
+
+    func refreshLibrary() async {
+        await loadLibrary()
+    }
+    // MARK: - Targeted Updates
+    func updateDownloadCount(for identifier: MangaIdentifier) async {
+        let title = findItemTitle(for: identifier)
+        let newCount = await LibraryCellUI.fetchDownloadCount(for: identifier, title: title)
+        await updateCount(for: identifier, newCount: newCount, keyPath: \.downloads)
+    }
+    func updateUnreadCount(for identifier: MangaIdentifier) async {
+        let newCount = await LibraryCellUI.fetchUnreadCount(for: identifier)
+        await updateCount(for: identifier, newCount: newCount, keyPath: \.unread)
+    }
+    private func findItemTitle(for identifier: MangaIdentifier) -> String? {
+        items.first {
+            $0.item.moduleId.uuidString == identifier.sourceKey &&
+            $0.item.sourceUrl.normalizedModuleHref() == identifier.mangaKey
+        }?.item.title ?? pinnedItems.first {
+            $0.item.moduleId.uuidString == identifier.sourceKey &&
+            $0.item.sourceUrl.normalizedModuleHref() == identifier.mangaKey
+        }?.item.title
+    }
+    private func updateCount<T: Equatable>(for identifier: MangaIdentifier, newCount: T, keyPath: WritableKeyPath<PlayerLibraryItemInfo, T>) async {
+        var didUpdate = false
+        // Update pinned items
+        for (i, item) in pinnedItems.enumerated() {
+            if item.item.moduleId.uuidString == identifier.sourceKey &&
+               item.item.sourceUrl.normalizedModuleHref() == identifier.mangaKey {
+                if pinnedItems[i][keyPath: keyPath] != newCount {
+                    pinnedItems[i][keyPath: keyPath] = newCount
+                    didUpdate = true
+                }
+            }
+        }
+        // Update regular items
+        for (i, item) in items.enumerated() {
+            if item.item.moduleId.uuidString == identifier.sourceKey &&
+               item.item.sourceUrl.normalizedModuleHref() == identifier.mangaKey {
+                if items[i][keyPath: keyPath] != newCount {
+                    items[i][keyPath: keyPath] = newCount
+                    didUpdate = true
+                }
+            }
+        }
+
+        // Re-sort if needed
+        if didUpdate && pinType == .unread {
+            await loadLibrary()
+        }
+    }
+
+    // MARK: - Batch Actions
+
+    func markEpisodes(items: [PlayerLibraryItem], watched: Bool) async {
+        for item in items {
+            let episodes = await fetchEpisodes(for: item)
+            for episode in episodes {
+                if watched {
+                    let data = PlayerHistoryManager.EpisodeHistoryData(
+                        playerTitle: item.title, episodeId: episode.url,
+                        episodeNumber: Double(episode.number), episodeTitle: episode.title,
+                        sourceUrl: episode.url, moduleId: item.moduleId.uuidString,
+                        progress: 100, total: 100, watchedDuration: 0, date: Date()
+                    )
+                    await PlayerHistoryManager.shared.setProgress(data: data)
+                } else {
+                    await PlayerHistoryManager.shared.removeHistory(
+                        episodeId: episode.url, moduleId: item.moduleId.uuidString
+                    )
+                }
+            }
+        }
+    }
+
+    func downloadBatch(items: [PlayerLibraryItem], unwatchedOnly: Bool) async {
+        for item in items {
+            let episodes = await fetchEpisodes(for: item)
+            var targets = episodes
+            if unwatchedOnly {
+                let history = await CoreDataManager.shared.getPlayerReadingHistory(
+                    sourceId: item.moduleId.uuidString,
+                    mangaId: item.sourceUrl.normalizedModuleHref()
+                )
+                let watched = Set(history.filter {
+                    $0.value.progress > 0 && $0.value.progress == $0.value.total
+                }.keys)
+                targets = episodes.filter { !watched.contains($0.url) }
+            }
+            guard let module = ModuleManager.shared.modules.first(where: { $0.id == item.moduleId }),
+                  !targets.isEmpty else { continue }
+            await DownloadManager.shared.downloadVideo(
+                seriesTitle: item.title, episodes: targets,
+                sourceKey: module.id.uuidString,
+                seriesKey: item.sourceUrl.normalizedModuleHref(),
+                posterUrl: item.imageUrl
+            )
+        }
+    }
+
+    private func fetchEpisodes(for item: PlayerLibraryItem) async -> [PlayerEpisode] {
+        guard let module = ModuleManager.shared.modules.first(where: { $0.id == item.moduleId }) else {
+            return []
+        }
+        return await JSController.shared.fetchPlayerEpisodes(contentUrl: item.sourceUrl, module: module)
     }
 
     func loadLibrary() async {
@@ -285,64 +391,5 @@ class PlayerLibraryViewModel: ObservableObject {
     func search(query: String) async {
         self.searchQuery = query
         await loadLibrary()
-    }
-
-    func refreshLibrary() async {
-        await loadLibrary()
-    }
-
-    // MARK: - Batch Actions
-
-    func markEpisodes(items: [PlayerLibraryItem], watched: Bool) async {
-        for item in items {
-            let episodes = await fetchEpisodes(for: item)
-            for episode in episodes {
-                if watched {
-                    let data = PlayerHistoryManager.EpisodeHistoryData(
-                        playerTitle: item.title, episodeId: episode.url,
-                        episodeNumber: Double(episode.number), episodeTitle: episode.title,
-                        sourceUrl: episode.url, moduleId: item.moduleId.uuidString,
-                        progress: 100, total: 100, watchedDuration: 0, date: Date()
-                    )
-                    await PlayerHistoryManager.shared.setProgress(data: data)
-                } else {
-                    await PlayerHistoryManager.shared.removeHistory(
-                        episodeId: episode.url, moduleId: item.moduleId.uuidString
-                    )
-                }
-            }
-        }
-    }
-
-    func downloadBatch(items: [PlayerLibraryItem], unwatchedOnly: Bool) async {
-        for item in items {
-            let episodes = await fetchEpisodes(for: item)
-            var targets = episodes
-            if unwatchedOnly {
-                let history = await CoreDataManager.shared.getPlayerReadingHistory(
-                    sourceId: item.moduleId.uuidString,
-                    mangaId: item.sourceUrl.normalizedModuleHref()
-                )
-                let watched = Set(history.filter {
-                    $0.value.progress > 0 && $0.value.progress == $0.value.total
-                }.keys)
-                targets = episodes.filter { !watched.contains($0.url) }
-            }
-            guard let module = ModuleManager.shared.modules.first(where: { $0.id == item.moduleId }),
-                  !targets.isEmpty else { continue }
-            await DownloadManager.shared.downloadVideo(
-                seriesTitle: item.title, episodes: targets,
-                sourceKey: module.id.uuidString,
-                seriesKey: item.sourceUrl.normalizedModuleHref(),
-                posterUrl: item.imageUrl
-            )
-        }
-    }
-
-    private func fetchEpisodes(for item: PlayerLibraryItem) async -> [PlayerEpisode] {
-        guard let module = ModuleManager.shared.modules.first(where: { $0.id == item.moduleId }) else {
-            return []
-        }
-        return await JSController.shared.fetchPlayerEpisodes(contentUrl: item.sourceUrl, module: module)
     }
 }

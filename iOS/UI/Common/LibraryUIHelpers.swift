@@ -8,6 +8,7 @@
 import UIKit
 import AidokuRunner
 import Combine
+import CoreData
 
 // MARK: - Root Navbar UI
 
@@ -232,6 +233,50 @@ enum LibraryCellUI {
             cell.badgeNumber = b1
             cell.badgeNumber2 = b2
             cell.setEditing(isEditing, animated: false)
+        }
+    }
+    // MARK: - Shared Badge Update Functions
+    static func handleDownloadCountUpdate(notification: Notification, updateHandler: @escaping (MangaIdentifier) async -> Void) {
+        Task {
+            if let chapterId = notification.object as? ChapterIdentifier {
+                await updateHandler(chapterId.mangaIdentifier)
+            } else if let mangaId = notification.object as? MangaIdentifier {
+                await updateHandler(mangaId)
+            } else if let download = notification.object as? Download {
+                let mangaId = download.mangaIdentifier
+                await updateHandler(mangaId)
+            }
+        }
+    }
+    static func fetchDownloadCount(for identifier: MangaIdentifier, title: String? = nil) async -> Int {
+        var count = await DownloadManager.shared.downloadsCount(for: identifier)
+        if count == 0, let title {
+            count = await DownloadManager.shared.downloadsCount(
+                for: MangaIdentifier(sourceKey: identifier.sourceKey, mangaKey: title)
+            )
+        }
+        return count
+    }
+    static func fetchUnreadCount(for identifier: MangaIdentifier) async -> Int {
+        await CoreDataManager.shared.container.performBackgroundTask { context in
+            let episodes = CoreDataManager.shared.getChapters(
+                sourceId: identifier.sourceKey,
+                mangaId: identifier.mangaKey,
+                context: context
+            )
+            let episodeIds = episodes.compactMap { $0.id }
+            let history = CoreDataManager.shared.getPlayerReadingHistorySync(
+                sourceId: identifier.sourceKey,
+                mangaId: identifier.mangaKey,
+                context: context
+            )
+            let watchedIds = Set(history.filter {
+                let progress = $0.value.progress
+                let total = $0.value.total ?? 0
+                return progress > 0 && progress == total
+            }.keys)
+            let unread = episodeIds.count - watchedIds.count
+            return max(0, unread)
         }
     }
 }

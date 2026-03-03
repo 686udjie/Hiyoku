@@ -68,14 +68,20 @@ class PlayerLibraryViewController: OldMangaCollectionViewController {
     private var ignoreOptionChange = false
     private var lastSearch: String?
 
-    // Lookup maps for Player <-> MangaInfo
-    private var mangaInfoByPlayerId: [UUID: MangaInfo] = [:]
-    private var playerInfoByMangaKey: [String: PlayerLibraryViewModel.PlayerLibraryItemInfo] = [:]
-
     // MARK: Settings-backed layout preference
     private func setUsesListLayout(_ value: Bool) {
         UserDefaults.standard.setValue(value, forKey: "PlayerLibrary.listView")
         usesListLayout = value
+    }
+    // MARK: - Helper Functions
+    private func findPlayerItem(for mangaInfo: MangaInfo) -> PlayerLibraryViewModel.PlayerLibraryItemInfo? {
+        viewModel.pinnedItems.first { item in
+            item.item.moduleId.uuidString == mangaInfo.sourceId &&
+            item.item.sourceUrl.normalizedModuleHref() == mangaInfo.mangaId
+        } ?? viewModel.items.first { item in
+            item.item.moduleId.uuidString == mangaInfo.sourceId &&
+            item.item.sourceUrl.normalizedModuleHref() == mangaInfo.mangaId
+        }
     }
 
     private func makeUpdatedCollectionViewLayout() -> UICollectionViewLayout {
@@ -300,10 +306,11 @@ class PlayerLibraryViewController: OldMangaCollectionViewController {
     }
 
     private func handleDownloadCountUpdate(notification: Notification) {
-        guard (notification.object as? Download)?.mangaIdentifier != nil || (notification.object as? MangaIdentifier) != nil else { return }
-        _ = Task<Void, Never> { @MainActor in
-            await self.viewModel.refreshLibrary() // refresh counts for simplicity
-            self.updateDataSource()
+        LibraryCellUI.handleDownloadCountUpdate(notification: notification) { [weak self] identifier in
+            await self?.viewModel.updateDownloadCount(for: identifier)
+            await MainActor.run {
+                self?.updateDataSource()
+            }
         }
     }
 
@@ -504,7 +511,7 @@ class PlayerLibraryViewController: OldMangaCollectionViewController {
             refreshControl?.endRefreshing()
         }
 
-        Task {
+        Task { @MainActor in
             await PlayerLibraryManager.shared.checkForUpdates(category: viewModel.currentCategory) { _ in }
         }
     }
@@ -549,7 +556,7 @@ class PlayerLibraryViewController: OldMangaCollectionViewController {
                 ascendingTitleProvider: { $0.ascendingTitle },
                 descendingTitleProvider: { $0.descendingTitle },
                 handler: { [weak self] (method: PlayerLibraryViewModel.SortMethod, ascending: Bool) in
-                    Task {
+                    Task { @MainActor in
                         await self?.viewModel.setSort(method: method, ascending: ascending)
                         self?.updateDataSource()
                         self?.updateMoreMenu()
@@ -569,7 +576,7 @@ class PlayerLibraryViewController: OldMangaCollectionViewController {
                         title: SourceManager.shared.source(for: key)?.name ?? key,
                         state: self.viewModel.filterState(for: .source, value: key)
                     ) { _ in
-                        Task {
+                        Task { @MainActor in
                             await self.viewModel.toggleFilter(method: .source, value: key)
                             self.updateDataSource()
                             self.updateMoreMenu()
@@ -584,14 +591,14 @@ class PlayerLibraryViewController: OldMangaCollectionViewController {
                     attributes: attributes,
                     state: self.viewModel.filterState(for: method)
                 ) { _ in
-                    Task {
+                    Task { @MainActor in
                         await self.viewModel.toggleFilter(method: method)
                         self.updateDataSource()
                         self.updateMoreMenu()
                     }
                 }
             }
-            let config = LibraryMenuFactory.FilterConfig<PlayerLibraryViewModel.FilterMethod>(
+        let config = LibraryMenuFactory.FilterConfig<PlayerLibraryViewModel.FilterMethod>(
                 title: NSLocalizedString("BUTTON_FILTER"),
                 subtitle: LibraryFilterMenuUI.buildFiltersSubtitle(
                     filters: self.viewModel.filters,
@@ -604,7 +611,7 @@ class PlayerLibraryViewController: OldMangaCollectionViewController {
                 image: UIImage(systemName: "line.3.horizontal.decrease"),
                 children: children,
                 removeHandler: self.viewModel.filters.isEmpty ? nil : { [weak self] in
-                    Task {
+                    Task { @MainActor in
                         self?.viewModel.filters.removeAll()
                         await self?.viewModel.loadLibrary()
                         self?.updateDataSource()
@@ -633,14 +640,10 @@ class PlayerLibraryViewController: OldMangaCollectionViewController {
     }
 
     func updateDataSource() {
-        // build mapping
-        mangaInfoByPlayerId = [:]
-        playerInfoByMangaKey = [:]
-
         func mapItem(_ info: PlayerLibraryViewModel.PlayerLibraryItemInfo) -> MangaInfo {
             let mangaId = info.item.sourceUrl.normalizedModuleHref()
             let sourceId = info.item.moduleId.uuidString
-            let mapped = MangaInfo(
+            return MangaInfo(
                 mangaId: mangaId,
                 sourceId: sourceId,
                 coverUrl: URL(string: info.item.imageUrl),
@@ -650,9 +653,6 @@ class PlayerLibraryViewController: OldMangaCollectionViewController {
                 unread: info.unread,
                 downloads: info.downloads
             )
-            mangaInfoByPlayerId[info.id] = mapped
-            playerInfoByMangaKey["\(sourceId)|\(mangaId)"] = info
-            return mapped
         }
 
         let pinned = viewModel.pinnedItems.map(mapItem)
@@ -706,8 +706,14 @@ class PlayerLibraryViewController: OldMangaCollectionViewController {
         unlock()
     }
 
-    @objc func performUnlock() { Task { await attemptUnlock() } }
-    @objc func performToggleLock() { Task { locked ? await attemptUnlock() : lock() } }
+    @objc func performUnlock() { Task { @MainActor in await attemptUnlock() } }
+    @objc func performToggleLock() { Task { @MainActor in
+        if locked {
+            await attemptUnlock()
+        } else {
+            lock()
+        }
+    } }
 
     // MARK: Selection / Context Menu
     override func collectionView(_ collectionView: UICollectionView, didSelectItemAt indexPath: IndexPath) {
@@ -747,8 +753,7 @@ class PlayerLibraryViewController: OldMangaCollectionViewController {
     ) -> UIContextMenuConfiguration? {
         guard let indexPath = indexPaths.first,
               let manga = dataSource.itemIdentifier(for: indexPath),
-              let playerInfo = playerInfoByMangaKey["\(manga.sourceId)|\(manga.mangaId)"]
-        else { return nil }
+              let playerInfo = findPlayerItem(for: manga) else { return nil }
 
         return UIContextMenuConfiguration(identifier: nil, previewProvider: nil) { [weak self] _ -> UIMenu? in
             guard let self = self else { return nil }
@@ -758,11 +763,11 @@ class PlayerLibraryViewController: OldMangaCollectionViewController {
     }
 
     private func handleOpen(info: MangaInfo) {
-        guard let playerInfo = playerInfoByMangaKey["\(info.sourceId)|\(info.mangaId)"],
+        guard let playerInfo = findPlayerItem(for: info),
               let module = ModuleManager.shared.modules.first(where: { $0.id.uuidString == info.sourceId }) else { return }
 
         if UserDefaults.standard.bool(forKey: "PlayerLibrary.opensPlayerView") {
-            Task {
+            Task { @MainActor in
                 await PlayerLibraryNavHelper.openPlayerView(for: playerInfo.item, module: module, from: self) {
                     await self.viewModel.refreshLibrary()
                 }
@@ -789,10 +794,14 @@ class PlayerLibraryViewController: OldMangaCollectionViewController {
     private func buildContextMenuActions(for item: PlayerLibraryItem) -> [UIMenuElement] {
         let markMenu = UIMenu(title: NSLocalizedString("MARK_ALL"), children: [
             UIAction(title: NSLocalizedString("WATCHED"), image: UIImage(systemName: "eye")) { _ in
-                Task { await self.viewModel.markEpisodes(items: [item], watched: true) }
+                Task { @MainActor in
+                    await self.viewModel.markEpisodes(items: [item], watched: true)
+                }
             },
             UIAction(title: NSLocalizedString("UNWATCHED"), image: UIImage(systemName: "eye.slash")) { _ in
-                Task { await self.viewModel.markEpisodes(items: [item], watched: false) }
+                Task { @MainActor in
+                    await self.viewModel.markEpisodes(items: [item], watched: false)
+                }
             }
         ])
 
@@ -801,10 +810,14 @@ class PlayerLibraryViewController: OldMangaCollectionViewController {
             image: UIImage(systemName: "arrow.down.circle"),
             children: [
                 UIAction(title: NSLocalizedString("ALL")) { _ in
-                    Task { await self.viewModel.downloadBatch(items: [item], unwatchedOnly: false) }
+                    Task { @MainActor in
+                        await self.viewModel.downloadBatch(items: [item], unwatchedOnly: false)
+                    }
                 },
                 UIAction(title: NSLocalizedString("UNWATCHED")) { _ in
-                    Task { await self.viewModel.downloadBatch(items: [item], unwatchedOnly: true) }
+                    Task { @MainActor in
+                        await self.viewModel.downloadBatch(items: [item], unwatchedOnly: true)
+                    }
                 }
             ]
         )
@@ -814,7 +827,7 @@ class PlayerLibraryViewController: OldMangaCollectionViewController {
             children: viewModel.categories.map { category in
                 let selected = viewModel.categories(for: item).contains(category)
                 return UIAction(title: category, state: selected ? .on : .off) { _ in
-                    Task {
+                    Task { @MainActor in
                         await self.viewModel.toggleCategory(for: item, category: category)
                         self.updateDataSource()
                     }
@@ -843,7 +856,7 @@ class PlayerLibraryViewController: OldMangaCollectionViewController {
         let playerItems: [PlayerLibraryItem] = selectedItems.compactMap {
             dataSource.itemIdentifier(for: $0)
         }.compactMap { info in
-            playerInfoByMangaKey["\(info.sourceId)|\(info.mangaId)"]?.item
+            findPlayerItem(for: info)?.item
         }
         guard !playerItems.isEmpty else { return }
 
@@ -884,19 +897,26 @@ class PlayerLibraryViewController: OldMangaCollectionViewController {
     }
 
     override func configure(cell: MangaGridCell, info: MangaInfo) {
-        super.configure(cell: cell, info: info)
-        let playerInfo = playerInfoByMangaKey["\(info.sourceId)|\(info.mangaId)"]
-        cell.badgeNumber = viewModel.badgeType.contains(.unwatched) ? (playerInfo?.unread ?? 0) : 0
-        cell.badgeNumber2 = viewModel.badgeType.contains(.downloaded) ? (playerInfo?.downloads ?? 0) : 0
+        cell.sourceId = info.sourceId
+        cell.mangaId = info.mangaId
+        cell.title = info.title
+
+        Task {
+            await cell.loadImage(url: info.coverUrl)
+        }
+
+        cell.badgeNumber = viewModel.badgeType.contains(.unwatched) ? info.unread : 0
+        cell.badgeNumber2 = viewModel.badgeType.contains(.downloaded) ? info.downloads : 0
         cell.setEditing(isEditing, animated: false)
+        cell.setSelected(cell.isSelected, animated: false)
     }
 
     override func configure(cell: MangaListCell, info: MangaInfo) {
-        super.configure(cell: cell, info: info)
-        let playerInfo = playerInfoByMangaKey["\(info.sourceId)|\(info.mangaId)"]
-        cell.badgeNumber = viewModel.badgeType.contains(.unwatched) ? (playerInfo?.unread ?? 0) : 0
-        cell.badgeNumber2 = viewModel.badgeType.contains(.downloaded) ? (playerInfo?.downloads ?? 0) : 0
+        cell.configure(with: info)
+        cell.badgeNumber = viewModel.badgeType.contains(.unwatched) ? info.unread : 0
+        cell.badgeNumber2 = viewModel.badgeType.contains(.downloaded) ? info.downloads : 0
         cell.setEditing(isEditing, animated: false)
+        cell.setSelected(cell.isSelected, animated: false)
     }
 }
 
@@ -905,7 +925,7 @@ extension PlayerLibraryViewController: UISearchResultsUpdating {
     func updateSearchResults(for searchController: UISearchController) {
         guard searchController.searchBar.text != lastSearch else { return }
         lastSearch = searchController.searchBar.text
-        Task {
+        Task { @MainActor in
             await viewModel.search(query: searchController.searchBar.text ?? "")
             updateDataSource()
         }
