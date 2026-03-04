@@ -19,30 +19,28 @@ struct SettingsAboutView: View {
                     Text(version)
                         .foregroundStyle(.secondary)
                 }
-
-                HStack {
-                    Text(NSLocalizedString("BUILD"))
-                    Spacer()
-                    let version = Bundle.main.infoDictionary?["CFBundleVersion"] as? String
-                    ?? NSLocalizedString("UNKNOWN")
-                    Text(version)
-                        .foregroundStyle(.secondary)
-                }
             }
 
             Section {
                 SettingView(setting: .init(
                     title: NSLocalizedString("GITHUB_REPO"),
-                    value: .link(.init(url: "https://github.com/Aidoku/Aidoku"))
+                    value: .link(.init(url: "https://github.com/686udjie/Hiyoku"))
                 ))
                 SettingView(setting: .init(
                     title: NSLocalizedString("DISCORD_SERVER"),
-                    value: .link(.init(url: "https://discord.gg/9U8cC5Zk3s", external: true))
+                    value: .link(.init(url: "https://discord.gg/mY5CJfTnun", external: true))
                 ))
                 SettingView(setting: .init(
-                    title: NSLocalizedString("SUPPORT_VIA_KOFI"),
+                    title: NSLocalizedString("SKITTY_KOFI"),
                     value: .link(.init(url: "https://ko-fi.com/skittyblock", external: true))
                 ))
+                HStack {
+                    Text(NSLocalizedString("CRANCI_LTC"))
+                    Spacer()
+                    Text("LS6K2JbPHuB1SnWsm3tqYyK1CovmNcjqoi")
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                }
             }
         }
         .navigationTitle(NSLocalizedString("ABOUT"))

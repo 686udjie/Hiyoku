@@ -12,7 +12,7 @@ Shoutout to [Skitty](https://github.com/Skittyblock), the guy that made Aidoku, 
 
 # Installation
 
-Currently, the only way to download Hiyoku is via an ipa, which can be found in [releases](https://github.com/686udjie/Hiyoku/releases)
+Currently, the only way to download Hiyoku is via an ipa, which can be found in [releases](https://github.com/686udjie/Hiyoku/releases) or via the [actions](https://github.com/686udjie/Hiyoku/actions) tab
 
 # Contributing
 
@@ -22,7 +22,7 @@ For detailed documentation, visit:
 
 - [Aidoku Discord](https://discord.gg/tFgfPRrb)
 - [Aidoku Docs](https://aidoku.app/help/contribution/#code)
-- [Sora Discord](https://discord.gg/f5A2s5jU)
+- [Sora Discord](https://discord.gg/XR3SrmUbpd)
 - [Sora Docs](https://sora.jm26.net/docs/)
 
 # How to support the original creators (NOT me)
