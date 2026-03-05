@@ -184,6 +184,45 @@ enum LibraryRefreshUI {
             }
         }
     }
+
+    @MainActor
+    static func showGlobalRefreshUI() {
+        guard let tabBarController = UIApplication.shared.firstKeyWindow?.rootViewController as? TabBarController else {
+            return
+        }
+        tabBarController.showLibraryRefreshView()
+    }
+
+    @MainActor
+    static func setGlobalRefreshProgress(_ progress: Float) {
+        guard let tabBarController = UIApplication.shared.firstKeyWindow?.rootViewController as? TabBarController else {
+            return
+        }
+        tabBarController.setLibraryRefreshProgress(progress)
+    }
+
+    @MainActor
+    static func hideGlobalRefreshUI() {
+        guard let tabBarController = UIApplication.shared.firstKeyWindow?.rootViewController as? TabBarController else {
+            return
+        }
+        tabBarController.hideAccessoryView()
+    }
+
+    static func performGlobalRefreshUI(
+        operation: @escaping (_ setProgress: @escaping @Sendable (Float) -> Void) async -> Void
+    ) async {
+        await showGlobalRefreshUI()
+        let setProgress: @Sendable (Float) -> Void = { progress in
+            Task { @MainActor in
+                setGlobalRefreshProgress(max(0, min(progress, 1)))
+            }
+        }
+        await operation(setProgress)
+        await setGlobalRefreshProgress(1)
+        try? await Task.sleep(nanoseconds: 500_000_000)
+        await hideGlobalRefreshUI()
+    }
 }
 
 // MARK: - Cells

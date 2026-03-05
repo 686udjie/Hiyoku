@@ -209,15 +209,20 @@ class PlayerLibraryManager: ObservableObject {
         }
         return nil
     }
-    func checkForUpdates(category: String? = nil, onProgress: ((Double) -> Void)? = nil) async {
-        if UserDefaults.standard.bool(forKey: "PlayerLibrary.updateOnlyOnWifi")
+    func checkForUpdates(
+        category: String? = nil,
+        forceAll: Bool = false,
+        onProgress: ((Double) -> Void)? = nil
+    ) async {
+        if !forceAll
+            && UserDefaults.standard.bool(forKey: "PlayerLibrary.updateOnlyOnWifi")
             && Reachability.getConnectionType() != .wifi
         {
             return
         }
 
-        let skipOptions = UserDefaults.standard.stringArray(forKey: "PlayerLibrary.skipTitles") ?? []
-        let excludedCategories = UserDefaults.standard.stringArray(forKey: "PlayerLibrary.excludedUpdateCategories") ?? []
+        let skipOptions = forceAll ? [] : (UserDefaults.standard.stringArray(forKey: "PlayerLibrary.skipTitles") ?? [])
+        let excludedCategories = forceAll ? [] : (UserDefaults.standard.stringArray(forKey: "PlayerLibrary.excludedUpdateCategories") ?? [])
         let itemCategories = UserDefaults.standard.dictionary(forKey: "PlayerLibrary.itemCategories") as? [String: [String]] ?? [:]
 
         var itemsToUpdate: [PlayerLibraryItem] = []
@@ -274,7 +279,9 @@ class PlayerLibraryManager: ObservableObject {
             }
             return results
         }
-        guard !updates.isEmpty else { return }
+        guard !updates.isEmpty else {
+            return
+        }
         let allModules = ModuleManager.shared.modules
         await CoreDataManager.shared.container.performBackgroundTask { context in
             var hasNewUpdates = false

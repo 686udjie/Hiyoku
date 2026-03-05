@@ -593,11 +593,7 @@ extension LibraryViewController {
     }
 
     @objc func updateLibraryRefresh(refreshControl: UIRefreshControl? = nil) {
-        Task {
-            // delay hiding refresh control to avoid buggy animation
-            try? await Task.sleep(nanoseconds: 1_000_000_000)
-            refreshControl?.endRefreshing()
-        }
+        LibraryRefreshUI.handleRefreshAnimation(refreshControl: refreshControl)
 
         Task {
             await MangaManager.shared.backgroundRefreshLibrary(category: viewModel.currentCategory)

@@ -294,49 +294,53 @@ extension MangaManager {
         task: (ProgressReporting & Sendable)? = nil
     ) async {
 #if !os(macOS)
-        let tabController = await UIApplication.shared.firstKeyWindow?.rootViewController as? TabBarController
-#endif
-
+        await LibraryRefreshUI.performGlobalRefreshUI { setProgress in
+            if self.libraryRefreshTask != nil {
+                // wait for already running library refresh
+                await self.libraryRefreshTask?.value
+            } else {
+                // spawn new library refresh
+                self.libraryRefreshTask = Task {
+                    await self.doLibraryRefresh(
+                        category: category,
+                        forceAll: forceAll,
+                        task: task,
+                        refreshStarted: {
+                            self.onLibraryRefreshProgress = { progress in
+                                setProgress(Float(progress.fractionCompleted))
+                                task?.progress.totalUnitCount = progress.totalUnitCount
+                                task?.progress.completedUnitCount = progress.completedUnitCount
+                                if #available(iOS 26.0, *), let task = task as? BGContinuedProcessingTask {
+                                    task.updateTitle(
+                                        NSLocalizedString("REFRESHING_LIBRARY"),
+                                        subtitle: String(format: NSLocalizedString("%i_OF_%i"), progress.completedUnitCount, progress.totalUnitCount)
+                                    )
+                                }
+                            }
+                        }
+                    )
+                    self.libraryRefreshTask = nil
+                }
+                await self.libraryRefreshTask?.value
+            }
+        }
+#else
         if libraryRefreshTask != nil {
-            // wait for already running library refresh
             await libraryRefreshTask?.value
         } else {
-            // spawn new library refresh
             libraryRefreshTask = Task {
                 await doLibraryRefresh(
                     category: category,
                     forceAll: forceAll,
-                    task: task,
-                    refreshStarted: {
-#if !os(macOS)
-                        await tabController?.showLibraryRefreshView()
-
-                        self.onLibraryRefreshProgress = { progress in
-                            tabController?.setLibraryRefreshProgress(Float(progress.fractionCompleted))
-                            task?.progress.totalUnitCount = progress.totalUnitCount
-                            task?.progress.completedUnitCount = progress.completedUnitCount
-                            if #available(iOS 26.0, *), let task = task as? BGContinuedProcessingTask {
-                                task.updateTitle(
-                                    NSLocalizedString("REFRESHING_LIBRARY"),
-                                    subtitle: String(format: NSLocalizedString("%i_OF_%i"), progress.completedUnitCount, progress.totalUnitCount)
-                                )
-                            }
-                        }
-#endif
-                    }
+                    task: task
                 )
                 libraryRefreshTask = nil
             }
             await libraryRefreshTask?.value
         }
+#endif
 
         self.targetCategory = nil
-
-#if !os(macOS)
-        // wait 0.5s for final progress animation to complete
-        try? await Task.sleep(nanoseconds: 500_000_000)
-        await tabController?.hideAccessoryView()
-#endif
 
         NotificationCenter.default.post(name: .updateLibrary, object: nil)
     }

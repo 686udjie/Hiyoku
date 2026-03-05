@@ -68,10 +68,13 @@ class PlayerLibraryViewController: OldMangaCollectionViewController {
     private var ignoreOptionChange = false
     private var lastSearch: String?
 
-    // MARK: Settings-backed layout preference
-    private func setUsesListLayout(_ value: Bool) {
-        UserDefaults.standard.setValue(value, forKey: "PlayerLibrary.listView")
-        usesListLayout = value
+    override var usesListLayout: Bool {
+        get {
+            UserDefaults.standard.bool(forKey: "PlayerLibrary.listView")
+        }
+        set {
+            UserDefaults.standard.setValue(newValue, forKey: "PlayerLibrary.listView")
+        }
     }
     // MARK: - Helper Functions
     private func findPlayerItem(for mangaInfo: MangaInfo) -> PlayerLibraryViewModel.PlayerLibraryItemInfo? {
@@ -102,6 +105,15 @@ class PlayerLibraryViewController: OldMangaCollectionViewController {
         }
     }
 
+    override func viewDidLoad() {
+        super.viewDidLoad()
+
+        Task {
+            await SourceManager.shared.loadSources()
+            await DownloadManager.shared.loadQueueState()
+        }
+    }
+
     override func configure() {
         super.configure()
 
@@ -109,8 +121,6 @@ class PlayerLibraryViewController: OldMangaCollectionViewController {
         navigationController?.navigationBar.prefersLargeTitles = true
         navigationItem.hidesSearchBarWhenScrolling = false
         path.rootViewController = navigationController
-
-        usesListLayout = UserDefaults.standard.bool(forKey: "PlayerLibrary.listView")
 
         // search controller
         let searchController = UISearchController(searchResultsController: nil)
@@ -187,8 +197,6 @@ class PlayerLibraryViewController: OldMangaCollectionViewController {
         // initial data load
         _ = Task<Void, Never> { @MainActor [weak self] in
             guard let self = self else { return }
-            await SourceManager.shared.loadSources()
-            await DownloadManager.shared.loadQueueState()
             await viewModel.refreshCategories()
             collectionView.collectionViewLayout = self.makeCollectionViewLayout()
             updateNavbarItems()
@@ -217,21 +225,37 @@ class PlayerLibraryViewController: OldMangaCollectionViewController {
     override func observe() {
         super.observe()
 
-        addObserver(forName: .downloadsQueued) { [weak self] _ in
-            self?.handleDownloadNotification(notification: Notification(name: .downloadsQueued))
+        let checkNavbarDownloadButton: (Notification) -> Void = { [weak self] _ in
+            guard let self else { return }
+            Task { @MainActor in
+                LibraryCellUI.handleDownloadNotification(
+                    navigationItem: self.navigationItem,
+                    downloadButton: self.downloadBarButton,
+                    trailingButton: self.updatesBarButton,
+                    downloadType: .video,
+                    isEditing: self.isEditing
+                )
+            }
         }
-        addObserver(forName: .downloadCancelled) { [weak self] _ in
-            self?.handleDownloadNotification(notification: Notification(name: .downloadCancelled))
+        addObserver(forName: .downloadsQueued, using: checkNavbarDownloadButton)
+        addObserver(forName: .downloadCancelled, using: checkNavbarDownloadButton)
+        addObserver(forName: .downloadsCancelled, using: checkNavbarDownloadButton)
+
+        let updateDownloadCounts: (Notification) -> Void = { [weak self] notification in
+            guard let self else { return }
+            LibraryCellUI.handleDownloadCountUpdate(notification: notification) { [weak self] identifier in
+                await self?.viewModel.updateDownloadCount(for: identifier)
+                await MainActor.run {
+                    self?.updateDataSource()
+                }
+            }
         }
-        addObserver(forName: .downloadsCancelled) { [weak self] _ in
-            self?.handleDownloadNotification(notification: Notification(name: .downloadsCancelled))
+        addObserver(forName: .downloadFinished) { notification in
+            checkNavbarDownloadButton(notification)
+            updateDownloadCounts(.init(name: .downloadFinished, object: (notification.object as? Download)?.mangaIdentifier))
         }
-        addObserver(forName: .downloadFinished) { [weak self] notification in
-            self?.handleDownloadNotification(notification: notification)
-            self?.handleDownloadCountUpdate(notification: notification)
-        }
-        addObserver(forName: .downloadRemoved, using: handleDownloadCountUpdate)
-        addObserver(forName: .downloadsRemoved, using: handleDownloadCountUpdate)
+        addObserver(forName: .downloadRemoved, using: updateDownloadCounts)
+        addObserver(forName: .downloadsRemoved, using: updateDownloadCounts)
 
         addObserver(forName: .updatePlayerLibrary) { [weak self] _ in
             guard let self = self else { return }
@@ -300,27 +324,6 @@ class PlayerLibraryViewController: OldMangaCollectionViewController {
             _ = Task<Void, Never> { @MainActor in
                 self.locked = self.viewModel.isCategoryLocked()
                 self.updateLockState()
-            }
-        }
-    }
-
-    private func handleDownloadNotification(notification: Notification) {
-        Task { @MainActor in
-            LibraryCellUI.handleDownloadNotification(
-                navigationItem: navigationItem,
-                downloadButton: downloadBarButton,
-                trailingButton: updatesBarButton,
-                downloadType: .video,
-                isEditing: isEditing
-            )
-        }
-    }
-
-    private func handleDownloadCountUpdate(notification: Notification) {
-        LibraryCellUI.handleDownloadCountUpdate(notification: notification) { [weak self] identifier in
-            await self?.viewModel.updateDownloadCount(for: identifier)
-            await MainActor.run {
-                self?.updateDataSource()
             }
         }
     }
@@ -487,13 +490,17 @@ class PlayerLibraryViewController: OldMangaCollectionViewController {
 
     // MARK: Refresh
     @objc func updateLibraryRefresh(refreshControl: UIRefreshControl? = nil) {
-        Task {
-            try? await Task.sleep(nanoseconds: 1_000_000_000)
-            refreshControl?.endRefreshing()
-        }
+        LibraryRefreshUI.handleRefreshAnimation(refreshControl: refreshControl)
 
         Task { @MainActor in
-            await PlayerLibraryManager.shared.checkForUpdates(category: viewModel.currentCategory) { _ in }
+            await LibraryRefreshUI.performGlobalRefreshUI { setProgress in
+                await PlayerLibraryManager.shared.checkForUpdates(
+                    category: self.viewModel.currentCategory,
+                    forceAll: true
+                ) { progress in
+                    setProgress(Float(progress))
+                }
+            }
         }
     }
 
@@ -523,7 +530,7 @@ class PlayerLibraryViewController: OldMangaCollectionViewController {
     func updateMoreMenu() {
         let layoutActions = LibraryMoreMenuUI.makeLayoutActions(
             usesListLayout: usesListLayout,
-            setUsesListLayout: { [weak self] in self?.setUsesListLayout($0) },
+            setUsesListLayout: { [weak self] value in self?.usesListLayout = value },
             collectionView: collectionView,
             makeCollectionViewLayout: { [weak self] in self?.makeUpdatedCollectionViewLayout() ?? UICollectionViewFlowLayout() },
             updateMenu: { [weak self] in self?.updateMoreMenu() }
