@@ -32,12 +32,15 @@ extension PlayerViewController {
             return
         }
 
-        Task {
+        startPlaybackTask?.cancel()
+        startPlaybackTask = Task { [weak self] in
+            guard let self = self else { return }
             // Check for history before playing.
-            let startTime = await getSavedProgress()
+            let startTime = await self.getSavedProgress()
+            if Task.isCancelled { return }
 
-            await MainActor.run { [weak self] in
-                guard let self = self else { return }
+            await MainActor.run {
+                guard !Task.isCancelled else { return }
 
                 self.pendingStartTime = (startTime != nil && startTime! > 5) ? startTime : nil
                 self.isRunning = true
@@ -151,9 +154,20 @@ extension PlayerViewController {
     }
 
     func stopPlayer() {
-        guard player != nil || isRunning else { return }
+        resolveStreamTask?.cancel()
+        resolveStreamTask = nil
+        startPlaybackTask?.cancel()
+        startPlaybackTask = nil
+        volumeHUDHideWorkItem?.cancel()
+        volumeHUDHideWorkItem = nil
+        brightnessHUDHideWorkItem?.cancel()
+        brightnessHUDHideWorkItem = nil
+        autoHideTimer?.invalidate()
+        autoHideTimer = nil
 
-        saveProgress()
+        if player != nil || isRunning {
+            saveProgress()
+        }
         isRunning = false
 
         if let token = timeObserverToken, let avPlayer = player {
@@ -164,10 +178,25 @@ extension PlayerViewController {
         timeControlStatusObserver = nil
 
         NotificationCenter.default.removeObserver(self, name: .AVPlayerItemDidPlayToEndTime, object: nil)
+        NotificationCenter.default.removeObserver(self, name: .subtitleSettingsDidChange, object: nil)
 
         player?.pause()
         player?.replaceCurrentItem(with: nil)
+        playerLayer.player = nil
+        playerLayer.removeFromSuperlayer()
         player = nil
+
+        pendingStartTime = nil
+        resolvedUrl = nil
+        isFileLoaded = false
+        position = 0
+        duration = 0
+        subtitlesLoader.clear()
+        clearSubtitleStack()
+
+        Task {
+            await M3U8Extractor.shared.clearMemoryCache()
+        }
     }
 
     func getPlayerDoubleProperty(_ name: String) -> Double? {

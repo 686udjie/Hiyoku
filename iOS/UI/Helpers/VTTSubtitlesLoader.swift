@@ -24,12 +24,16 @@ struct SubtitleCue: Identifiable {
 
 class VTTSubtitlesLoader: ObservableObject {
     @Published var cues: [SubtitleCue] = []
+    private var dataTask: URLSessionDataTask?
     enum SubtitleFormat {
         case vtt
         case srt
         case unknown
     }
     func load(from urlString: String) {
+        dataTask?.cancel()
+        dataTask = nil
+
         let url: URL
         if urlString.hasPrefix("/") {
             url = URL(fileURLWithPath: urlString)
@@ -50,9 +54,19 @@ class VTTSubtitlesLoader: ObservableObject {
             return
         }
 
-        URLSession.shared.dataTask(with: url) { [weak self] data, _, _ in
+        let task = URLSession.shared.dataTask(with: url) { [weak self] data, _, _ in
             self?.processSubtitleData(data)
-        }.resume()
+        }
+        dataTask = task
+        task.resume()
+    }
+
+    func clear() {
+        dataTask?.cancel()
+        dataTask = nil
+        DispatchQueue.main.async {
+            self.cues = []
+        }
     }
 
     private func processSubtitleData(_ data: Data?) {

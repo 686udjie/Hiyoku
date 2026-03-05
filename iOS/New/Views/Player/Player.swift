@@ -23,6 +23,7 @@ struct Player: UIViewControllerRepresentable {
         var hasLoaded = false
         var parent: Player?
         var currentEpisodeId: String?
+        var streamLoadTask: Task<Void, Never>?
     }
 
     func makeCoordinator() -> Coordinator {
@@ -58,7 +59,8 @@ struct Player: UIViewControllerRepresentable {
 
         // Only load if not provided (fallback)
         if streamUrl == nil || streamUrl?.isEmpty == true {
-            Task {
+            context.coordinator.streamLoadTask?.cancel()
+            context.coordinator.streamLoadTask = Task {
                 await loadStream(context: context, videoPlayerController: videoPlayerController)
             }
         }
@@ -85,7 +87,8 @@ struct Player: UIViewControllerRepresentable {
         // Check if episode changed for internal loading
             if context.coordinator.currentEpisodeId != episode.url {
                 context.coordinator.currentEpisodeId = episode.url
-                Task {
+                context.coordinator.streamLoadTask?.cancel()
+                context.coordinator.streamLoadTask = Task {
                     await loadStream(context: context, videoPlayerController: videoPlayerController)
                 }
             }
@@ -96,6 +99,8 @@ struct Player: UIViewControllerRepresentable {
     }
 
     static func dismantleUIViewController(_ uiViewController: UIViewController, coordinator: Coordinator) {
+        coordinator.streamLoadTask?.cancel()
+        coordinator.streamLoadTask = nil
         if let videoPlayerController = uiViewController as? PlayerViewController {
             videoPlayerController.stopPlayer()
         }

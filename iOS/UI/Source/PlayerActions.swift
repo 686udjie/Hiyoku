@@ -166,7 +166,10 @@ extension PlayerViewController {
         let urlToResolve = videoUrl
         let currentHeaders = headers
 
-        Task {
+        resolveStreamTask?.cancel()
+        resolveStreamTask = Task { [weak self] in
+            guard let self = self else { return }
+
             let resolved: String
             if urlToResolve.contains(".m3u8") {
                 resolved = (try? await M3U8Extractor.shared.resolveBestStreamUrl(url: urlToResolve,
@@ -175,8 +178,9 @@ extension PlayerViewController {
                 resolved = urlToResolve
             }
 
-            await MainActor.run { [weak self] in
-                guard let self = self else { return }
+            if Task.isCancelled { return }
+
+            await MainActor.run {
                 // Ensure we are still trying to play the same video
                 guard self.videoUrl == urlToResolve else {
                     return

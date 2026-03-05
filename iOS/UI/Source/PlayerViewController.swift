@@ -32,6 +32,8 @@ class PlayerViewController: UIViewController, UIGestureRecognizerDelegate {
     var currentEpisode: PlayerEpisode?
     var pendingStartTime: Double?
     var isFileLoaded = false
+    var resolveStreamTask: Task<Void, Never>?
+    var startPlaybackTask: Task<Void, Never>?
 
     // AVPlayer Properties
     var player: AVPlayer?
@@ -353,6 +355,7 @@ class PlayerViewController: UIViewController, UIGestureRecognizerDelegate {
     }
 
     deinit {
+        NotificationCenter.default.removeObserver(self, name: .subtitleSettingsDidChange, object: nil)
         stopPlayer()
     }
 
