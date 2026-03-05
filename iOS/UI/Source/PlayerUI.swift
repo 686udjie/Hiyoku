@@ -15,8 +15,9 @@ extension PlayerViewController {
         videoContainer.frame = view.bounds
         view.addSubview(videoContainer)
 
-        displayLayer.videoGravity = .resizeAspect
-        videoContainer.layer.addSublayer(displayLayer)
+        playerLayer.videoGravity = .resizeAspect
+        videoContainer.layer.addSublayer(playerLayer)
+        configureOverlayGradients()
 
         let tapGesture = UITapGestureRecognizer(target: self, action: #selector(handleTap))
         videoContainer.addGestureRecognizer(tapGesture)
@@ -51,6 +52,8 @@ extension PlayerViewController {
 
         // Add all backgrounds and stand-alone views to videoContainer
         let overlayViews: [UIView] = [
+            topOverlayView,
+            bottomOverlayView,
             playPauseBackgroundView,
             previousBackgroundView,
             nextBackgroundView,
@@ -79,6 +82,7 @@ extension PlayerViewController {
         }
 
         setupVerticalAdjustHUDs()
+        applyModernStyling()
 
         // Setup control islands
         centerInParent(playPauseButton, parent: playPauseBackgroundView, size: CGSize(width: 44, height: 44))
@@ -106,24 +110,34 @@ extension PlayerViewController {
 
         centerInParent(sliderView, parent: sliderBackgroundView, size: .zero, fill: true)
         NSLayoutConstraint.activate([
+            topOverlayView.topAnchor.constraint(equalTo: videoContainer.topAnchor),
+            topOverlayView.leadingAnchor.constraint(equalTo: videoContainer.leadingAnchor),
+            topOverlayView.trailingAnchor.constraint(equalTo: videoContainer.trailingAnchor),
+            topOverlayView.heightAnchor.constraint(equalToConstant: 160),
+
+            bottomOverlayView.leadingAnchor.constraint(equalTo: videoContainer.leadingAnchor),
+            bottomOverlayView.trailingAnchor.constraint(equalTo: videoContainer.trailingAnchor),
+            bottomOverlayView.bottomAnchor.constraint(equalTo: videoContainer.bottomAnchor),
+            bottomOverlayView.heightAnchor.constraint(equalToConstant: 210),
+
             // Main Controls
             playPauseBackgroundView.centerXAnchor.constraint(equalTo: videoContainer.centerXAnchor),
-            playPauseBackgroundView.centerYAnchor.constraint(equalTo: videoContainer.centerYAnchor),
+            playPauseBackgroundView.centerYAnchor.constraint(equalTo: videoContainer.centerYAnchor, constant: 10),
             playPauseBackgroundView.widthAnchor.constraint(equalToConstant: 60),
             playPauseBackgroundView.heightAnchor.constraint(equalToConstant: 60),
 
-            previousBackgroundView.trailingAnchor.constraint(equalTo: playPauseBackgroundView.leadingAnchor, constant: -20),
+            previousBackgroundView.trailingAnchor.constraint(equalTo: playPauseBackgroundView.leadingAnchor, constant: -22),
             previousBackgroundView.centerYAnchor.constraint(equalTo: playPauseBackgroundView.centerYAnchor),
             previousBackgroundView.widthAnchor.constraint(equalToConstant: 50),
             previousBackgroundView.heightAnchor.constraint(equalToConstant: 50),
 
-            nextBackgroundView.leadingAnchor.constraint(equalTo: playPauseBackgroundView.trailingAnchor, constant: 20),
+            nextBackgroundView.leadingAnchor.constraint(equalTo: playPauseBackgroundView.trailingAnchor, constant: 22),
             nextBackgroundView.centerYAnchor.constraint(equalTo: playPauseBackgroundView.centerYAnchor),
             nextBackgroundView.widthAnchor.constraint(equalToConstant: 50),
             nextBackgroundView.heightAnchor.constraint(equalToConstant: 50),
 
             // Close & Utilities
-            closeBackgroundView.topAnchor.constraint(equalTo: videoContainer.safeAreaLayoutGuide.topAnchor, constant: 16),
+            closeBackgroundView.topAnchor.constraint(equalTo: videoContainer.safeAreaLayoutGuide.topAnchor, constant: 12),
             closeBackgroundView.leadingAnchor.constraint(equalTo: videoContainer.safeAreaLayoutGuide.leadingAnchor, constant: 16),
             closeBackgroundView.widthAnchor.constraint(equalToConstant: 44),
             closeBackgroundView.heightAnchor.constraint(equalToConstant: 44),
@@ -134,15 +148,15 @@ extension PlayerViewController {
             listBackgroundView.heightAnchor.constraint(equalToConstant: 44),
 
             titleStackView.centerYAnchor.constraint(equalTo: closeBackgroundView.centerYAnchor),
-            titleStackView.leadingAnchor.constraint(equalTo: listBackgroundView.trailingAnchor, constant: 16),
+            titleStackView.leadingAnchor.constraint(equalTo: listBackgroundView.trailingAnchor, constant: 14),
             titleStackView.trailingAnchor.constraint(lessThanOrEqualTo: gutterUnlockButton.leadingAnchor, constant: -16),
 
-            gutterUnlockButton.trailingAnchor.constraint(equalTo: videoContainer.trailingAnchor, constant: -16),
+            gutterUnlockButton.trailingAnchor.constraint(equalTo: videoContainer.safeAreaLayoutGuide.trailingAnchor, constant: -12),
             gutterUnlockButton.centerYAnchor.constraint(equalTo: videoContainer.centerYAnchor),
             gutterUnlockButton.widthAnchor.constraint(equalToConstant: 50),
             gutterUnlockButton.heightAnchor.constraint(equalToConstant: 50),
 
-            settingsBackgroundView.topAnchor.constraint(equalTo: videoContainer.safeAreaLayoutGuide.topAnchor, constant: 16),
+            settingsBackgroundView.topAnchor.constraint(equalTo: videoContainer.safeAreaLayoutGuide.topAnchor, constant: 12),
             settingsBackgroundView.trailingAnchor.constraint(equalTo: videoContainer.safeAreaLayoutGuide.trailingAnchor, constant: -16),
             settingsBackgroundView.widthAnchor.constraint(equalToConstant: 44),
             settingsBackgroundView.heightAnchor.constraint(equalToConstant: 44),
@@ -154,8 +168,8 @@ extension PlayerViewController {
             // Slider Area
             sliderBackgroundView.leadingAnchor.constraint(equalTo: videoContainer.safeAreaLayoutGuide.leadingAnchor, constant: 16),
             sliderBackgroundView.trailingAnchor.constraint(equalTo: videoContainer.safeAreaLayoutGuide.trailingAnchor, constant: -16),
-            sliderBackgroundView.bottomAnchor.constraint(equalTo: videoContainer.bottomAnchor, constant: -10),
-            sliderBackgroundView.heightAnchor.constraint(equalToConstant: 40),
+            sliderBackgroundView.bottomAnchor.constraint(equalTo: videoContainer.safeAreaLayoutGuide.bottomAnchor, constant: -18),
+            sliderBackgroundView.heightAnchor.constraint(equalToConstant: 36),
 
             watchedTimeLabel.trailingAnchor.constraint(equalTo: sliderBackgroundView.leadingAnchor, constant: -12),
             watchedTimeLabel.centerYAnchor.constraint(equalTo: sliderBackgroundView.centerYAnchor),
@@ -164,31 +178,31 @@ extension PlayerViewController {
             totalTimeLabel.centerYAnchor.constraint(equalTo: sliderBackgroundView.centerYAnchor),
 
             speedBackgroundView.trailingAnchor.constraint(equalTo: sliderBackgroundView.trailingAnchor),
-            speedBackgroundView.bottomAnchor.constraint(equalTo: sliderBackgroundView.topAnchor, constant: -8),
-            speedBackgroundView.heightAnchor.constraint(equalToConstant: 28),
-            speedBackgroundView.widthAnchor.constraint(greaterThanOrEqualToConstant: 40),
+            speedBackgroundView.bottomAnchor.constraint(equalTo: sliderBackgroundView.topAnchor, constant: -10),
+            speedBackgroundView.heightAnchor.constraint(equalToConstant: 34),
+            speedBackgroundView.widthAnchor.constraint(greaterThanOrEqualToConstant: 54),
 
             lockBackgroundView.trailingAnchor.constraint(equalTo: speedBackgroundView.leadingAnchor, constant: -8),
-            lockBackgroundView.bottomAnchor.constraint(equalTo: sliderBackgroundView.topAnchor, constant: -8),
-            lockBackgroundView.heightAnchor.constraint(equalToConstant: 28),
-            lockBackgroundView.widthAnchor.constraint(equalToConstant: 36),
+            lockBackgroundView.bottomAnchor.constraint(equalTo: sliderBackgroundView.topAnchor, constant: -10),
+            lockBackgroundView.heightAnchor.constraint(equalToConstant: 34),
+            lockBackgroundView.widthAnchor.constraint(equalToConstant: 40),
 
             skipBackgroundView.leadingAnchor.constraint(equalTo: sliderBackgroundView.leadingAnchor),
-            skipBackgroundView.bottomAnchor.constraint(equalTo: sliderBackgroundView.topAnchor, constant: -8),
-            skipBackgroundView.heightAnchor.constraint(equalToConstant: 28),
-            skipBackgroundView.widthAnchor.constraint(greaterThanOrEqualToConstant: 44),
+            skipBackgroundView.bottomAnchor.constraint(equalTo: sliderBackgroundView.topAnchor, constant: -10),
+            skipBackgroundView.heightAnchor.constraint(equalToConstant: 34),
+            skipBackgroundView.widthAnchor.constraint(greaterThanOrEqualToConstant: 60),
 
             // Skip feedback views
-            leftSkipFeedbackView.leadingAnchor.constraint(equalTo: videoContainer.leadingAnchor, constant: 40),
+            leftSkipFeedbackView.leadingAnchor.constraint(equalTo: videoContainer.leadingAnchor, constant: 48),
             leftSkipFeedbackView.centerYAnchor.constraint(equalTo: videoContainer.centerYAnchor),
 
-            rightSkipFeedbackView.trailingAnchor.constraint(equalTo: videoContainer.trailingAnchor, constant: -40),
+            rightSkipFeedbackView.trailingAnchor.constraint(equalTo: videoContainer.trailingAnchor, constant: -48),
             rightSkipFeedbackView.centerYAnchor.constraint(equalTo: videoContainer.centerYAnchor),
 
             // Speed indicator
-            speedIndicatorBackgroundView.topAnchor.constraint(equalTo: videoContainer.safeAreaLayoutGuide.topAnchor, constant: 16),
+            speedIndicatorBackgroundView.topAnchor.constraint(equalTo: videoContainer.safeAreaLayoutGuide.topAnchor, constant: 14),
             speedIndicatorBackgroundView.centerXAnchor.constraint(equalTo: videoContainer.centerXAnchor),
-            speedIndicatorBackgroundView.heightAnchor.constraint(equalToConstant: 36)
+            speedIndicatorBackgroundView.heightAnchor.constraint(equalToConstant: 38)
         ])
 
         playPauseButton.addTarget(self, action: #selector(playPauseTapped), for: .touchUpInside)
@@ -196,6 +210,73 @@ extension PlayerViewController {
         sliderView.addTarget(self, action: #selector(sliderValueChanged), for: .valueChanged)
         sliderView.addTarget(self, action: #selector(sliderTouchDown), for: .touchDown)
         sliderView.addTarget(self, action: #selector(sliderTouchUp), for: .editingDidEnd)
+    }
+
+    private func configureOverlayGradients() {
+        topOverlayView.isUserInteractionEnabled = false
+        bottomOverlayView.isUserInteractionEnabled = false
+
+        topOverlayGradient.colors = [
+            UIColor.black.withAlphaComponent(0.55).cgColor,
+            UIColor.black.withAlphaComponent(0.28).cgColor,
+            UIColor.clear.cgColor
+        ]
+        topOverlayGradient.startPoint = CGPoint(x: 0.5, y: 0)
+        topOverlayGradient.endPoint = CGPoint(x: 0.5, y: 1)
+
+        bottomOverlayGradient.colors = [
+            UIColor.clear.cgColor,
+            UIColor.black.withAlphaComponent(0.2).cgColor,
+            UIColor.black.withAlphaComponent(0.7).cgColor
+        ]
+        bottomOverlayGradient.startPoint = CGPoint(x: 0.5, y: 0)
+        bottomOverlayGradient.endPoint = CGPoint(x: 0.5, y: 1)
+
+        topOverlayView.layer.addSublayer(topOverlayGradient)
+        bottomOverlayView.layer.addSublayer(bottomOverlayGradient)
+    }
+
+    private func applyModernStyling() {
+        let circleControls: [UIVisualEffectView] = [
+            playPauseBackgroundView, previousBackgroundView, nextBackgroundView, closeBackgroundView,
+            listBackgroundView, settingsBackgroundView, subtitleBackgroundView
+        ]
+        circleControls.forEach {
+            $0.contentView.backgroundColor = UIColor.black.withAlphaComponent(0.36)
+            $0.layer.borderColor = UIColor.white.withAlphaComponent(0.16).cgColor
+            $0.layer.borderWidth = 1
+        }
+
+        [sliderBackgroundView, speedBackgroundView, lockBackgroundView].forEach {
+            $0.contentView.backgroundColor = UIColor.black.withAlphaComponent(0.42)
+            $0.layer.borderColor = UIColor.white.withAlphaComponent(0.15).cgColor
+            $0.layer.borderWidth = 1
+        }
+        skipBackgroundView.contentView.backgroundColor = UIColor.systemBlue.withAlphaComponent(0.72)
+        skipBackgroundView.layer.borderColor = UIColor.systemBlue.withAlphaComponent(0.35).cgColor
+        skipBackgroundView.layer.borderWidth = 1
+
+        [playPauseButton, previousButton, nextButton, listButton, settingsButton, subtitleButton, lockButton].forEach {
+            $0.tintColor = .white
+        }
+
+        closeButton.tintColor = .white
+        closeButton.backgroundColor = .clear
+        speedButton.tintColor = .white
+        skipIntroButton.tintColor = .white
+
+        showTitleLabel.font = .systemFont(ofSize: 17, weight: .semibold)
+        showTitleLabel.textColor = .white
+        episodeNumberLabel.font = .systemFont(ofSize: 13, weight: .semibold)
+        episodeNumberLabel.textColor = UIColor.white.withAlphaComponent(0.72)
+        watchedTimeLabel.font = .monospacedDigitSystemFont(ofSize: 11, weight: .semibold)
+        watchedTimeLabel.textColor = UIColor.white.withAlphaComponent(0.8)
+        totalTimeLabel.font = .monospacedDigitSystemFont(ofSize: 11, weight: .semibold)
+        totalTimeLabel.textColor = UIColor.white.withAlphaComponent(0.8)
+
+        speedIndicatorBackgroundView.contentView.backgroundColor = UIColor.black.withAlphaComponent(0.44)
+        speedIndicatorBackgroundView.layer.borderColor = UIColor.white.withAlphaComponent(0.2).cgColor
+        speedIndicatorBackgroundView.layer.borderWidth = 1
     }
 
     func centerInParent(_ view: UIView, parent: UIVisualEffectView, size: CGSize, fill: Bool = false) {
@@ -221,12 +302,13 @@ extension PlayerViewController {
     func createControlBackground(cornerRadius: CGFloat,
                                  color: UIColor = .tertiarySystemFill,
                                  borderColor: UIColor = .tertiarySystemFill) -> UIVisualEffectView {
-        let blurEffect = UIBlurEffect(style: .systemThinMaterial)
+        let blurEffect = UIBlurEffect(style: .systemUltraThinMaterialDark)
         let view = UIVisualEffectView(effect: blurEffect)
         view.layer.cornerRadius = cornerRadius
+        view.layer.cornerCurve = .continuous
         view.layer.masksToBounds = true
-        view.contentView.backgroundColor = color
-        view.layer.borderColor = borderColor.cgColor
+        view.contentView.backgroundColor = color.withAlphaComponent(0.55)
+        view.layer.borderColor = borderColor.withAlphaComponent(0.2).cgColor
         view.layer.borderWidth = 1
         return view
     }
@@ -238,7 +320,7 @@ extension PlayerViewController {
     func createSystemButton(symbol: String, size: CGFloat = 20, action: Selector) -> UIButton {
         let button = UIButton(type: .system)
         button.setImage(UIImage(systemName: symbol, withConfiguration: createSymbolConfig(size: size)), for: .normal)
-        button.tintColor = .secondaryLabel
+        button.tintColor = .white
         button.addTarget(self, action: action, for: .touchUpInside)
         return button
     }
@@ -322,6 +404,7 @@ extension PlayerViewController {
 
     var controlViews: [UIView] {
         [
+            topOverlayView, bottomOverlayView,
             playPauseBackgroundView, previousBackgroundView, nextBackgroundView,
             closeBackgroundView, listBackgroundView, sliderBackgroundView, watchedTimeLabel,
             totalTimeLabel, speedBackgroundView, lockBackgroundView, skipBackgroundView,
@@ -330,7 +413,12 @@ extension PlayerViewController {
     }
 
     var interactionEnabledViews: [UIView] {
-        controlViews.filter { !($0 is UILabel) && !($0 is UIStackView) }
+        controlViews.filter {
+            !($0 is UILabel) &&
+            !($0 is UIStackView) &&
+            $0 !== topOverlayView &&
+            $0 !== bottomOverlayView
+        }
     }
 
     func toggleUIVisibility() {

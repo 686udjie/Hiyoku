@@ -42,7 +42,7 @@ extension PlayerViewController {
     }
 
     @objc internal func skipTapped() {
-        guard mpv != nil else { return }
+        guard player != nil else { return }
         let currentPos = position
         let newPos = currentPos + Double(skipIntroButtonDuration)
         setProperty("time-pos", "\(newPos)")
@@ -102,7 +102,7 @@ extension PlayerViewController {
     }
 
     @objc internal func sliderValueChanged() {
-        guard mpv != nil, duration > 0 else { return }
+        guard player != nil, duration > 0 else { return }
         let seekPos = sliderView.currentValue * CGFloat(duration)
         setProperty("time-pos", String(format: "%f", seekPos))
     }
@@ -182,7 +182,7 @@ extension PlayerViewController {
                     return
                 }
                 self.resolvedUrl = resolved
-                self.startMpvPlayback()
+                self.startPlaybackSession()
             }
         }
     }

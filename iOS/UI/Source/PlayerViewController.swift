@@ -8,7 +8,6 @@
 import UIKit
 import CoreData
 import AVFoundation
-import Libmpv
 import SwiftUI
 import AidokuRunner
 
@@ -34,37 +33,27 @@ class PlayerViewController: UIViewController, UIGestureRecognizerDelegate {
     var pendingStartTime: Double?
     var isFileLoaded = false
 
-    // MPV Properties
-    var mpv: OpaquePointer?
-    var renderContext: OpaquePointer?
-    let displayLayer = AVSampleBufferDisplayLayer()
+    // AVPlayer Properties
+    var player: AVPlayer?
+    let playerLayer = AVPlayerLayer()
+    var timeObserverToken: Any?
+    var playerItemStatusObserver: NSKeyValueObservation?
+    var timeControlStatusObserver: NSKeyValueObservation?
+    let topOverlayView = UIView()
+    let bottomOverlayView = UIView()
+    let topOverlayGradient = CAGradientLayer()
+    let bottomOverlayGradient = CAGradientLayer()
     let videoContainer: UIView = {
         let v = UIView()
         v.backgroundColor = .black
         return v
     }()
 
-    let renderQueue = DispatchQueue(label: "hiyoku.mpv.render", qos: .userInitiated)
-    let eventQueue = DispatchQueue(label: "hiyoku.mpv.events", qos: .utility)
-
     var isRunning = false
     var isPaused = true
     var duration: Double = 0
     var position: Double = 0
     var lastSavedTime: TimeInterval = 0
-
-    let bgraFormatCString: [CChar] = Array("bgra\0".utf8CString)
-    var dimensionsArray = [Int32](repeating: 0, count: 2)
-    var renderParams = [mpv_render_param](
-        repeating: mpv_render_param(type: MPV_RENDER_PARAM_INVALID, data: nil),
-        count: 5
-    )
-
-    var formatDescription: CMVideoFormatDescription?
-    var videoSize: CGSize = .zero
-    var pixelBufferPool: CVPixelBufferPool?
-    var poolDimensions: (width: Int, height: Int)?
-
     let playPauseButton: UIButton = {
         let b = UIButton(type: .system)
         let config = UIImage.SymbolConfiguration(pointSize: 32, weight: .medium)
@@ -171,8 +160,12 @@ class PlayerViewController: UIViewController, UIGestureRecognizerDelegate {
         let config = UIImage.SymbolConfiguration(pointSize: 24, weight: .medium)
         b.setImage(UIImage(systemName: "lock.fill", withConfiguration: config), for: .normal)
         b.tintColor = .white
-        b.backgroundColor = UIColor.black.withAlphaComponent(0.5)
-        b.layer.cornerRadius = 25
+        b.backgroundColor = .clear
+        b.layer.cornerRadius = 0
+        b.layer.shadowColor = UIColor.black.cgColor
+        b.layer.shadowOpacity = 0.55
+        b.layer.shadowRadius = 6
+        b.layer.shadowOffset = .zero
         b.alpha = 0
         b.addTarget(self, action: #selector(unlockTapped), for: .touchUpInside)
         return b
@@ -387,14 +380,16 @@ class PlayerViewController: UIViewController, UIGestureRecognizerDelegate {
 
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
-        displayLayer.frame = videoContainer.bounds
+        playerLayer.frame = videoContainer.bounds
+        topOverlayGradient.frame = topOverlayView.bounds
+        bottomOverlayGradient.frame = bottomOverlayView.bounds
     }
 
     override func viewDidLoad() {
         super.viewDidLoad()
         setupUI()
         do {
-            try setupMPV()
+            try setupPlaybackEngine()
         } catch {
             showError(message: "Failed to initialize player: \(error)")
         }

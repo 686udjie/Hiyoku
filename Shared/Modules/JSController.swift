@@ -52,10 +52,11 @@ public class JSController: ObservableObject {
     }
 
     var context: JSContext
-    private var modules: [String: JSValue] = [:] // Used for direct JSValue access if needed, though mostly using context
     private var loadedScripts: [String: ScrapingModule] = [:]
     private var currentModuleId: String?
-    private let queue = DispatchQueue(label: "com.aidoku.jscontroller", qos: .userInitiated)
+    private var moduleScriptCache: [String: String] = [:]
+    private var moduleScriptOrder: [String] = []
+    private let maxCachedModuleScripts = 8
     private let contextMutex = JSContextMutex()
 
     init() {
@@ -114,7 +115,7 @@ public class JSController: ObservableObject {
         setupContext()
         context.evaluateScript(script)
     }
-    private func loadScriptForModule(_ script: String, moduleId: String) {
+    private func loadScriptForModule(_ script: String) {
         // Load script for a specific module - reset context to ensure clean state
         context = JSContext()
         setupContext()
@@ -130,9 +131,9 @@ public class JSController: ObservableObject {
     func loadModuleScript(_ module: ScrapingModule) async {
         await contextMutex.withLock {
             do {
-                let scriptContent = try await ModuleManager.shared.getModuleContent(module)
+                let scriptContent = try await scriptContent(for: module)
                 loadedScripts[module.id.uuidString] = module
-                loadScriptForModule(scriptContent, moduleId: module.id.uuidString)
+                loadScriptForModule(scriptContent)
                 currentModuleId = module.id.uuidString
             } catch {
             }
@@ -143,10 +144,31 @@ public class JSController: ObservableObject {
         if currentModuleId == module.id.uuidString {
             return
         }
-        let scriptContent = try await ModuleManager.shared.getModuleContent(module)
+        let scriptContent = try await scriptContent(for: module)
         loadedScripts[module.id.uuidString] = module
-        loadScriptForModule(scriptContent, moduleId: module.id.uuidString)
+        loadScriptForModule(scriptContent)
         currentModuleId = module.id.uuidString
+    }
+
+    private func scriptContent(for module: ScrapingModule) async throws -> String {
+        let moduleId = module.id.uuidString
+        if let cached = moduleScriptCache[moduleId] {
+            if let index = moduleScriptOrder.firstIndex(of: moduleId) {
+                moduleScriptOrder.remove(at: index)
+            }
+            moduleScriptOrder.append(moduleId)
+            return cached
+        }
+
+        let scriptContent = try await ModuleManager.shared.getModuleContent(module)
+        moduleScriptCache[moduleId] = scriptContent
+        moduleScriptOrder.append(moduleId)
+
+        if moduleScriptOrder.count > maxCachedModuleScripts, let evicted = moduleScriptOrder.first {
+            moduleScriptOrder.removeFirst()
+            moduleScriptCache.removeValue(forKey: evicted)
+        }
+        return scriptContent
     }
 
     private func validateContext() -> Bool {

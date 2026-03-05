@@ -40,14 +40,16 @@ class ReaderSliderView: UIControl {
     private lazy var trackView = {
         let trackView = UIView()
         trackView.backgroundColor = .secondarySystemFill
-        trackView.layer.cornerRadius = 1.5
+        trackView.layer.cornerRadius = 2.5
+        trackView.layer.cornerCurve = .continuous
         trackView.isUserInteractionEnabled = true
         return trackView
     }()
     private lazy var progressedTrackView = {
         let progressedTrackView = UIView()
         progressedTrackView.backgroundColor = tintColor
-        progressedTrackView.layer.cornerRadius = 1.5
+        progressedTrackView.layer.cornerRadius = 2.5
+        progressedTrackView.layer.cornerCurve = .continuous
         progressedTrackView.isUserInteractionEnabled = true
         return progressedTrackView
     }()
@@ -127,10 +129,10 @@ class ReaderSliderView: UIControl {
             trackView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 5),
             trackView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -5),
             trackView.centerYAnchor.constraint(equalTo: centerYAnchor),
-            trackView.heightAnchor.constraint(equalToConstant: 3),
+            trackView.heightAnchor.constraint(equalToConstant: 4),
 
             progressedTrackView.centerYAnchor.constraint(equalTo: centerYAnchor),
-            progressedTrackView.heightAnchor.constraint(equalToConstant: 3),
+            progressedTrackView.heightAnchor.constraint(equalToConstant: 4),
 
             thumbView.centerYAnchor.constraint(equalTo: centerYAnchor),
             thumbView.heightAnchor.constraint(equalToConstant: 30),

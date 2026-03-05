@@ -240,52 +240,55 @@ class PlayerLibraryManager: ObservableObject {
             itemsToUpdate.append(item)
         }
 
-        var moduleItems: [UUID: [PlayerLibraryItem]] = [:]
-        for item in itemsToUpdate {
-            if moduleItems[item.moduleId] == nil {
-                moduleItems[item.moduleId] = []
-            }
-            moduleItems[item.moduleId]?.append(item)
+        let modulesById = Dictionary(uniqueKeysWithValues: ModuleManager.shared.modules.map { ($0.id, $0) })
+        let extractionJobs: [(item: PlayerLibraryItem, module: ScrapingModule)] = itemsToUpdate.compactMap { item in
+            guard let module = modulesById[item.moduleId] else { return nil }
+            return (item: item, module: module)
         }
 
-        let totalCount = max(itemsToUpdate.count, 1)
+        let totalCount = max(extractionJobs.count, 1)
         var completedCount = 0
         onProgress?(0)
 
         // Fetch episodes in parallel
-        let updates = await withTaskGroup(of: (PlayerLibraryItem, [PlayerEpisode]).self) { group in
-            for (_, items) in moduleItems {
-                guard
-                    let firstItem = items.first,
-                    let module = ModuleManager.shared.modules.first(where: { $0.id == firstItem.moduleId })
-                else { continue }
-                for item in items {
+        let maxConcurrentExtractions = 3
+        var updates: [(PlayerLibraryItem, [PlayerEpisode])] = []
+        var start = 0
+        while start < extractionJobs.count {
+            let end = min(start + maxConcurrentExtractions, extractionJobs.count)
+            let batch = extractionJobs[start..<end]
+
+            let batchResults = await withTaskGroup(of: (PlayerLibraryItem, [PlayerEpisode]).self) { group in
+                for job in batch {
                     group.addTask {
                         let fetchedEpisodes = await JSController.shared.fetchPlayerEpisodes(
-                            contentUrl: item.sourceUrl,
-                            module: module
+                            contentUrl: job.item.sourceUrl,
+                            module: job.module
                         )
-                        return (item, fetchedEpisodes)
+                        return (job.item, fetchedEpisodes)
                     }
                 }
-            }
-            var results: [(PlayerLibraryItem, [PlayerEpisode])] = []
-            for await result in group {
-                completedCount += 1
-                onProgress?(Double(completedCount) / Double(totalCount))
-                if !result.1.isEmpty {
-                    results.append(result)
+                var results: [(PlayerLibraryItem, [PlayerEpisode])] = []
+                for await result in group {
+                    completedCount += 1
+                    onProgress?(Double(completedCount) / Double(totalCount))
+                    if !result.1.isEmpty {
+                        results.append(result)
+                    }
                 }
+                return results
             }
-            return results
+            updates.append(contentsOf: batchResults)
+            start = end
         }
-        guard !updates.isEmpty else {
+        let finalizedUpdates = updates
+        guard !finalizedUpdates.isEmpty else {
             return
         }
         let allModules = ModuleManager.shared.modules
         await CoreDataManager.shared.container.performBackgroundTask { context in
             var hasNewUpdates = false
-            for (item, fetchedEpisodes) in updates {
+            for (item, fetchedEpisodes) in finalizedUpdates {
                 guard let module = allModules.first(where: { $0.id == item.moduleId }) else { continue }
                 let sourceId = module.id.uuidString
                 let animeId = item.sourceUrl.normalizedModuleHref()

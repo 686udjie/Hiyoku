@@ -25,7 +25,7 @@ extension PlayerViewController {
                 setVerticalAdjustHUDValue(verticalAdjustStartBrightness, mode: .brightness)
             } else {
                 verticalAdjustMode = .volume
-                verticalAdjustStartVolume = getMPVDoubleProperty("volume") ?? 100
+                verticalAdjustStartVolume = getPlayerDoubleProperty("volume") ?? 100
                 showVerticalAdjustHUD(mode: .volume)
                 setVerticalAdjustHUDValue(CGFloat(verticalAdjustStartVolume / 100), mode: .volume)
             }
@@ -87,7 +87,7 @@ extension PlayerViewController {
     }
 
     @objc func handleLongPress(_ gesture: UILongPressGestureRecognizer) {
-        guard mpv != nil else { return }
+        guard player != nil else { return }
 
         switch gesture.state {
         case .began:
@@ -176,7 +176,7 @@ extension PlayerViewController {
     }
 
     private func skipForward() {
-        guard mpv != nil else { return }
+        guard player != nil else { return }
         let currentPos = position
         let newPos = currentPos + doubleTapSkipDuration
         setProperty("time-pos", "\(newPos)")
@@ -184,7 +184,7 @@ extension PlayerViewController {
     }
 
     private func skipBackward() {
-        guard mpv != nil else { return }
+        guard player != nil else { return }
         let currentPos = position
         let newPos = max(Double.zero, currentPos - doubleTapSkipDuration)
         setProperty("time-pos", "\(newPos)")
