@@ -168,7 +168,7 @@ extension PlayerViewController {
             // Slider Area
             sliderBackgroundView.leadingAnchor.constraint(equalTo: videoContainer.safeAreaLayoutGuide.leadingAnchor, constant: 16),
             sliderBackgroundView.trailingAnchor.constraint(equalTo: videoContainer.safeAreaLayoutGuide.trailingAnchor, constant: -16),
-            sliderBackgroundView.bottomAnchor.constraint(equalTo: videoContainer.safeAreaLayoutGuide.bottomAnchor, constant: -18),
+            sliderBackgroundView.bottomAnchor.constraint(equalTo: videoContainer.safeAreaLayoutGuide.bottomAnchor, constant: -12),
             sliderBackgroundView.heightAnchor.constraint(equalToConstant: 36),
 
             watchedTimeLabel.trailingAnchor.constraint(equalTo: sliderBackgroundView.leadingAnchor, constant: -12),

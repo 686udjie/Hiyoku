@@ -55,7 +55,6 @@ class PlayerViewController: UIViewController, UIGestureRecognizerDelegate {
     var isPaused = true
     var duration: Double = 0
     var position: Double = 0
-    var lastSavedTime: TimeInterval = 0
     let playPauseButton: UIButton = {
         let b = UIButton(type: .system)
         let config = UIImage.SymbolConfiguration(pointSize: 32, weight: .medium)
@@ -376,6 +375,7 @@ class PlayerViewController: UIViewController, UIGestureRecognizerDelegate {
 
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
+        saveProgress()
         stopPlayer()
         autoHideTimer?.invalidate()
         onDismiss?()

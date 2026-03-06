@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Combine
 
 typealias PlayerHistoryItem = PlayerHistoryManager.PlayerHistoryItem
 
@@ -139,6 +140,26 @@ extension PlayerHistoryView {
     class ViewModel: ObservableObject {
         @Published var historyItems: [PlayerHistoryItem] = []
         @Published var isLoading = false
+        private var cancellables = Set<AnyCancellable>()
+        init() {
+            setUpNotifications()
+        }
+        private func setUpNotifications() {
+            NotificationCenter.default.publisher(for: .playerHistoryUpdated)
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] _ in
+                    guard let self else { return }
+                    Task { await self.loadHistory() }
+                }
+                .store(in: &cancellables)
+            NotificationCenter.default.publisher(for: .playerHistoryRemoved)
+                .receive(on: DispatchQueue.main)
+                .sink { [weak self] _ in
+                    guard let self else { return }
+                    Task { await self.loadHistory() }
+                }
+                .store(in: &cancellables)
+        }
 
         func loadHistory() async {
             withAnimation {

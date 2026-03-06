@@ -79,6 +79,9 @@ extension PlayerViewController {
 
         Task {
             await PlayerHistoryManager.shared.setProgress(data: data)
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(name: .playerHistoryUpdated, object: data)
+            }
         }
 
         // Trigger tracker update if threshold is met.
@@ -287,12 +290,6 @@ extension PlayerViewController {
                 if itemDuration.isFinite && itemDuration > 0 {
                     self.duration = itemDuration
                 }
-            }
-
-            let now = Date().timeIntervalSince1970
-            if now - self.lastSavedTime > 15 {
-                self.lastSavedTime = now
-                self.saveProgress()
             }
 
             self.updateTimeLabels()
