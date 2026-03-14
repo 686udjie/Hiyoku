@@ -27,6 +27,8 @@ final class M3U8Extractor {
         let targetDuration: Double?
         let mediaSequence: Int?
         let segments: [M3U8Segment]
+        let mapUrl: String?
+        let mapByteRange: String?
         let isLive: Bool
         let endList: Bool
 
@@ -41,6 +43,9 @@ final class M3U8Extractor {
         let title: String?
         let byteRange: String?
         let discontinuity: Bool
+        let keyMethod: String?
+        let keyUri: String?
+        let keyIV: String?
     }
 
     // MARK: - Parsing Methods
@@ -57,11 +62,16 @@ final class M3U8Extractor {
         var segments: [M3U8Segment] = []
         var isLive = true
         var endList = false
+        var mapUrl: String?
+        var mapByteRange: String?
 
         var currentDuration: Double = 0
         var currentTitle: String?
         var currentByteRange: String?
         var currentDiscontinuity = false
+        var currentKeyMethod: String?
+        var currentKeyUri: String?
+        var currentKeyIV: String?
 
         content.enumerateLines { line, _ in
             let trimmed = line.trimmedLeadingWhitespace
@@ -92,6 +102,40 @@ final class M3U8Extractor {
                     }
                 } else if trimmed.hasPrefix("#EXT-X-BYTERANGE:") {
                     currentByteRange = String(trimmed.dropFirst(17))
+                } else if trimmed.hasPrefix("#EXT-X-MAP:") {
+                    let attrs = self.parseAttributes(String(trimmed.dropFirst(11)))
+                    if let uri = attrs["URI"] {
+                        let cleaned = uri.trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+                        if let resolved = self.resolveUrl(cleaned[cleaned.startIndex...], baseURL: baseURL) {
+                            mapUrl = resolved.absoluteString
+                        }
+                    }
+                    if let byterange = attrs["BYTERANGE"] {
+                        mapByteRange = byterange.trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+                    }
+                } else if trimmed.hasPrefix("#EXT-X-KEY:") {
+                    let attrs = self.parseAttributes(String(trimmed.dropFirst(11)))
+                    let method = attrs["METHOD"]?.trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+                    if method == "NONE" {
+                        currentKeyMethod = nil
+                        currentKeyUri = nil
+                        currentKeyIV = nil
+                    } else {
+                        currentKeyMethod = method
+                        if let uri = attrs["URI"] {
+                            let cleaned = uri.trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+                            if let resolved = self.resolveUrl(cleaned[cleaned.startIndex...], baseURL: baseURL) {
+                                currentKeyUri = resolved.absoluteString
+                            } else {
+                                currentKeyUri = cleaned
+                            }
+                        }
+                        if let iv = attrs["IV"] {
+                            currentKeyIV = iv.trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+                        } else {
+                            currentKeyIV = nil
+                        }
+                    }
                 }
             default:
                 guard let segmentURL = self.resolveUrl(trimmed, baseURL: baseURL) else {
@@ -104,7 +148,10 @@ final class M3U8Extractor {
                         url: segmentURL.absoluteString,
                         title: currentTitle,
                         byteRange: currentByteRange,
-                        discontinuity: currentDiscontinuity
+                        discontinuity: currentDiscontinuity,
+                        keyMethod: currentKeyMethod,
+                        keyUri: currentKeyUri,
+                        keyIV: currentKeyIV
                     )
                 )
 
@@ -120,6 +167,8 @@ final class M3U8Extractor {
             targetDuration: targetDuration,
             mediaSequence: mediaSequence,
             segments: segments,
+            mapUrl: mapUrl,
+            mapByteRange: mapByteRange,
             isLive: isLive,
             endList: endList
         )
@@ -140,6 +189,8 @@ final class M3U8Extractor {
                 targetDuration: nil,
                 mediaSequence: nil,
                 segments: [],
+                mapUrl: nil,
+                mapByteRange: nil,
                 isLive: false,
                 endList: true
             )
@@ -503,10 +554,18 @@ actor M3U8NetworkClient {
                 request.setValue(value, forHTTPHeaderField: header)
             }
 
-            let (data, _) = try await session.data(for: request)
+            let (data, response) = try await session.data(for: request)
+            if let http = response as? HTTPURLResponse, !(200...299).contains(http.statusCode) {
+                throw M3U8Error.invalidResponse
+            }
             guard let text = String(data: data, encoding: .utf8), !text.isEmpty else {
                 throw M3U8Error.invalidContent
             }
+
+            if !text.contains("#EXTM3U") {
+                throw M3U8Error.invalidContent
+            }
+
             return text
         }
 
@@ -548,6 +607,7 @@ struct StreamQuality: Sendable {
 enum M3U8Error: LocalizedError {
     case invalidURL
     case invalidContent
+    case invalidResponse
     case parsingFailed
 
     var errorDescription: String? {
@@ -556,6 +616,8 @@ enum M3U8Error: LocalizedError {
             return "Invalid M3U8 URL"
         case .invalidContent:
             return "Invalid M3U8 content"
+        case .invalidResponse:
+            return "Invalid M3U8 HTTP response"
         case .parsingFailed:
             return "Failed to parse M3U8 playlist"
         }

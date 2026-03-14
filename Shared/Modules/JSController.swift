@@ -542,8 +542,7 @@ extension JSController {
                 }
 
                 let result = extractStreamUrl.call(withArguments: [episodeId])
-                let streams = await parseStreamResultFromJSValue(result)
-                return streams
+                return await parseStreamResultFromJSValue(result)
             } catch {
                 return ([], nil)
             }
@@ -570,7 +569,6 @@ extension JSController {
         guard let resultString = result.toString(), !resultString.isEmpty else {
             return ([], nil)
         }
-
         return parseStreamResult(resultString)
     }
 
@@ -646,11 +644,15 @@ extension JSController {
             }
         }
 
-        // If not JSON, treat as direct URL with default headers
-        return ([StreamInfo(title: "Stream", url: resultString, headers: [
-            "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " +
-                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Referer": resultString
-        ])], nil)
+        // If not JSON, treat as direct URL only when it looks like one
+        if resultString.lowercased().hasPrefix("http"), !resultString.contains("<"), !resultString.lowercased().contains("error.org") {
+            return ([StreamInfo(title: "Stream", url: resultString, headers: [
+                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " +
+                    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "Referer": resultString
+            ])], nil)
+        }
+
+        return ([], nil)
     }
 }

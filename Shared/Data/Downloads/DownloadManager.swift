@@ -229,7 +229,7 @@ extension DownloadManager {
         } else {
             sourceKey
         }
-        guard let module = await MainActor.run(body: { ModuleManager.shared.modules.first { $0.id.uuidString == sourceKey } }) else {
+        guard await MainActor.run(body: { ModuleManager.shared.modules.first { $0.id.uuidString == sourceKey } }) != nil else {
             return
         }
 
@@ -238,8 +238,8 @@ extension DownloadManager {
             let identifier = ChapterIdentifier(sourceKey: sourceKey, mangaKey: seriesKey.normalizedModuleHref(), chapterKey: episode.url)
             let downloaded = await isChapterDownloaded(chapter: identifier)
             guard !downloaded else { continue }
-            let (streamInfos, subtitleUrl) = await JSController.shared.fetchPlayerStreams(episodeId: episode.url, module: module)
-            let streamUrl = streamInfos.first?.url ?? episode.url // Fallback to episode URL if no stream found
+            // Resolve stream URL during the actual download to avoid stale/blocked links.
+            let streamUrl = episode.url
 
             let manga = AidokuRunner.Manga(sourceKey: sourceKey, key: seriesKey.normalizedModuleHref(), title: seriesTitle, cover: posterUrl)
             let chapter = AidokuRunner.Chapter(key: episode.url, title: episode.title, chapterNumber: Float(episode.number))
@@ -250,8 +250,8 @@ extension DownloadManager {
                 type: .video,
                 videoUrl: streamUrl,
                 posterUrl: posterUrl,
-                subtitleUrl: subtitleUrl,
-                headers: streamInfos.first?.headers,
+                subtitleUrl: episode.subtitleUrl,
+                headers: nil,
                 sourceName: sourceName
             )
             downloads.append(download)

@@ -1,5 +1,5 @@
 {
-  "originHash" : "fbee1fcd32ad03a92ffe9109e2bd94b400fad95c547fb7d3b5ec7a14031d23a7",
+  "originHash" : "e391c16460dd64e1c525aac60749ae76d58602a1275965481c9b5d72228b1670",
   "pins" : [
     {
       "identity" : "aidokurunner",
@@ -8,6 +8,15 @@
       "state" : {
         "branch" : "main",
         "revision" : "ad53c5ea0f78f0725201b0cc78fe1a974e3b6118"
+      }
+    },
+    {
+      "identity" : "ffmpeg-kit-spm",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/tylerjonesio/ffmpeg-kit-spm",
+      "state" : {
+        "revision" : "b3a2c365e89c5ec8fdc0debd7b7030152b572620",
+        "version" : "5.1.2"
       }
     },
     {
