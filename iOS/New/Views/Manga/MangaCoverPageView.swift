@@ -6,8 +6,6 @@
 //
 
 import AidokuRunner
-import Nuke
-import NukeUI
 import SwiftUI
 
 struct MangaCoverPageView: View {
@@ -131,43 +129,30 @@ struct MangaCoverPageView: View {
         VStack(alignment: .center) {
             Spacer()
             MangaCoverView(source: source, coverImage: coverImage, contentMode: .fit)
-                .contentShape(.contextMenuPreview, RoundedRectangle(cornerRadius: 5, style: .continuous))
-                .contextMenu {
-                    if let url = URL(string: coverImage) {
+                .coverContextMenu(imageUrl: coverImage, cornerRadius: 5) {
+                    if coverImage != manga.cover {
                         Button {
-                            if let viewController = UIApplication.shared.firstKeyWindow?.rootViewController {
-                                Task {
-                                    let image = try await loadImage(url: url)
-                                    image.saveToAlbum(viewController: viewController)
-                                }
+                            Task {
+                                await CoreDataManager.shared.setCover(
+                                    sourceId: manga.sourceKey,
+                                    mangaId: manga.key,
+                                    coverUrl: coverImage
+                                )
+                                setCover(url: coverImage)
                             }
                         } label: {
-                            Label(NSLocalizedString("SAVE_TO_PHOTOS"), systemImage: "photo")
+                            Label(NSLocalizedString("SET_COVER_IMAGE"), systemImage: "book.closed")
                         }
-                        if coverImage != manga.cover {
-                            Button {
-                                Task {
-                                    await CoreDataManager.shared.setCover(
-                                        sourceId: manga.sourceKey,
-                                        mangaId: manga.key,
-                                        coverUrl: coverImage
-                                    )
-                                    setCover(url: coverImage)
-                                }
-                            } label: {
-                                Label(NSLocalizedString("SET_COVER_IMAGE"), systemImage: "book.closed")
-                            }
-                        }
-                        // todo: share sheet doesn't work on ipads
-//                        Button {
-//                            Task {
-//                                let image = try await loadImage(url: url)
-//                                showShareSheet(image: image)
-//                            }
+                    }
+                    // todo: share sheet doesn't work on ipads
+//                    Button {
+//                        Task {
+//                            let image = try await loadImage(url: url)
+//                            showShareSheet(image: image)
 //                        } label: {
 //                            Label(NSLocalizedString("SHARE"), systemImage: "square.and.arrow.up")
 //                        }
-                    }
+//                    }
                 }
                 .padding(16)
             Spacer()
@@ -187,10 +172,6 @@ struct MangaCoverPageView: View {
                 self.error = error
             }
         }
-    }
-
-    func loadImage(url: URL) async throws -> UIImage {
-        try await ImagePipeline.shared.image(for: url)
     }
 
     func setCover(url: String, original: Bool = false) {

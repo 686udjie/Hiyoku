@@ -17,8 +17,11 @@ extension PlayerViewController {
         subtitleStackView.spacing = 2
         videoContainer.addSubview(subtitleStackView)
         subtitleStackView.translatesAutoresizingMaskIntoConstraints = false
-        // Always pin to slider top
-        subtitleBottomToSliderConstraint = subtitleStackView.bottomAnchor.constraint(equalTo: sliderBackgroundView.topAnchor, constant: -20)
+        // Always positions subtitles relative to the video container
+        subtitleBottomToSliderConstraint = subtitleStackView.bottomAnchor.constraint(
+            equalTo: videoContainer.bottomAnchor,
+            constant: -(20 + subtitleBottomPadding)
+        )
         NSLayoutConstraint.activate([
             subtitleStackView.centerXAnchor.constraint(equalTo: videoContainer.centerXAnchor),
             subtitleStackView.leadingAnchor.constraint(greaterThanOrEqualTo: videoContainer.leadingAnchor, constant: 36),
@@ -56,11 +59,8 @@ extension PlayerViewController {
     }
 
     internal func updateSubtitlePosition() {
-        if isUIVisible {
-            subtitleBottomToSliderConstraint?.constant = -20 - subtitleBottomPadding
-        } else {
-            subtitleBottomToSliderConstraint?.constant = 20
-        }
+        // Keep subtitles static relative to the video frame
+        subtitleBottomToSliderConstraint?.constant = -(20 + subtitleBottomPadding)
     }
 
     func loadSubtitleSettings() {

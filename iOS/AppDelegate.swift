@@ -141,6 +141,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
                 "PlayerLibrary.refreshMetadata": false,
                 "PlayerLibrary.backgroundRefresh": true,
                 "PlayerHistory.lockHistory": false,
+                "Player.historyThreshold": "60",
 
                 "Library.lockedCategories": [String](),
 

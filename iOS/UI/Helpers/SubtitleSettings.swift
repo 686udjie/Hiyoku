@@ -19,7 +19,7 @@ struct SubtitleSettings {
     var fontSize: Double {
         get {
             let val = UserDefaults.standard.double(forKey: "SubtitleSettings.fontSize")
-            return val == 0 ? 20 : val
+            return val == 0 ? 26 : val
         }
         set { UserDefaults.standard.set(newValue, forKey: "SubtitleSettings.fontSize") }
     }
@@ -74,7 +74,7 @@ class SubtitleSettingsManager: ObservableObject {
         // defaults
         UserDefaults.standard.register(defaults: [
              "SubtitleSettings.enabled": true,
-             "SubtitleSettings.fontSize": 20,
+             "SubtitleSettings.fontSize": 26,
              "SubtitleSettings.shadowRadius": 1,
              "SubtitleSettings.backgroundEnabled": true,
              "SubtitleSettings.bottomPadding": 20,

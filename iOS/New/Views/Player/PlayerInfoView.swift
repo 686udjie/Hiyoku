@@ -86,7 +86,12 @@ struct PlayerInfoView: View {
     private var mainContent: some View {
         configuredList
             .fullScreenCover(isPresented: $showingCoverView) {
-                PlayerCoverPageView(posterUrl: viewModel.posterUrl, title: viewModel.title)
+                PlayerCoverPageView(
+                    posterUrl: $viewModel.posterUrl,
+                    title: viewModel.title,
+                    isInLibrary: viewModel.isBookmarked,
+                    libraryItemId: viewModel.currentBookmark?.id
+                )
             }
             .environment(\.editMode, $viewModel.editMode)
             .navigationBarBackButtonHidden(viewModel.editMode == .active)

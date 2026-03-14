@@ -52,7 +52,7 @@ extension PlayerInfoView {
 
         // Cached computed properties to avoid expensive lookups during rendering
         let title: String
-        let posterUrl: String
+        @Published var posterUrl: String
 
         // Episode sorting/filtering
         @Published var episodeSortOption: EpisodeSortOption = .sourceOrder {
@@ -144,7 +144,12 @@ extension PlayerInfoView {
         private func setupBookmarkObserver() {
             libraryManager.objectWillChange
                 .sink { [weak self] _ in
-                    self?.objectWillChange.send()
+                    guard let self else { return }
+                    if let bookmark = self.bookmark,
+                       let item = self.libraryManager.items.first(where: { $0.id == bookmark.id }) {
+                        self.posterUrl = item.imageUrl
+                    }
+                    self.objectWillChange.send()
                 }
                 .store(in: &cancellables)
             setupDownloadTracker()
@@ -177,6 +182,7 @@ extension PlayerInfoView {
             )
 
             if !fetchedEpisodes.isEmpty {
+                let posterUrl = self.posterUrl
                 let now = Date()
                 await CoreDataManager.shared.container.performBackgroundTask { context in
                     _ = CoreDataManager.shared.getOrCreateManga(
@@ -184,7 +190,7 @@ extension PlayerInfoView {
                             sourceKey: sourceId,
                             key: mangaId,
                             title: self.title,
-                            cover: self.posterUrl,
+                            cover: posterUrl,
                             url: URL(string: mangaId)
                         ),
                         sourceId: sourceId,
@@ -283,6 +289,7 @@ extension PlayerInfoView {
             )
 
             if !fetchedEpisodes.isEmpty {
+                let posterUrl = self.posterUrl
                 let chaptersToSave = fetchedEpisodes.map { $0.toTrackableEpisode(sourceId: sourceId, mangaId: mangaId) }
                 await CoreDataManager.shared.container.performBackgroundTask { context in
                     _ = CoreDataManager.shared.getOrCreateManga(
@@ -290,7 +297,7 @@ extension PlayerInfoView {
                             sourceKey: sourceId,
                             key: mangaId,
                             title: self.title,
-                            cover: self.posterUrl,
+                            cover: posterUrl,
                             url: URL(string: mangaId)
                         ),
                         sourceId: sourceId,

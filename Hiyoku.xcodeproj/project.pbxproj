@@ -22,6 +22,7 @@
 		1424DE342F1D41710086BA0A /* VTTSubtitlesLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1424DE332F1D416F0086BA0A /* VTTSubtitlesLoader.swift */; };
 		145746A32F2D248B007AED94 /* DirectoryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 145746A22F2D2489007AED94 /* DirectoryManager.swift */; };
 		145BCE552F66077E006275AD /* PipController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 145BCE542F66077C006275AD /* PipController.swift */; };
+		145BCE572F661B4E006275AD /* CoverContextMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = 145BCE562F661B4C006275AD /* CoverContextMenu.swift */; };
 		148D0C932F1BB37A003588D7 /* PlaceholderGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 148D0C922F1BB37A003588D7 /* PlaceholderGridView.swift */; };
 		149AEABA2F28EC2C0040D68A /* DownloadedEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 149AEAB92F28EC2A0040D68A /* DownloadedEntry.swift */; };
 		149AEABC2F28EC560040D68A /* DownloadedVideoInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 149AEABB2F28EC540040D68A /* DownloadedVideoInfo.swift */; };
@@ -474,6 +475,7 @@
 		1424DE332F1D416F0086BA0A /* VTTSubtitlesLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VTTSubtitlesLoader.swift; sourceTree = "<group>"; };
 		145746A22F2D2489007AED94 /* DirectoryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DirectoryManager.swift; sourceTree = "<group>"; };
 		145BCE542F66077C006275AD /* PipController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PipController.swift; sourceTree = "<group>"; };
+		145BCE562F661B4C006275AD /* CoverContextMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoverContextMenu.swift; sourceTree = "<group>"; };
 		148D0C922F1BB37A003588D7 /* PlaceholderGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaceholderGridView.swift; sourceTree = "<group>"; };
 		149AEAB92F28EC2A0040D68A /* DownloadedEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadedEntry.swift; sourceTree = "<group>"; };
 		149AEABB2F28EC540040D68A /* DownloadedVideoInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadedVideoInfo.swift; sourceTree = "<group>"; };
@@ -1616,6 +1618,7 @@
 			children = (
 				FB662E912DA813E300007514 /* Settings */,
 				FB662E962DA813E300007514 /* PlatformNavigationStack.swift */,
+				145BCE562F661B4C006275AD /* CoverContextMenu.swift */,
 				FB662E972DA813E300007514 /* WrappingHStack.swift */,
 				FB662E932DA813E300007514 /* HCollectionGrid.swift */,
 				148D0C922F1BB37A003588D7 /* PlaceholderGridView.swift */,
@@ -2610,6 +2613,7 @@
 				FB662ECF2DA813E300007514 /* HomeListView.swift in Sources */,
 				FB662ED02DA813E300007514 /* SourceSettingsView.swift in Sources */,
 				FBE7A5892DE0D64500CA5B60 /* AddSourceView.swift in Sources */,
+				145BCE572F661B4E006275AD /* CoverContextMenu.swift in Sources */,
 				FB662ED12DA813E300007514 /* HomeFiltersView.swift in Sources */,
 				FB662ED22DA813E300007514 /* SearchFilterHeaderView.swift in Sources */,
 				FB662ED32DA813E300007514 /* ExpandableTextView.swift in Sources */,
