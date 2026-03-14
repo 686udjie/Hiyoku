@@ -16,13 +16,12 @@
 		06BE7197B5484021B5BFD24076CB55F9 /* PlayerActions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2524BC064674429E8E7416FDAB22FD61 /* PlayerActions.swift */; };
 		0AFC7155382B3582220BAB82 /* Modules.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B13523BACB0BADB9F2117B8 /* Modules.swift */; };
 		0B1C2D3E4F5A6B7C8D9E0F1A /* Player.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A2B3C4D5E6F7A8B9C0D1E2F /* Player.swift */; };
-		FBF1A2BA2F15E9A700D6B1F1 /* FFmpeg-Kit in Frameworks */ = {isa = PBXBuildFile; productRef = FBF1A2B92F15E9A700D6B1F1 /* FFmpeg-Kit */; };
-		FBF1A2BB2F15E9A700D6B1F1 /* FFmpeg-Kit in Embed Frameworks */ = {isa = PBXBuildFile; productRef = FBF1A2B92F15E9A700D6B1F1 /* FFmpeg-Kit */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy); }; };
 		0C807DDD27D47C2D0042EE7B /* CircularProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C807DDC27D47C2D0042EE7B /* CircularProgressView.swift */; };
 		12F69E4E5041E5F6FD24A8D2 /* PlayerInfoView+ViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 403A8669CFBBAA386B00E5CE /* PlayerInfoView+ViewModel.swift */; };
 		1424DE302F1D41380086BA0A /* SubtitleSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1424DE2F2F1D41380086BA0A /* SubtitleSettings.swift */; };
 		1424DE342F1D41710086BA0A /* VTTSubtitlesLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1424DE332F1D416F0086BA0A /* VTTSubtitlesLoader.swift */; };
 		145746A32F2D248B007AED94 /* DirectoryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 145746A22F2D2489007AED94 /* DirectoryManager.swift */; };
+		145BCE552F66077E006275AD /* PipController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 145BCE542F66077C006275AD /* PipController.swift */; };
 		148D0C932F1BB37A003588D7 /* PlaceholderGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 148D0C922F1BB37A003588D7 /* PlaceholderGridView.swift */; };
 		149AEABA2F28EC2C0040D68A /* DownloadedEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 149AEAB92F28EC2A0040D68A /* DownloadedEntry.swift */; };
 		149AEABC2F28EC560040D68A /* DownloadedVideoInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 149AEABB2F28EC540040D68A /* DownloadedVideoInfo.swift */; };
@@ -47,7 +46,6 @@
 		487484DB2A4112DD007DF0DF /* CropBordersProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 487484DA2A4112DD007DF0DF /* CropBordersProcessor.swift */; };
 		4875B8252BA6F2C3001E39CA /* MangaUpdateManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4875B8242BA6F2C3001E39CA /* MangaUpdateManager.swift */; };
 		48E20A272B78420E00BFFED8 /* NavigationController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48E20A262B78420E00BFFED8 /* NavigationController.swift */; };
-		FB4E57A02E352CAB006EF27E /* LibraryCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB4E579F2E352CAB006EF27D /* LibraryCore.swift */; };
 		48E20A272F4C000100BFFED8 /* LibraryUIHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48E20A272F4C000000BFFED8 /* LibraryUIHelpers.swift */; };
 		4F2E320A28A7C5109BB04C9415B87C69 /* PlayerSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D4249CB10B24C78B47FB175D79D1BC8 /* PlayerSettingsView.swift */; };
 		5D1CD8D12AB84BE1AE6181B657B77FC1 /* PlayerPlaybackEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2A6E3D0FF5A455FAE645735FF903BF1 /* PlayerPlaybackEngine.swift */; };
@@ -202,6 +200,7 @@
 		FB4C09D729B01AD2009E0761 /* ReaderWebtoonPageNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB4C09D629B01AD2009E0761 /* ReaderWebtoonPageNode.swift */; };
 		FB4E57992E3529C0006EF27C /* TabBarController.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB4E57982E3529BD006EF27C /* TabBarController.swift */; };
 		FB4E579B2E352CAB006EF27C /* UIKeyModifierFlags.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB4E579A2E352CAA006EF27C /* UIKeyModifierFlags.swift */; };
+		FB4E57A02E352CAB006EF27E /* LibraryCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB4E579F2E352CAB006EF27D /* LibraryCore.swift */; };
 		FB4EB4FF28AA959C00FDEA4A /* CoreDataManager+Track.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB4EB4FE28AA959C00FDEA4A /* CoreDataManager+Track.swift */; };
 		FB4EBFC22E450FCB00D83F9A /* ClearFieldButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB4EBFC12E450FC800D83F9A /* ClearFieldButton.swift */; };
 		FB4EBFC42E45124900D83F9A /* TextFieldWrapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB4EBFC32E45123D00D83F9A /* TextFieldWrapper.swift */; };
@@ -432,6 +431,8 @@
 		FBF0597D2EF46A3100907B0E /* StatsGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBF0597C2EF46A2F00907B0E /* StatsGridView.swift */; };
 		FBF059B72EF7013600907B0E /* InsightsData.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBF059B52EF7013400907B0E /* InsightsData.swift */; };
 		FBF059B92EF7014D00907B0E /* HeatmapData.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBF059B82EF7014B00907B0E /* HeatmapData.swift */; };
+		FBF1A2BA2F15E9A700D6B1F1 /* FFmpeg-Kit in Frameworks */ = {isa = PBXBuildFile; productRef = FBF1A2B92F15E9A700D6B1F1 /* FFmpeg-Kit */; };
+		FBF1A2BB2F15E9A700D6B1F1 /* FFmpeg-Kit in Embed Frameworks */ = {isa = PBXBuildFile; productRef = FBF1A2B92F15E9A700D6B1F1 /* FFmpeg-Kit */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		FBF8C5842DCD01E30066F53D /* BlockingTask.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBF8C5832DCD01E10066F53D /* BlockingTask.swift */; };
 		FBF8C5862DCD02030066F53D /* PageInterceptorProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBF8C5852DCD02020066F53D /* PageInterceptorProcessor.swift */; };
 		FBF9DC0528205FCE0056FA9A /* DownloadManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBF9DC0428205FCE0056FA9A /* DownloadManager.swift */; };
@@ -444,6 +445,20 @@
 		FFF9F1AD73E74A751AEB6812 /* PlayerInfoViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 70082EB19E009C729B298F9D /* PlayerInfoViewController.swift */; };
 		M3U8EXTRACTOR /* M3U8Extractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = M3U8EXTRACTOR_REF /* M3U8Extractor.swift */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		FBF1A2BC2F15E9A700D6B1F1 /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				FBF1A2BB2F15E9A700D6B1F1 /* FFmpeg-Kit in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		002C0AC02EC0F44D0071CE82 /* LAPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LAPolicy.swift; sourceTree = "<group>"; };
@@ -458,6 +473,7 @@
 		1424DE2F2F1D41380086BA0A /* SubtitleSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubtitleSettings.swift; sourceTree = "<group>"; };
 		1424DE332F1D416F0086BA0A /* VTTSubtitlesLoader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VTTSubtitlesLoader.swift; sourceTree = "<group>"; };
 		145746A22F2D2489007AED94 /* DirectoryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DirectoryManager.swift; sourceTree = "<group>"; };
+		145BCE542F66077C006275AD /* PipController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PipController.swift; sourceTree = "<group>"; };
 		148D0C922F1BB37A003588D7 /* PlaceholderGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaceholderGridView.swift; sourceTree = "<group>"; };
 		149AEAB92F28EC2A0040D68A /* DownloadedEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadedEntry.swift; sourceTree = "<group>"; };
 		149AEABB2F28EC540040D68A /* DownloadedVideoInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DownloadedVideoInfo.swift; sourceTree = "<group>"; };
@@ -486,7 +502,6 @@
 		4875B8242BA6F2C3001E39CA /* MangaUpdateManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MangaUpdateManager.swift; sourceTree = "<group>"; };
 		48E20A262B78420E00BFFED8 /* NavigationController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NavigationController.swift; sourceTree = "<group>"; };
 		48E20A272F4C000000BFFED8 /* LibraryUIHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryUIHelpers.swift; sourceTree = "<group>"; };
-		FB4E579F2E352CAB006EF27D /* LibraryCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryCore.swift; sourceTree = "<group>"; };
 		4904051E813746A0854B0C77F5555010 /* PlayerUI.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PlayerUI.swift; sourceTree = "<group>"; };
 		4B13523BACB0BADB9F2117B8 /* Modules.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = Modules.swift; path = Modules/Modules.swift; sourceTree = "<group>"; };
 		60580C9623A1635E516E6D7A /* ModuleManager.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ModuleManager.swift; path = Modules/ModuleManager.swift; sourceTree = "<group>"; };
@@ -663,6 +678,7 @@
 		FB4C09D929B03DE1009E0761 /* VerticalContentOffsetPreservingLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VerticalContentOffsetPreservingLayout.swift; sourceTree = "<group>"; };
 		FB4E57982E3529BD006EF27C /* TabBarController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabBarController.swift; sourceTree = "<group>"; };
 		FB4E579A2E352CAA006EF27C /* UIKeyModifierFlags.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UIKeyModifierFlags.swift; sourceTree = "<group>"; };
+		FB4E579F2E352CAB006EF27D /* LibraryCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryCore.swift; sourceTree = "<group>"; };
 		FB4EB4FE28AA959C00FDEA4A /* CoreDataManager+Track.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "CoreDataManager+Track.swift"; sourceTree = "<group>"; };
 		FB4EBFC12E450FC800D83F9A /* ClearFieldButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClearFieldButton.swift; sourceTree = "<group>"; };
 		FB4EBFC32E45123D00D83F9A /* TextFieldWrapper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextFieldWrapper.swift; sourceTree = "<group>"; };
@@ -929,49 +945,25 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		1455C5202F25686400126BBA /* Player */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
-			explicitFileTypes = {
-			};
-			explicitFolders = (
-			);
-			path = Player;
-			sourceTree = "<group>";
-		};
+		1455C5202F25686400126BBA /* Player */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Player; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
-
-/* Begin PBXCopyFilesBuildPhase section */
-		FBF1A2BC2F15E9A700D6B1F1 /* Embed Frameworks */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = "";
-			dstSubfolderSpec = 10;
-			files = (
-				FBF1A2BB2F15E9A700D6B1F1 /* FFmpeg-Kit in Embed Frameworks */,
-			);
-			name = "Embed Frameworks";
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		FB1B4832277CE1920056D02C /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
-				files = (
-					FB17114B296770CC00AD523D /* NukeUI in Frameworks */,
-					FB662EDE2DA816CF00007514 /* MarkdownUI in Frameworks */,
-					FB3737D12D17458400AB1551 /* AidokuRunner in Frameworks */,
-					FBAED40C2E3A762800B81E74 /* SwiftUIIntrospect in Frameworks */,
-					FBFDF5F82DF799180064F603 /* AidokuRunner in Frameworks */,
-					FBBCB31D2E08D6B000ED5CAB /* Gifu in Frameworks */,
-					FBE53F0C29CC015E00899601 /* AsyncDisplayKit in Frameworks */,
-					FB7B7ED8278CE949001E6EAF /* ZIPFoundation in Frameworks */,
-					FB2C83992E43F074003CA85F /* SwiftSoup in Frameworks */,
-					FBF1A2BA2F15E9A700D6B1F1 /* FFmpeg-Kit in Frameworks */,
-				);
+			files = (
+				FB17114B296770CC00AD523D /* NukeUI in Frameworks */,
+				FB662EDE2DA816CF00007514 /* MarkdownUI in Frameworks */,
+				FB3737D12D17458400AB1551 /* AidokuRunner in Frameworks */,
+				FBAED40C2E3A762800B81E74 /* SwiftUIIntrospect in Frameworks */,
+				FBFDF5F82DF799180064F603 /* AidokuRunner in Frameworks */,
+				FBBCB31D2E08D6B000ED5CAB /* Gifu in Frameworks */,
+				FBE53F0C29CC015E00899601 /* AsyncDisplayKit in Frameworks */,
+				FB7B7ED8278CE949001E6EAF /* ZIPFoundation in Frameworks */,
+				FB2C83992E43F074003CA85F /* SwiftSoup in Frameworks */,
+				FBF1A2BA2F15E9A700D6B1F1 /* FFmpeg-Kit in Frameworks */,
+			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
@@ -1036,7 +1028,6 @@
 				773D9CBAE0EC4A12BBF5AD80 /* PlayerLibrarySearchViewModel.swift */,
 				456A8CF258F1A332F7197FE2 /* PlayerLibraryNavHelper.swift */,
 			);
-			name = PlayerLibrary;
 			path = PlayerLibrary;
 			sourceTree = "<group>";
 		};
@@ -1137,6 +1128,7 @@
 		FB05F8652964907200D1EA2D /* Source */ = {
 			isa = PBXGroup;
 			children = (
+				145BCE542F66077C006275AD /* PipController.swift */,
 				FB05F8662964917A00D1EA2D /* SourceViewController.swift */,
 				FB05F86A2964BFBC00D1EA2D /* SourceViewModel.swift */,
 				D97AF6A4C3DCE5C50512308B /* PlayerSourceViewController.swift */,
@@ -2168,13 +2160,13 @@
 		FB1B4834277CE1920056D02C /* Hiyoku (iOS) */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = FB1B484A277CE1920056D02C /* Build configuration list for PBXNativeTarget "Hiyoku (iOS)" */;
-				buildPhases = (
-					FB1B4831277CE1920056D02C /* Sources */,
-					FB1B4832277CE1920056D02C /* Frameworks */,
-					FB1B4833277CE1920056D02C /* Resources */,
-					FBF1A2BC2F15E9A700D6B1F1 /* Embed Frameworks */,
-					FBED233627C3C4D70095D0C0 /* ShellScript */,
-				);
+			buildPhases = (
+				FB1B4831277CE1920056D02C /* Sources */,
+				FB1B4832277CE1920056D02C /* Frameworks */,
+				FB1B4833277CE1920056D02C /* Resources */,
+				FBF1A2BC2F15E9A700D6B1F1 /* Embed Frameworks */,
+				FBED233627C3C4D70095D0C0 /* ShellScript */,
+			);
 			buildRules = (
 			);
 			dependencies = (
@@ -2183,18 +2175,18 @@
 				1455C5202F25686400126BBA /* Player */,
 			);
 			name = "Hiyoku (iOS)";
-				packageProductDependencies = (
-					FB7B7ED7278CE949001E6EAF /* ZIPFoundation */,
-					FB17114A296770CC00AD523D /* NukeUI */,
-					FBE53F0B29CC015E00899601 /* AsyncDisplayKit */,
-					FB3737D02D17458400AB1551 /* AidokuRunner */,
-					FB662EDD2DA816CF00007514 /* MarkdownUI */,
-					FBFDF5F72DF799180064F603 /* AidokuRunner */,
-					FBBCB31C2E08D6B000ED5CAB /* Gifu */,
-					FBAED40B2E3A762800B81E74 /* SwiftUIIntrospect */,
-					FB2C83982E43F074003CA85F /* SwiftSoup */,
-					FBF1A2B92F15E9A700D6B1F1 /* FFmpegKit */,
-				);
+			packageProductDependencies = (
+				FB7B7ED7278CE949001E6EAF /* ZIPFoundation */,
+				FB17114A296770CC00AD523D /* NukeUI */,
+				FBE53F0B29CC015E00899601 /* AsyncDisplayKit */,
+				FB3737D02D17458400AB1551 /* AidokuRunner */,
+				FB662EDD2DA816CF00007514 /* MarkdownUI */,
+				FBFDF5F72DF799180064F603 /* AidokuRunner */,
+				FBBCB31C2E08D6B000ED5CAB /* Gifu */,
+				FBAED40B2E3A762800B81E74 /* SwiftUIIntrospect */,
+				FB2C83982E43F074003CA85F /* SwiftSoup */,
+				FBF1A2B92F15E9A700D6B1F1 /* FFmpeg-Kit */,
+			);
 			productName = "Aidoku (iOS)";
 			productReference = FB1B4835277CE1920056D02C /* Hiyoku.app */;
 			productType = "com.apple.product-type.application";
@@ -2264,17 +2256,17 @@
 				ta,
 			);
 			mainGroup = FB1B4825277CE18D0056D02C;
-				packageReferences = (
-					FB7B7ED6278CE949001E6EAF /* XCRemoteSwiftPackageReference "ZIPFoundation" */,
-					FB171149296770CC00AD523D /* XCRemoteSwiftPackageReference "Nuke" */,
-					FBE53F0A29CC015E00899601 /* XCRemoteSwiftPackageReference "Texture" */,
-					FB662EDC2DA816CF00007514 /* XCRemoteSwiftPackageReference "swift-markdown-ui" */,
-					FBFDF5F62DF799180064F603 /* XCRemoteSwiftPackageReference "AidokuRunner" */,
-					FBBCB31B2E08D6AF00ED5CAB /* XCRemoteSwiftPackageReference "Gifu" */,
-					FBAED40A2E3A762800B81E74 /* XCRemoteSwiftPackageReference "swiftui-introspect" */,
-					FB2C83972E43F074003CA85F /* XCRemoteSwiftPackageReference "SwiftSoup" */,
-					FBF1A2B72F15E9A700D6B1F1 /* XCRemoteSwiftPackageReference "ffmpeg-kit-spm" */,
-				);
+			packageReferences = (
+				FB7B7ED6278CE949001E6EAF /* XCRemoteSwiftPackageReference "ZIPFoundation" */,
+				FB171149296770CC00AD523D /* XCRemoteSwiftPackageReference "Nuke" */,
+				FBE53F0A29CC015E00899601 /* XCRemoteSwiftPackageReference "Texture" */,
+				FB662EDC2DA816CF00007514 /* XCRemoteSwiftPackageReference "swift-markdown-ui" */,
+				FBFDF5F62DF799180064F603 /* XCRemoteSwiftPackageReference "AidokuRunner" */,
+				FBBCB31B2E08D6AF00ED5CAB /* XCRemoteSwiftPackageReference "Gifu" */,
+				FBAED40A2E3A762800B81E74 /* XCRemoteSwiftPackageReference "swiftui-introspect" */,
+				FB2C83972E43F074003CA85F /* XCRemoteSwiftPackageReference "SwiftSoup" */,
+				FBF1A2B72F15E9A700D6B1F1 /* XCRemoteSwiftPackageReference "ffmpeg-kit-spm" */,
+			);
 			productRefGroup = FB1B4836277CE1920056D02C /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -2677,6 +2669,7 @@
 				FB5E5D012E32BFC700843E27 /* TapZonesSelectView.swift in Sources */,
 				FB8E48DD2DC04E19002A3621 /* Array.swift in Sources */,
 				FB7984192E0CB640000761A9 /* ImageProcessingModel.swift in Sources */,
+				145BCE552F66077E006275AD /* PipController.swift in Sources */,
 				FB0CAA5228A68FD70024561A /* EmptyPageStackView.swift in Sources */,
 				48177B902B75C63700AD41B4 /* CoreDataManager+MangaUpdates.swift in Sources */,
 				FBE53F0429CB58BB00899601 /* VerticalContentOffsetPreservingLayout.swift in Sources */,
@@ -3100,22 +3093,22 @@
 				minimumVersion = 3.1.1;
 			};
 		};
-			FBFDF5F62DF799180064F603 /* XCRemoteSwiftPackageReference "AidokuRunner" */ = {
-				isa = XCRemoteSwiftPackageReference;
-				repositoryURL = "https://github.com/Aidoku/AidokuRunner";
-				requirement = {
-					branch = main;
-					kind = branch;
-				};
+		FBF1A2B72F15E9A700D6B1F1 /* XCRemoteSwiftPackageReference "ffmpeg-kit-spm" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/tylerjonesio/ffmpeg-kit-spm";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 5.1.0;
 			};
-			FBF1A2B72F15E9A700D6B1F1 /* XCRemoteSwiftPackageReference "ffmpeg-kit-spm" */ = {
-				isa = XCRemoteSwiftPackageReference;
-				repositoryURL = "https://github.com/tylerjonesio/ffmpeg-kit-spm";
-				requirement = {
-					kind = upToNextMajorVersion;
-					minimumVersion = 5.1.0;
-				};
+		};
+		FBFDF5F62DF799180064F603 /* XCRemoteSwiftPackageReference "AidokuRunner" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/Aidoku/AidokuRunner";
+			requirement = {
+				branch = main;
+				kind = branch;
 			};
+		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
@@ -3158,16 +3151,16 @@
 			package = FBE53F0A29CC015E00899601 /* XCRemoteSwiftPackageReference "Texture" */;
 			productName = AsyncDisplayKit;
 		};
-			FBFDF5F72DF799180064F603 /* AidokuRunner */ = {
-				isa = XCSwiftPackageProductDependency;
-				package = FBFDF5F62DF799180064F603 /* XCRemoteSwiftPackageReference "AidokuRunner" */;
-				productName = AidokuRunner;
-			};
-			FBF1A2B92F15E9A700D6B1F1 /* FFmpeg-Kit */ = {
-				isa = XCSwiftPackageProductDependency;
-				package = FBF1A2B72F15E9A700D6B1F1 /* XCRemoteSwiftPackageReference "ffmpeg-kit-spm" */;
-				productName = "FFmpeg-Kit";
-			};
+		FBF1A2B92F15E9A700D6B1F1 /* FFmpeg-Kit */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = FBF1A2B72F15E9A700D6B1F1 /* XCRemoteSwiftPackageReference "ffmpeg-kit-spm" */;
+			productName = "FFmpeg-Kit";
+		};
+		FBFDF5F72DF799180064F603 /* AidokuRunner */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = FBFDF5F62DF799180064F603 /* XCRemoteSwiftPackageReference "AidokuRunner" */;
+			productName = AidokuRunner;
+		};
 /* End XCSwiftPackageProductDependency section */
 
 /* Begin XCVersionGroup section */

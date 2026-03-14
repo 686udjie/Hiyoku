@@ -168,6 +168,10 @@ extension PlayerViewController {
         autoHideTimer?.invalidate()
         autoHideTimer = nil
 
+        if let controller = pipController, controller.isPictureInPictureActive {
+            controller.stopPictureInPicture()
+        }
+
         if player != nil || isRunning {
             saveProgress()
         }
@@ -188,6 +192,7 @@ extension PlayerViewController {
         playerLayer.player = nil
         playerLayer.removeFromSuperlayer()
         player = nil
+        pipController = nil
 
         pendingStartTime = nil
         resolvedUrl = nil

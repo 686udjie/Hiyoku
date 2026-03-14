@@ -8,6 +8,7 @@
 import UIKit
 import CoreData
 import AVFoundation
+import AVKit
 import MediaPlayer
 import SwiftUI
 import AidokuRunner
@@ -42,6 +43,7 @@ class PlayerViewController: UIViewController, UIGestureRecognizerDelegate {
     var timeObserverToken: Any?
     var playerItemStatusObserver: NSKeyValueObservation?
     var timeControlStatusObserver: NSKeyValueObservation?
+    var pipController: AVPictureInPictureController?
     let topOverlayView = UIView()
     let bottomOverlayView = UIView()
     let topOverlayGradient = CAGradientLayer()
@@ -393,8 +395,13 @@ class PlayerViewController: UIViewController, UIGestureRecognizerDelegate {
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
         saveProgress()
-        stopPlayer()
         autoHideTimer?.invalidate()
+
+        if pipController?.isPictureInPictureActive == true {
+            return
+        }
+
+        stopPlayer()
         onDismiss?()
     }
 
@@ -414,6 +421,7 @@ class PlayerViewController: UIViewController, UIGestureRecognizerDelegate {
         } catch {
             showError(message: "Failed to initialize player: \(error)")
         }
+        setupPictureInPictureIfPossible()
 
         listButton.isEnabled = allEpisodes.count > 1
         listButton.tintColor = allEpisodes.count > 1 ? .white : .secondaryLabel
