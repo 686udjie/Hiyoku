@@ -40,7 +40,7 @@ class ReaderSliderView: UIControl {
     private lazy var trackView = {
         let trackView = UIView()
         trackView.backgroundColor = .secondarySystemFill
-        trackView.layer.cornerRadius = 2.5
+        trackView.layer.cornerRadius = 3
         trackView.layer.cornerCurve = .continuous
         trackView.isUserInteractionEnabled = true
         return trackView
@@ -48,7 +48,7 @@ class ReaderSliderView: UIControl {
     private lazy var progressedTrackView = {
         let progressedTrackView = UIView()
         progressedTrackView.backgroundColor = tintColor
-        progressedTrackView.layer.cornerRadius = 2.5
+        progressedTrackView.layer.cornerRadius = 3
         progressedTrackView.layer.cornerCurve = .continuous
         progressedTrackView.isUserInteractionEnabled = true
         return progressedTrackView
@@ -64,15 +64,15 @@ class ReaderSliderView: UIControl {
         if #available(iOS 26.0, *) {
             // same aspect ratio as a UISlider knob
             grabberView = {
-                let grabberView = LiquidLensView(frame: .init(x: 0, y: 0, width: 18.5, height: 12))
+                let grabberView = LiquidLensView(frame: .init(x: 0, y: 0, width: 20, height: 13))
                 grabberView.restingBackgroundColor = .white
                 return grabberView as UIView
             }()
-            grabberView.layer.shadowPath = UIBezierPath(roundedRect: grabberView.bounds, cornerRadius: 6).cgPath
+            grabberView.layer.shadowPath = UIBezierPath(roundedRect: grabberView.bounds, cornerRadius: 6.5).cgPath
         } else {
-            grabberView = UIView(frame: .init(x: 0, y: 0, width: 10, height: 10))
+            grabberView = UIView(frame: .init(x: 0, y: 0, width: 12, height: 12))
             grabberView.backgroundColor = .white
-            grabberView.layer.shadowPath = UIBezierPath(roundedRect: grabberView.bounds, cornerRadius: 5).cgPath
+            grabberView.layer.shadowPath = UIBezierPath(roundedRect: grabberView.bounds, cornerRadius: 6).cgPath
         }
         grabberView.layer.shadowRadius = 1.5
         grabberView.layer.shadowOffset = CGSize(width: 0, height: 1)
@@ -129,10 +129,10 @@ class ReaderSliderView: UIControl {
             trackView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 5),
             trackView.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -5),
             trackView.centerYAnchor.constraint(equalTo: centerYAnchor),
-            trackView.heightAnchor.constraint(equalToConstant: 4),
+            trackView.heightAnchor.constraint(equalToConstant: 6),
 
             progressedTrackView.centerYAnchor.constraint(equalTo: centerYAnchor),
-            progressedTrackView.heightAnchor.constraint(equalToConstant: 4),
+            progressedTrackView.heightAnchor.constraint(equalToConstant: 6),
 
             thumbView.centerYAnchor.constraint(equalTo: centerYAnchor),
             thumbView.heightAnchor.constraint(equalToConstant: 30),

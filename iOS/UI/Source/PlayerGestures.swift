@@ -6,6 +6,7 @@
 //
 
 import UIKit
+import AVFoundation
 
 // MARK: - Player Gestures Extension
 extension PlayerViewController {
@@ -18,16 +19,22 @@ extension PlayerViewController {
         switch gesture.state {
         case .began:
             verticalAdjustStartPoint = point
-            if point.x < width / 2 {
+            let leftZone = width * 0.2
+            let rightZone = width * 0.8
+            if point.x <= leftZone {
                 verticalAdjustMode = .brightness
                 verticalAdjustStartBrightness = UIScreen.main.brightness
                 showVerticalAdjustHUD(mode: .brightness)
                 setVerticalAdjustHUDValue(verticalAdjustStartBrightness, mode: .brightness)
-            } else {
+            } else if point.x >= rightZone {
                 verticalAdjustMode = .volume
-                verticalAdjustStartVolume = getPlayerDoubleProperty("volume") ?? 100
+                let currentVolume = systemVolumeSlider?.value ?? lastSystemVolume
+                lastSystemVolume = currentVolume
+                verticalAdjustStartVolume = Double(currentVolume) * 100
                 showVerticalAdjustHUD(mode: .volume)
                 setVerticalAdjustHUDValue(CGFloat(verticalAdjustStartVolume / 100), mode: .volume)
+            } else {
+                verticalAdjustMode = nil
             }
 
         case .changed:
@@ -41,9 +48,14 @@ extension PlayerViewController {
                 UIScreen.main.brightness = newBrightness
                 setVerticalAdjustHUDValue(newBrightness, mode: .brightness)
             case .volume:
-                let newVolume = max(0, min(100, verticalAdjustStartVolume + (delta * 100)))
-                setProperty("volume", String(format: "%.0f", newVolume))
-                setVerticalAdjustHUDValue(CGFloat(newVolume / 100), mode: .volume)
+                let deltaY = -translation.y
+                let sensitivity = 0.005
+                let startNormalized = verticalAdjustStartVolume / 100
+                let newNormalized = max(0, min(1, startNormalized + (Double(deltaY) * sensitivity)))
+                systemVolumeSlider?.value = Float(newNormalized)
+                systemVolumeSlider?.sendActions(for: UIControl.Event.valueChanged)
+                lastSystemVolume = Float(newNormalized)
+                setVerticalAdjustHUDValue(CGFloat(newNormalized), mode: .volume)
             }
 
         case .ended, .cancelled, .failed:

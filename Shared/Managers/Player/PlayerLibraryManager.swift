@@ -106,12 +106,14 @@ class PlayerLibraryManager: ObservableObject {
             items.append(item)
             saveLibrary()
             assignDefaultCategoryIfNeeded(to: item)
+            NotificationCenter.default.post(name: .updatePlayerLibrary, object: nil)
         }
     }
 
     func removeFromLibrary(_ item: PlayerLibraryItem) {
         items.removeAll { $0.id == item.id }
         saveLibrary()
+        NotificationCenter.default.post(name: .updatePlayerLibrary, object: nil)
     }
 
     func getLibraryItemId(for searchItem: SearchItem, module: ScrapingModule) -> UUID? {
@@ -148,6 +150,7 @@ class PlayerLibraryManager: ObservableObject {
         if let index = items.firstIndex(where: { $0.id == itemId }) {
             items[index].sourceUrl = sourceUrl
             saveLibrary()
+            NotificationCenter.default.post(name: .updatePlayerLibrary, object: nil)
         }
     }
 

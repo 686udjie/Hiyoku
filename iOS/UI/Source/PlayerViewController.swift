@@ -8,6 +8,7 @@
 import UIKit
 import CoreData
 import AVFoundation
+import MediaPlayer
 import SwiftUI
 import AidokuRunner
 
@@ -51,6 +52,21 @@ class PlayerViewController: UIViewController, UIGestureRecognizerDelegate {
         return v
     }()
 
+    var lastSystemVolume: Float = AVAudioSession.sharedInstance().outputVolume
+
+    lazy var systemVolumeView: MPVolumeView = {
+        let view = MPVolumeView(frame: .zero)
+        view.showsVolumeSlider = true
+        view.isHidden = true
+        view.alpha = 0
+        view.isUserInteractionEnabled = false
+        return view
+    }()
+
+    var systemVolumeSlider: UISlider? {
+        systemVolumeView.subviews.compactMap { $0 as? UISlider }.first
+    }
+
     var isRunning = false
     var isPaused = true
     var duration: Double = 0
@@ -68,6 +84,7 @@ class PlayerViewController: UIViewController, UIGestureRecognizerDelegate {
     lazy var nextBackgroundView = createControlBackground(cornerRadius: 25)
     lazy var closeBackgroundView = createControlBackground(cornerRadius: 22)
     lazy var sliderBackgroundView = createControlBackground(cornerRadius: 20)
+    var sliderMaxWidthConstraint: NSLayoutConstraint?
     lazy var speedBackgroundView = createControlBackground(cornerRadius: 14)
     lazy var lockBackgroundView = createControlBackground(cornerRadius: 14)
     lazy var skipBackgroundView = createControlBackground(
@@ -158,7 +175,7 @@ class PlayerViewController: UIViewController, UIGestureRecognizerDelegate {
 
     lazy var gutterUnlockButton: UIButton = {
         let b = UIButton(type: .system)
-        let config = UIImage.SymbolConfiguration(pointSize: 24, weight: .medium)
+        let config = UIImage.SymbolConfiguration(pointSize: 24 * controlScale, weight: .medium)
         b.setImage(UIImage(systemName: "lock.fill", withConfiguration: config), for: .normal)
         b.tintColor = .white
         b.backgroundColor = .clear
@@ -319,7 +336,7 @@ class PlayerViewController: UIViewController, UIGestureRecognizerDelegate {
         didSet {
             subtitleStackView?.isHidden = !subtitlesEnabled
             // Update button state
-            let config = UIImage.SymbolConfiguration(pointSize: 20, weight: .medium)
+            let config = UIImage.SymbolConfiguration(pointSize: 20 * controlScale, weight: .medium)
             let imageName = subtitlesEnabled ? "captions.bubble.fill" : "captions.bubble"
             subtitleButton.setImage(UIImage(systemName: imageName, withConfiguration: config), for: .normal)
         }
@@ -386,6 +403,7 @@ class PlayerViewController: UIViewController, UIGestureRecognizerDelegate {
         playerLayer.frame = videoContainer.bounds
         topOverlayGradient.frame = topOverlayView.bounds
         bottomOverlayGradient.frame = bottomOverlayView.bounds
+        updateSliderWidthForTimeLabels()
     }
 
     override func viewDidLoad() {

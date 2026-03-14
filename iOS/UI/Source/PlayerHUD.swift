@@ -11,6 +11,7 @@ import UIKit
 extension PlayerViewController {
     // MARK: - Player gestures UI
     func setupVerticalAdjustHUDs() {
+        let hudScale: CGFloat = traitCollection.userInterfaceIdiom == .pad ? 1.25 : 1
         // Initialize HUD structures
         volumeHUD = VerticalHUD(
             container: volumeHUDContainer,
@@ -38,38 +39,42 @@ extension PlayerViewController {
             $0.alpha = 0
         }
         NSLayoutConstraint.activate([
-            volumeHUD.container.leadingAnchor.constraint(equalTo: videoContainer.leadingAnchor, constant: 30),
+            volumeHUD.container.leadingAnchor.constraint(equalTo: videoContainer.leadingAnchor, constant: 30 * hudScale),
             volumeHUD.container.centerYAnchor.constraint(equalTo: videoContainer.centerYAnchor),
-            volumeHUD.container.widthAnchor.constraint(equalToConstant: 86),
-            volumeHUD.container.heightAnchor.constraint(equalToConstant: 240),
-            brightnessHUD.container.trailingAnchor.constraint(equalTo: videoContainer.trailingAnchor, constant: -30),
+            volumeHUD.container.widthAnchor.constraint(equalToConstant: 86 * hudScale),
+            volumeHUD.container.heightAnchor.constraint(equalToConstant: 240 * hudScale),
+            brightnessHUD.container.trailingAnchor.constraint(equalTo: videoContainer.trailingAnchor, constant: -30 * hudScale),
             brightnessHUD.container.centerYAnchor.constraint(equalTo: videoContainer.centerYAnchor),
-            brightnessHUD.container.widthAnchor.constraint(equalToConstant: 86),
-            brightnessHUD.container.heightAnchor.constraint(equalToConstant: 240)
+            brightnessHUD.container.widthAnchor.constraint(equalToConstant: 86 * hudScale),
+            brightnessHUD.container.heightAnchor.constraint(equalToConstant: 240 * hudScale)
         ])
         configureVerticalAdjustHUD(volumeHUD)
         configureVerticalAdjustHUD(brightnessHUD)
     }
 
     func configureVerticalAdjustHUD(_ hud: VerticalHUD) {
+        let hudScale: CGFloat = traitCollection.userInterfaceIdiom == .pad ? 1.25 : 1
         hud.percentLabel.translatesAutoresizingMaskIntoConstraints = false
-        hud.percentLabel.font = .systemFont(ofSize: 20, weight: .semibold)
+        hud.percentLabel.font = .systemFont(ofSize: 20 * hudScale, weight: .semibold)
         hud.percentLabel.textColor = .white
         hud.percentLabel.textAlignment = .center
 
         hud.fillView.translatesAutoresizingMaskIntoConstraints = false
         hud.fillView.backgroundColor = UIColor.white.withAlphaComponent(0.7)
-        hud.fillView.layer.cornerRadius = 18
+        hud.fillView.layer.cornerRadius = 18 * hudScale
         hud.fillView.layer.masksToBounds = true
 
         hud.borderView.translatesAutoresizingMaskIntoConstraints = false
         hud.borderView.backgroundColor = UIColor.white.withAlphaComponent(0.18)
-        hud.borderView.layer.cornerRadius = 18
+        hud.borderView.layer.cornerRadius = 18 * hudScale
         hud.borderView.layer.masksToBounds = true
-        hud.borderView.layer.borderWidth = 1.5
+        hud.borderView.layer.borderWidth = 1.5 * hudScale
         hud.borderView.layer.borderColor = UIColor.white.withAlphaComponent(0.4).cgColor
 
-        hud.iconView.image = UIImage(systemName: hud.defaultIcon, withConfiguration: UIImage.SymbolConfiguration(pointSize: 22, weight: .semibold))
+        hud.iconView.image = UIImage(
+            systemName: hud.defaultIcon,
+            withConfiguration: UIImage.SymbolConfiguration(pointSize: 22 * hudScale, weight: .semibold)
+        )
         hud.iconView.translatesAutoresizingMaskIntoConstraints = false
         hud.iconView.tintColor = .white
         hud.iconView.contentMode = .scaleAspectFit
@@ -89,8 +94,8 @@ extension PlayerViewController {
             NSLayoutConstraint.activate([
                 slashView.centerXAnchor.constraint(equalTo: hud.iconView.centerXAnchor),
                 slashView.centerYAnchor.constraint(equalTo: hud.iconView.centerYAnchor),
-                slashView.widthAnchor.constraint(equalToConstant: 20),
-                slashView.heightAnchor.constraint(equalToConstant: 2)
+                slashView.widthAnchor.constraint(equalToConstant: 20 * hudScale),
+                slashView.heightAnchor.constraint(equalToConstant: 2 * hudScale)
             ])
             slashView.transform = CGAffineTransform(rotationAngle: .pi / 4)
         }
@@ -106,14 +111,14 @@ extension PlayerViewController {
         }
 
         NSLayoutConstraint.activate([
-            hud.percentLabel.topAnchor.constraint(equalTo: hud.container.topAnchor, constant: 18),
+            hud.percentLabel.topAnchor.constraint(equalTo: hud.container.topAnchor, constant: 18 * hudScale),
             hud.percentLabel.leadingAnchor.constraint(equalTo: hud.container.leadingAnchor, constant: 8),
             hud.percentLabel.trailingAnchor.constraint(equalTo: hud.container.trailingAnchor, constant: -8),
 
-            hud.fillAreaGuide.topAnchor.constraint(equalTo: hud.percentLabel.bottomAnchor, constant: 14),
+            hud.fillAreaGuide.topAnchor.constraint(equalTo: hud.percentLabel.bottomAnchor, constant: 14 * hudScale),
             hud.fillAreaGuide.centerXAnchor.constraint(equalTo: hud.container.centerXAnchor),
-            hud.fillAreaGuide.widthAnchor.constraint(equalToConstant: 36),
-            hud.fillAreaGuide.bottomAnchor.constraint(equalTo: hud.iconView.topAnchor, constant: -16),
+            hud.fillAreaGuide.widthAnchor.constraint(equalToConstant: 36 * hudScale),
+            hud.fillAreaGuide.bottomAnchor.constraint(equalTo: hud.iconView.topAnchor, constant: -16 * hudScale),
 
             hud.borderView.topAnchor.constraint(equalTo: hud.fillAreaGuide.topAnchor),
             hud.borderView.leadingAnchor.constraint(equalTo: hud.fillAreaGuide.leadingAnchor),
@@ -125,10 +130,10 @@ extension PlayerViewController {
             hud.fillView.bottomAnchor.constraint(equalTo: hud.fillAreaGuide.bottomAnchor),
             fillHeight,
 
-            hud.iconView.bottomAnchor.constraint(equalTo: hud.container.bottomAnchor, constant: -18),
+            hud.iconView.bottomAnchor.constraint(equalTo: hud.container.bottomAnchor, constant: -18 * hudScale),
             hud.iconView.centerXAnchor.constraint(equalTo: hud.container.centerXAnchor),
-            hud.iconView.widthAnchor.constraint(equalToConstant: 26),
-            hud.iconView.heightAnchor.constraint(equalToConstant: 26)
+            hud.iconView.widthAnchor.constraint(equalToConstant: 26 * hudScale),
+            hud.iconView.heightAnchor.constraint(equalToConstant: 26 * hudScale)
         ])
     }
 
@@ -157,7 +162,11 @@ extension PlayerViewController {
         hud.container.layoutIfNeeded()
 
         let iconName = (clamped == 0 && hud.zeroIcon != nil) ? hud.zeroIcon! : hud.defaultIcon
-        hud.iconView.image = UIImage(systemName: iconName, withConfiguration: UIImage.SymbolConfiguration(pointSize: 22, weight: .semibold))
+        let hudScale: CGFloat = traitCollection.userInterfaceIdiom == .pad ? 1.25 : 1
+        hud.iconView.image = UIImage(
+            systemName: iconName,
+            withConfiguration: UIImage.SymbolConfiguration(pointSize: 22 * hudScale, weight: .semibold)
+        )
 
         if let slashView = hud.slashView {
             UIView.animate(withDuration: 0.15) {
